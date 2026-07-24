@@ -1,0 +1,7 @@
+{
+  "extends": "@sistema-voluntariado/typescript-config/react.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src"]
+}

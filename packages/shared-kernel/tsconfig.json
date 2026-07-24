@@ -1,0 +1,7 @@
+{
+  "extends": "@sistema-voluntariado/typescript-config/base.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src"]
+}
