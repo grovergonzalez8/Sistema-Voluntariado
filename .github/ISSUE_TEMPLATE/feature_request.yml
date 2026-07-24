@@ -1,0 +1,29 @@
+name: Propuesta de funcionalidad
+description: Resultado de negocio, reglas conocidas y preguntas abiertas
+title: 'feat: '
+labels: ['enhancement']
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema y persona afectada
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Resultado observable
+    validations:
+      required: true
+  - type: textarea
+    id: rules
+    attributes:
+      label: Reglas conocidas y desconocidas
+    validations:
+      required: true
+  - type: textarea
+    id: data
+    attributes:
+      label: Datos y permisos involucrados
+    validations:
+      required: true

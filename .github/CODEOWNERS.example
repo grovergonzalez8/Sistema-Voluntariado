@@ -1,0 +1,7 @@
+# Copie este archivo como CODEOWNERS solo después de sustituir los marcadores
+# por equipos o usuarios reales aprobados por el propietario.
+
+* @OWNER_PLACEHOLDER
+/supabase/ @DATABASE_OWNER_PLACEHOLDER @SECURITY_OWNER_PLACEHOLDER
+/apps/web/ @WEB_OWNER_PLACEHOLDER
+/docs/ @DOCUMENTATION_OWNER_PLACEHOLDER

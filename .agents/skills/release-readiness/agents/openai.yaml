@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Release Readiness'
+  short_description: 'Run and summarize repository quality gates'
+  default_prompt: 'Use $release-readiness to verify this branch before it is integrated.'

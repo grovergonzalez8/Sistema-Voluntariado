@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Database Migration Review'
+  short_description: 'Review PostgreSQL migrations and RLS safety'
+  default_prompt: 'Use $database-migration-review to review this migration, its RLS policies, grants, functions, and indexes.'
