@@ -1,6 +1,6 @@
 # ExecPlan 0001: Fundación técnica de Sistema-Voluntariado
 
-- Estado: en ejecución
+- Estado: completado
 - Inicio: 2026-07-23
 - Responsable: agente principal de Codex, con revisión humana obligatoria
 - Rama autorizada: `chore/bootstrap-solid-foundation`
@@ -148,7 +148,8 @@ Solo se crearán directorios que contengan archivos útiles. Los módulos de có
 | 2026-07-23 | Supabase local     | completada | CLI/config, migración, seed, reset, linter SQL y 27 pruebas pgTAP reales completados localmente.                                              |
 | 2026-07-23 | Arquitectura/docs  | completada | Context map, límites, modelo, roles/permisos, amenazas, riesgos, deuda, despliegue y once ADRs documentados antes del vertical slice.         |
 | 2026-07-24 | Vertical slice     | completada | Acceso, sesión, perfil propio, RLS, UI e i18n implementados; unitarias, integración, E2E autenticado y build ejecutados.                      |
-| 2026-07-24 | Gobierno/CI        | en curso   | Agentes, skills, trazabilidad IA, plantillas y workflow añadidos; hallazgos finales corregidos y nueva validación en curso.                   |
+| 2026-07-24 | Gobierno/CI        | completada | Agentes, skills, trazabilidad IA, plantillas y workflow añadidos; hallazgos finales corregidos y gates repetidos.                             |
+| 2026-07-24 | Cierre             | completada | Revisiones especializadas aprobadas, escaneos limpios y seis commits convencionales previos al registro final.                                |
 
 ## Descubrimientos
 
@@ -185,4 +186,46 @@ Solo se crearán directorios que contengan archivos útiles. Los módulos de có
 
 ## Resultado final
 
-Pendiente. Se completará con archivos, comandos, validaciones reales, bloqueos, revisiones y commits al cerrar la ejecución.
+La fundación quedó implementada en la rama autorizada, sin remoto ni push. El workspace reproduce Node `22.18.0`/pnpm `11.9.0`; Supabase local reconstruye el esquema mínimo y el slice autenticado permite leer y actualizar únicamente `display_name` y `preferred_locale` del perfil propio. No se implementaron módulos futuros ni se usaron datos personales reales.
+
+### Validaciones finales
+
+| Comprobación                                                  | Resultado real                                                       |
+| ------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `corepack pnpm install --frozen-lockfile`                     | aprobada; lockfile sin cambios                                       |
+| `corepack pnpm format:check`                                  | aprobada                                                             |
+| `corepack pnpm lint`                                          | aprobada, cero warnings                                              |
+| `corepack pnpm lint:boundaries`                               | aprobada                                                             |
+| `corepack pnpm lint:architecture`                             | aprobada; 4 casos negativos rechazados                               |
+| `corepack pnpm typecheck`                                     | aprobada en 3 paquetes con código TypeScript                         |
+| `corepack pnpm test:unit`                                     | aprobada; 11/11 pruebas web                                          |
+| `corepack pnpm test:integration`                              | aprobada; 2/2 pruebas MSW del adaptador                              |
+| `corepack pnpm build`                                         | aprobada; build Vite de producción                                   |
+| `corepack pnpm db:reset`                                      | aprobada contra Supabase local                                       |
+| `corepack pnpm exec supabase db lint --local --level warning` | aprobada, cero hallazgos                                             |
+| `corepack pnpm db:test`                                       | aprobada 27/27 en dos ejecuciones consecutivas                       |
+| `corepack pnpm test:e2e`                                      | aprobada 2/2 con Auth y PostgreSQL locales                           |
+| `corepack pnpm db:stop`                                       | aprobada; stack detenido y volúmenes locales preservados             |
+| validación de skills                                          | 3/3 válidas con `quick_validate.py` oficial                          |
+| diff, patrones prohibidos y secretos                          | aprobada; sin hallazgos en código/frontend                           |
+| GitHub Actions remoto                                         | no ejecutado: no se configuró remoto ni se hizo push por instrucción |
+
+`pnpm verify` se repitió después de corregir los hallazgos y aprobó formato, lint, probes arquitectónicos, typecheck, unitarias, integración y build.
+
+### Revisiones y correcciones
+
+- `architect`: aprobado después de aislar la caché por actor, generalizar capturas por módulo, ordenar correctamente los descriptores y automatizar cuatro probes negativos.
+- `database_security_reviewer`: aprobado después de negar permisos a cuentas archivadas, aislar pgTAP del historial, usar UUID en auditoría, auditar archivado y enumerar grants administrativos.
+- `qa_reviewer`: aprobado después de cubrir los estados de `ProfilePage`, evitar una promesa rechazada, probar `preferred_locale` contra PostgreSQL y limpiar dependencias duplicadas.
+- `docs_governor`: revisión final registrada después de sincronizar comandos, modelo, caché, deuda, pruebas y trazabilidad.
+
+### Commits previos al registro final
+
+1. `5dc9178 chore: initialize workspace and tooling`
+2. `fdb12db docs: add architecture and governance foundation`
+3. `bd66d9d feat(auth): add identity and permission foundation`
+4. `0191b69 feat(profile): add self-service profile vertical slice`
+5. `7375c50 test: add database and application verification`
+6. `4d9aec9 ci: add repository quality gates`
+
+El commit que contiene este resultado cierra la documentación del bootstrap. No se realizó push ni se creó remoto.

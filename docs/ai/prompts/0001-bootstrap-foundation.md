@@ -3,8 +3,8 @@
 - Fecha: 2026-07-23
 - Objetivo: construir una base técnica segura, mantenible y verificable y demostrarla con un único vertical slice de perfil propio.
 - Herramienta: Codex.
-- Resultado: en ejecución; resultado definitivo en `docs/exec-plans/0001-project-foundation.md`.
-- Commits: pendientes de comprobar identidad Git.
+- Resultado: completado; resultado y validaciones en `docs/exec-plans/0001-project-foundation.md`.
+- Commits: `5dc9178`, `fdb12db`, `bd66d9d`, `0191b69`, `7375c50`, `4d9aec9` y el cierre documental que contiene este registro.
 - Decisiones: Node `22.18.0`, pnpm `11.9.0`, monolito modular, Clean Architecture por módulo, Supabase/PostgreSQL local, RBAC por permisos y RLS.
 - Revisión humana: obligatoria.
 
