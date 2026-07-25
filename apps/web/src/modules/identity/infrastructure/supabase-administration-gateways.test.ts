@@ -53,6 +53,41 @@ describe('Supabase administration gateways', () => {
     expect(result).toMatchObject({ error: { code: 'forbidden' }, ok: false });
   });
 
+  it('keeps origin_denied distinct from account authority', async () => {
+    const invoke = vi.fn(() =>
+      Promise.resolve({
+        data: null,
+        error: {
+          context: new Response(
+            JSON.stringify({
+              code: 'origin_denied',
+              message: 'Origen no autorizado.',
+            }),
+            { status: 403 },
+          ),
+          message: 'Edge Function returned a non-2xx status code',
+        },
+      }),
+    );
+    const client = {
+      functions: { invoke },
+    } as unknown as SupabaseClient<Database>;
+    const gateway = new SupabaseInvitationAdministrationGateway(client);
+
+    const result = await gateway.createInvitation({
+      displayName: null,
+      idempotencyKey: '00000000-0000-4000-8000-000000000053',
+      normalizedEmail: 'origin-denied@example.invalid',
+      preferredLocale: 'es',
+      requestedInitialRoleCode: 'volunteer',
+    });
+
+    expect(result).toMatchObject({
+      error: { code: 'origin-denied' },
+      ok: false,
+    });
+  });
+
   it('returns the committed self-suspension when the follow-up read is denied', async () => {
     const rpc = vi.fn((functionName: string) => {
       if (functionName === 'change_account_status') {

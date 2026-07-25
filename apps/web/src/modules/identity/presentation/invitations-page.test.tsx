@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter } from 'react-router-dom';
@@ -20,17 +20,21 @@ const commandResult = {
   status: 'sent' as const,
 };
 
-const createIdentity = (account: AccountContext): IdentityContextValue => ({
+const createIdentity = (
+  account: AccountContext,
+  signOut: IdentityContextValue['signOut'] = () =>
+    Promise.resolve(success(undefined)),
+  actorId = 'actor-id',
+): IdentityContextValue => ({
+  access: { account, kind: 'active' },
   account,
-  error: null,
   refreshAccountContext: () => Promise.resolve(success(account)),
   signIn: () =>
     Promise.resolve(
-      success({ email: 'administrator@example.invalid', id: 'actor-id' }),
+      success({ email: 'administrator@example.invalid', id: actorId }),
     ),
-  signOut: () => Promise.resolve(success(undefined)),
-  status: 'ready',
-  user: { email: 'administrator@example.invalid', id: 'actor-id' },
+  signOut,
+  user: { email: 'administrator@example.invalid', id: actorId },
 });
 
 const createGateway = () => {
@@ -89,23 +93,46 @@ const renderPage = async (
   permissions: readonly string[],
 ) => {
   const i18n = await createI18n();
+  const signOut = vi.fn(() => Promise.resolve(success(undefined)));
   const account: AccountContext = {
     accountId: '00000000-0000-4000-8000-000000000001',
     authorityVersion: 'v1',
     permissions,
     status: 'active',
   };
-  return render(
+  const service = new InvitationAdministrationService(gateway);
+  const renderTree = (
+    currentAccount: AccountContext,
+    currentSignOut: IdentityContextValue['signOut'],
+    actorId: string,
+  ) => (
     <I18nextProvider i18n={i18n}>
       <MemoryRouter>
-        <IdentityContext.Provider value={createIdentity(account)}>
-          <InvitationsPage
-            service={new InvitationAdministrationService(gateway)}
-          />
+        <IdentityContext.Provider
+          value={createIdentity(currentAccount, currentSignOut, actorId)}
+        >
+          <InvitationsPage service={service} />
         </IdentityContext.Provider>
       </MemoryRouter>
-    </I18nextProvider>,
+    </I18nextProvider>
   );
+  const rendered = render(renderTree(account, signOut, 'actor-id'));
+  return {
+    ...rendered,
+    rerenderIdentity: (
+      actorId: string,
+      currentSignOut: IdentityContextValue['signOut'],
+    ) => {
+      rendered.rerender(
+        renderTree(
+          { ...account, accountId: `account-${actorId}` },
+          currentSignOut,
+          actorId,
+        ),
+      );
+    },
+    signOut,
+  };
 };
 
 describe('InvitationsPage', () => {
@@ -198,6 +225,110 @@ describe('InvitationsPage', () => {
     expect(await screen.findByText('Invitación creada.')).not.toBeNull();
   });
 
+  it('keeps the administrator session and panel after origin_denied', async () => {
+    const user = userEvent.setup();
+    const { createInvitation, gateway } = createGateway();
+    createInvitation.mockResolvedValue(
+      failure({
+        code: 'origin-denied',
+        message: 'Origen no autorizado.',
+      }),
+    );
+    const { signOut } = await renderPage(gateway, ['invitation.create']);
+
+    await user.type(
+      screen.getByLabelText(/Correo electr/i),
+      'origin-denied@example.invalid',
+    );
+    await user.click(screen.getByRole('button', { name: /Crear invitaci/ }));
+
+    expect(
+      await screen.findByText(/El origen local de la aplicaci/),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole('heading', { name: 'Invitaciones' }),
+    ).not.toBeNull();
+    expect(screen.queryByText('Acceso no disponible')).toBeNull();
+    expect(signOut).not.toHaveBeenCalled();
+  });
+
+  it('discards a late create 401 after the authenticated actor changes', async () => {
+    const user = userEvent.setup();
+    const { createInvitation, gateway } = createGateway();
+    let resolveCreate: (
+      value: Awaited<ReturnType<typeof createInvitation>>,
+    ) => void = () => undefined;
+    createInvitation.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCreate = resolve;
+        }),
+    );
+    const view = await renderPage(gateway, ['invitation.create']);
+    const nextActorSignOut = vi.fn(() => Promise.resolve(success(undefined)));
+
+    await screen.findByText('invited-ui@example.invalid');
+    await user.type(
+      screen.getByLabelText(/Correo electr/i),
+      'late-create@example.invalid',
+    );
+    await user.click(screen.getByRole('button', { name: /Crear invitaci/ }));
+    expect(createInvitation).toHaveBeenCalledOnce();
+
+    view.rerenderIdentity('actor-b', nextActorSignOut);
+    act(() => {
+      resolveCreate(
+        failure({ code: 'unauthenticated', message: 'Session expired.' }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(view.signOut).not.toHaveBeenCalled();
+      expect(nextActorSignOut).not.toHaveBeenCalled();
+    });
+    expect(
+      screen.getByRole('heading', { name: 'Invitaciones' }),
+    ).not.toBeNull();
+  });
+
+  it('discards a late administrative action 401 after the actor changes', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { gateway, revokeInvitation } = createGateway();
+    let resolveRevoke: (
+      value: Awaited<ReturnType<typeof revokeInvitation>>,
+    ) => void = () => undefined;
+    revokeInvitation.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRevoke = resolve;
+        }),
+    );
+    const view = await renderPage(gateway, [
+      'invitation.create',
+      'invitation.revoke',
+    ]);
+    const nextActorSignOut = vi.fn(() => Promise.resolve(success(undefined)));
+
+    await user.click(await screen.findByRole('button', { name: 'Revocar' }));
+    expect(revokeInvitation).toHaveBeenCalledOnce();
+
+    view.rerenderIdentity('actor-b', nextActorSignOut);
+    act(() => {
+      resolveRevoke(
+        failure({ code: 'unauthenticated', message: 'Session expired.' }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(view.signOut).not.toHaveBeenCalled();
+      expect(nextActorSignOut).not.toHaveBeenCalled();
+    });
+    expect(
+      screen.getByRole('heading', { name: 'Invitaciones' }),
+    ).not.toBeNull();
+  });
+
   it('renders loading, empty, and safe error list states', async () => {
     let resolveList: (
       value: Awaited<
@@ -225,7 +356,9 @@ describe('InvitationsPage', () => {
         failure({ code: 'forbidden', message: 'Lectura denegada.' }),
       );
     await renderPage(failed, ['invitation.create']);
-    expect(await screen.findByText('Lectura denegada.')).not.toBeNull();
+    expect(
+      await screen.findByText(/No tienes permiso para esta invitaci/),
+    ).not.toBeNull();
   });
 
   it('resends and replaces an open invitation through distinct commands', async () => {

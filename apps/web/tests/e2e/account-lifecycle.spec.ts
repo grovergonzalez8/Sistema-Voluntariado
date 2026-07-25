@@ -323,10 +323,59 @@ test.describe.serial('account lifecycle', () => {
     const invitedEmail = `invited-lifecycle-${suffix}@example.invalid`;
     await signIn(adminPage, 'administrator@example.invalid');
     await adminPage.getByRole('link', { name: 'Invitaciones' }).click();
+
+    const authorityRefetch = adminPage.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().includes('/rest/v1/rpc/get_my_account_context'),
+    );
+    await adminPage.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        value: 'hidden',
+      });
+      window.dispatchEvent(new Event('visibilitychange'));
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        value: 'visible',
+      });
+      window.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect((await authorityRefetch).ok()).toBe(true);
+    await expect(adminPage).toHaveURL(/\/app\/admin\/invitations$/);
+    await expect(adminPage.getByText('Acceso no disponible')).toHaveCount(0);
+
+    const invitationFunction = '**/functions/v1/manage-account-invitation';
+    await adminPage.route(invitationFunction, async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({
+          code: 'origin_denied',
+          message: 'Origen no autorizado.',
+        }),
+        contentType: 'application/json',
+        headers: { 'access-control-allow-origin': 'http://localhost:5173' },
+        status: 403,
+      });
+    });
+    await adminPage
+      .getByLabel(/Correo electr/i)
+      .fill(`origin-denied-${suffix}@example.invalid`);
+    await adminPage.getByRole('button', { name: /Crear invitaci/ }).click();
+    await expect(
+      adminPage.getByText(/El origen local de la aplicaci/),
+    ).toBeVisible();
+    await expect(adminPage).toHaveURL(/\/app\/admin\/invitations$/);
+    await expect(adminPage.getByText('Acceso no disponible')).toHaveCount(0);
+    await adminPage.unrouteAll({ behavior: 'wait' });
+
     await adminPage.getByLabel('Correo electrónico').fill(invitedEmail);
     await adminPage.getByLabel('Nombre visible').fill('Invitado E2E');
     await adminPage.getByLabel('Rol inicial').selectOption('volunteer');
+    const allowedInvitationResponse = adminPage.waitForResponse((response) =>
+      response.url().includes('/manage-account-invitation'),
+    );
     await adminPage.getByRole('button', { name: 'Crear invitación' }).click();
+    expect((await allowedInvitationResponse).status()).toBe(200);
     await expect(adminPage.getByText('Invitación creada.')).toBeVisible();
 
     await expect

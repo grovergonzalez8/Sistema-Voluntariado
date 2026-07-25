@@ -31,6 +31,10 @@ const createGateway = () => ({
   ),
 });
 
+function accessKind(status: AccountStatus) {
+  return status === 'pending_profile' ? 'pending-profile' : status;
+}
+
 async function renderFlow(status: AccountStatus) {
   const i18n = await createI18n();
   const gateway = createGateway();
@@ -42,14 +46,21 @@ async function renderFlow(status: AccountStatus) {
       permissions: [],
       status,
     },
-    error: null,
+    access: {
+      account: {
+        accountId: 'account-id',
+        authorityVersion: '1',
+        permissions: [],
+        status,
+      },
+      kind: accessKind(status),
+    },
     refreshAccountContext,
     signIn: () =>
       Promise.resolve(
         success({ email: 'invited@example.invalid', id: 'actor' }),
       ),
     signOut: () => Promise.resolve(success(undefined)),
-    status: 'ready',
     user: { email: 'invited@example.invalid', id: 'actor' },
   };
   const service = new OnboardingService(gateway);
@@ -107,14 +118,21 @@ describe('onboarding pages', () => {
         permissions: [],
         status: 'pending_profile',
       },
-      error: null,
+      access: {
+        account: {
+          accountId: 'account-id',
+          authorityVersion: '2',
+          permissions: [],
+          status: 'pending_profile',
+        },
+        kind: 'pending-profile',
+      },
       refreshAccountContext,
       signIn: () =>
         Promise.resolve(
           success({ email: 'invited@example.invalid', id: 'actor' }),
         ),
       signOut: () => Promise.resolve(success(undefined)),
-      status: 'ready',
       user: { email: 'invited@example.invalid', id: 'actor' },
     };
     render(

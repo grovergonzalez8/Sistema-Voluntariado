@@ -7,7 +7,7 @@ import {
   type InvitationHandlerDependencies,
 } from './handler';
 
-const origin = 'http://127.0.0.1:5173';
+const origin = 'http://localhost:5173';
 const authorization = 'Bearer test-jwt-not-a-secret';
 const firstId = '30000000-0000-4000-8000-000000000001';
 const secondId = '30000000-0000-4000-8000-000000000002';
@@ -109,6 +109,9 @@ describe('manage-account-invitation handler', () => {
     );
     expect(response.status).toBe(403);
     expect(response.headers.get('access-control-allow-origin')).toBeNull();
+    expect(await responseBody(response)).toMatchObject({
+      code: 'origin_denied',
+    });
   });
 
   it('answers a valid CORS preflight without authenticating', async () => {

@@ -85,14 +85,21 @@ const renderPage = async (
       permissions,
       status: 'active',
     },
-    error: null,
+    access: {
+      account: {
+        accountId: 'actor-account-id',
+        authorityVersion: '1',
+        permissions,
+        status: 'active',
+      },
+      kind: 'active',
+    },
     refreshAccountContext,
     signIn: () =>
       Promise.resolve(
         success({ email: 'actor@example.invalid', id: 'actor-id' }),
       ),
     signOut: () => Promise.resolve(success(undefined)),
-    status: 'ready',
     user: { email: 'actor@example.invalid', id: userId },
   };
   return render(
