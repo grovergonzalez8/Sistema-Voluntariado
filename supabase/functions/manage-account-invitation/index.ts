@@ -173,11 +173,18 @@ function mapDatabaseError(error: unknown): InvitationHttpError {
     'invalid_reason',
   ]);
 
-  if (message === 'permission_denied' || message === 'role_grant_denied') {
+  if (message === 'permission_denied') {
     return new InvitationHttpError(
       403,
       'permission_denied',
       'No tienes permiso para esta operación.',
+    );
+  }
+  if (message === 'role_grant_denied') {
+    return new InvitationHttpError(
+      403,
+      'role_grant_denied',
+      'No puedes conceder el rol solicitado.',
     );
   }
   if (safeConflictCodes.has(message)) {

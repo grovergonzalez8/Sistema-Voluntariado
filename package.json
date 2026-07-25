@@ -24,7 +24,7 @@
     "test:integration": "turbo run test:integration",
     "test:functions": "corepack pnpm --filter @sistema-voluntariado/web test:functions",
     "test:e2e": "corepack pnpm --filter @sistema-voluntariado/web test:e2e",
-    "functions:serve": "supabase functions serve manage-account-invitation --no-verify-jwt --env-file supabase/functions/.env.example",
+    "functions:serve": "node scripts/serve-local-function.mjs",
     "account-lifecycle:test": "corepack pnpm test:functions && corepack pnpm db:reset && corepack pnpm exec supabase db lint --local --level warning && corepack pnpm db:test && corepack pnpm test:e2e",
     "db:start": "supabase start",
     "db:stop": "supabase stop",
