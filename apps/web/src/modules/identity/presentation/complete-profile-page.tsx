@@ -6,6 +6,11 @@ import { z } from 'zod';
 import { Button, Field } from '@sistema-voluntariado/ui';
 
 import type { OnboardingService } from '../application/onboarding-service';
+import {
+  AuthorityLoadingPage,
+  AuthorityRecoveryPage,
+  ForbiddenAccessPage,
+} from './account-access-route';
 import { useIdentity } from './identity-context';
 
 const profileSchema = z.object({
@@ -52,12 +57,24 @@ export function CompleteProfilePage({
     setSubmitting(false);
   };
 
-  if (identity.account?.status === 'active') {
-    return <NavigateAfterActivation />;
-  }
-
-  if (identity.account?.status !== 'pending_profile') {
-    return <Navigate replace to="/account-blocked" />;
+  switch (identity.access.kind) {
+    case 'active':
+      return <NavigateAfterActivation />;
+    case 'pending-profile':
+      break;
+    case 'suspended':
+    case 'archived':
+      return <Navigate replace to="/account-blocked" />;
+    case 'recoverable-error':
+      return <AuthorityRecoveryPage />;
+    case 'forbidden':
+      return <ForbiddenAccessPage />;
+    case 'initializing':
+    case 'loading-authority':
+    case 'unauthenticated':
+      return <AuthorityLoadingPage />;
+    case 'invited':
+      return <Navigate replace to="/invite/accept" />;
   }
 
   return (

@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type SyntheticEvent,
@@ -8,6 +9,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
+import type { AppError } from '@sistema-voluntariado/shared-kernel';
 import { Button, Field } from '@sistema-voluntariado/ui';
 
 import type { InvitationAdministrationService } from '../application/invitation-administration-service';
@@ -23,7 +25,40 @@ const allInitialRoles = [
   'administrator',
 ] as const;
 
+function getInvitationErrorMessage(
+  error: AppError,
+  translate: (key: string) => string,
+): string {
+  switch (error.code) {
+    case 'network':
+      return translate('invitations.errors.network');
+    case 'origin-denied':
+      return translate('invitations.errors.originDenied');
+    case 'forbidden':
+      return translate('invitations.errors.permissionDenied');
+    case 'role-not-grantable':
+      return translate('invitations.errors.roleNotGrantable');
+    case 'server':
+      return translate('invitations.errors.server');
+    case 'unauthenticated':
+      return translate('invitations.errors.sessionExpired');
+    default:
+      return error.message;
+  }
+}
+
 export function InvitationsPage({
+  service,
+}: {
+  readonly service: InvitationAdministrationService;
+}) {
+  const identity = useIdentity();
+  const identityScope = `${identity.user?.id ?? 'anonymous'}:${identity.account?.authorityVersion ?? 'unknown'}`;
+
+  return <ScopedInvitationsPage key={identityScope} service={service} />;
+}
+
+function ScopedInvitationsPage({
   service,
 }: {
   readonly service: InvitationAdministrationService;
@@ -39,11 +74,13 @@ export function InvitationsPage({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
   const createIdempotencyKeys = useRef(new Map<string, string>());
   const actionIdempotencyKeys = useRef(new Map<string, string>());
   const requestGeneration = useRef(0);
+  const operationGeneration = useRef(0);
   const identity = useIdentity();
+  const { signOut } = identity;
   const { t } = useTranslation();
   const canResend =
     identity.account?.permissions.includes('invitation.resend') ?? false;
@@ -62,34 +99,40 @@ export function InvitationsPage({
       setInvitations(result.value);
       setError(null);
     } else {
-      setError(result.error.message);
+      setError(result.error);
+      if (result.error.code === 'unauthenticated') void signOut();
     }
     setLoading(false);
-  }, [service]);
+  }, [service, signOut]);
+
+  useLayoutEffect(
+    () => () => {
+      requestGeneration.current += 1;
+      operationGeneration.current += 1;
+      createIdempotencyKeys.current.clear();
+      actionIdempotencyKeys.current.clear();
+    },
+    [],
+  );
 
   useEffect(() => {
     const generation = ++requestGeneration.current;
-    const createKeys = createIdempotencyKeys.current;
-    const actionKeys = actionIdempotencyKeys.current;
     void service.listInvitations().then((result) => {
       if (generation !== requestGeneration.current) return;
       if (result.ok) {
         setInvitations(result.value);
         setError(null);
       } else {
-        setError(result.error.message);
+        setError(result.error);
+        if (result.error.code === 'unauthenticated') void signOut();
       }
       setLoading(false);
     });
-    return () => {
-      requestGeneration.current += 1;
-      createKeys.clear();
-      actionKeys.clear();
-    };
-  }, [service]);
+  }, [service, signOut]);
 
   const create = async (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const generation = operationGeneration.current;
     setSubmitting(true);
     setError(null);
     setMessage(null);
@@ -109,6 +152,7 @@ export function InvitationsPage({
       preferredLocale: locale,
       requestedInitialRoleCode: role,
     });
+    if (generation !== operationGeneration.current) return;
     if (result.ok) {
       createIdempotencyKeys.current.delete(fingerprint);
       setEmail('');
@@ -116,8 +160,10 @@ export function InvitationsPage({
       setMessage(t('invitations.created'));
       await load();
     } else {
-      setError(result.error.message);
+      setError(result.error);
+      if (result.error.code === 'unauthenticated') await signOut();
     }
+    if (generation !== operationGeneration.current) return;
     setSubmitting(false);
   };
 
@@ -126,6 +172,7 @@ export function InvitationsPage({
     operation: 'replace' | 'resend' | 'revoke',
   ) => {
     if (!window.confirm(t(`invitations.confirm.${operation}`))) return;
+    const generation = operationGeneration.current;
     setSubmitting(true);
     const actionKey = `${operation}:${invitation.id}`;
     const idempotencyKey =
@@ -143,14 +190,17 @@ export function InvitationsPage({
             idempotencyKey,
             invitationId: invitation.id,
           });
+    if (generation !== operationGeneration.current) return;
     if (result.ok) {
       actionIdempotencyKeys.current.delete(actionKey);
       setMessage(t('invitations.actionCompleted'));
       setError(null);
       await load();
     } else {
-      setError(result.error.message);
+      setError(result.error);
+      if (result.error.code === 'unauthenticated') await signOut();
     }
+    if (generation !== operationGeneration.current) return;
     setSubmitting(false);
   };
 
@@ -225,7 +275,11 @@ export function InvitationsPage({
           value={reason}
         />
       ) : null}
-      {error ? <p className="notice notice--error">{error}</p> : null}
+      {error ? (
+        <p className="notice notice--error">
+          {getInvitationErrorMessage(error, t)}
+        </p>
+      ) : null}
       {message ? <p className="notice notice--success">{message}</p> : null}
       {loading ? <p role="status">{t('common.loading')}</p> : null}
       {!loading && invitations.length === 0 ? (

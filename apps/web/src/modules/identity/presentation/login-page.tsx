@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { Button, Field } from '@sistema-voluntariado/ui';
 
 import { useIdentity } from './identity-context';
+import { AuthorityLoadingPage } from './account-access-route';
 
 const loginSchema = z
   .object({
@@ -32,7 +33,9 @@ export function LoginPage() {
     resolver: zodResolver(loginSchema),
   });
 
-  if (identity.status === 'ready' && identity.user) {
+  if (identity.access.kind === 'initializing') return <AuthorityLoadingPage />;
+
+  if (identity.user) {
     return <Navigate replace to="/app/profile" />;
   }
 

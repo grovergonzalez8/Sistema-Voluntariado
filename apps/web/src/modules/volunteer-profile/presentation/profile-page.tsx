@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
@@ -41,7 +41,9 @@ export function ProfilePage({
 }: ProfilePageProps) {
   const { i18n, t } = useTranslation();
   const queryClient = useQueryClient();
-  const currentAuthority = useRef(authorityVersion);
+  const identityScope = `${actorId}:${authorityVersion}`;
+  const currentIdentityScope = useRef(identityScope);
+  const operationGeneration = useRef(0);
   const profileQueryKey = getProfileQueryKey(actorId, authorityVersion);
   const profileQuery = useQuery({
     queryFn: () => unwrapResult(service.getOwnProfile()),
@@ -58,13 +60,21 @@ export function ProfilePage({
   });
   const updateProfile = useMutation({
     mutationFn: (input: {
+      readonly actorId: string;
       readonly authorityVersion: string;
+      readonly generation: number;
+      readonly identityScope: string;
       readonly values: ProfileFormValues;
     }) => unwrapResult(service.updateOwnProfile(input.values)),
     onSuccess: (profile, input) => {
-      if (input.authorityVersion !== currentAuthority.current) return;
+      if (
+        input.generation !== operationGeneration.current ||
+        input.identityScope !== currentIdentityScope.current
+      ) {
+        return;
+      }
       queryClient.setQueryData(
-        getProfileQueryKey(actorId, input.authorityVersion),
+        getProfileQueryKey(input.actorId, input.authorityVersion),
         profile,
       );
       reset({
@@ -75,9 +85,14 @@ export function ProfilePage({
     },
   });
 
-  useEffect(() => {
-    currentAuthority.current = authorityVersion;
-  }, [authorityVersion]);
+  useLayoutEffect(() => {
+    currentIdentityScope.current = identityScope;
+    operationGeneration.current += 1;
+
+    return () => {
+      operationGeneration.current += 1;
+    };
+  }, [identityScope]);
 
   useEffect(() => {
     if (profileQuery.data) {
@@ -116,10 +131,6 @@ export function ProfilePage({
     );
   }
 
-  const onSubmit = handleSubmit((values) => {
-    updateProfile.mutate({ authorityVersion, values });
-  });
-
   return (
     <section aria-labelledby="profile-title" className="panel profile-panel">
       <div>
@@ -132,7 +143,16 @@ export function ProfilePage({
         className="stack"
         noValidate
         onSubmit={(event) => {
-          void onSubmit(event);
+          const submit = handleSubmit((values) => {
+            updateProfile.mutate({
+              actorId,
+              authorityVersion,
+              generation: operationGeneration.current,
+              identityScope,
+              values,
+            });
+          });
+          void submit(event);
         }}
       >
         <Field

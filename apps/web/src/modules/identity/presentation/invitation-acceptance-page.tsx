@@ -5,6 +5,11 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@sistema-voluntariado/ui';
 
 import type { OnboardingService } from '../application/onboarding-service';
+import {
+  AuthorityLoadingPage,
+  AuthorityRecoveryPage,
+  ForbiddenAccessPage,
+} from './account-access-route';
 import { useIdentity } from './identity-context';
 
 export function InvitationAcceptancePage({
@@ -18,14 +23,24 @@ export function InvitationAcceptancePage({
   const navigate = useNavigate();
   const { t } = useTranslation();
 
-  if (identity.account?.status === 'pending_profile') {
-    return <Navigate replace to="/app/complete-profile" />;
-  }
-  if (identity.account?.status === 'active') {
-    return <Navigate replace to="/app/profile" />;
-  }
-  if (identity.account?.status !== 'invited') {
-    return <Navigate replace to="/account-blocked" />;
+  switch (identity.access.kind) {
+    case 'pending-profile':
+      return <Navigate replace to="/app/complete-profile" />;
+    case 'active':
+      return <Navigate replace to="/app/profile" />;
+    case 'invited':
+      break;
+    case 'suspended':
+    case 'archived':
+      return <Navigate replace to="/account-blocked" />;
+    case 'recoverable-error':
+      return <AuthorityRecoveryPage />;
+    case 'forbidden':
+      return <ForbiddenAccessPage />;
+    case 'initializing':
+    case 'loading-authority':
+    case 'unauthenticated':
+      return <AuthorityLoadingPage />;
   }
 
   const accept = async () => {

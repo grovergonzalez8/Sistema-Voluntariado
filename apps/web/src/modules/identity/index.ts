@@ -84,11 +84,20 @@ export { SupabaseInvitationAdministrationGateway } from './infrastructure/supaba
 export { SupabaseOnboardingGateway } from './infrastructure/supabase-onboarding-gateway';
 export { IdentityProvider } from './presentation/identity-provider';
 export {
+  accountContextQueryRoot,
+  getAccountContextQueryKey,
+  isAccountContextQueryForActor,
+} from './presentation/account-context-query';
+export {
   IdentityContext,
+  type IdentityAccessState,
   type IdentityContextValue,
 } from './presentation/identity-context';
 export {
   AccountBlockedPage,
+  AuthorityLoadingPage,
+  AuthorityRecoveryPage,
+  ForbiddenAccessPage,
   OperationalAccountRoute,
   PermissionRoute,
 } from './presentation/account-access-route';

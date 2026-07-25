@@ -1,3 +1,4 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   useCallback,
   useEffect,
@@ -7,15 +8,48 @@ import {
   type PropsWithChildren,
 } from 'react';
 
+import {
+  AppResultError,
+  failure,
+  success,
+  type Result,
+} from '@sistema-voluntariado/shared-kernel';
+
 import type { AccountContextService } from '../application/account-context-service';
-import type { AuthenticatedUser } from '../domain/authenticated-user';
-import type { AccountContext } from '../domain/account-administration';
 import type { IdentityService } from '../application/identity-service';
-import { IdentityContext, type IdentityContextValue } from './identity-context';
+import type { AccountContext } from '../domain/account-administration';
+import type { AuthenticatedUser } from '../domain/authenticated-user';
+import { getAccountContextQueryKey } from './account-context-query';
+import {
+  IdentityContext,
+  type IdentityAccessState,
+  type IdentityContextValue,
+} from './identity-context';
 
 interface IdentityProviderProps extends PropsWithChildren {
   readonly accountService: AccountContextService;
   readonly service: IdentityService;
+}
+
+const disabledAccountContextKey = [
+  'identity',
+  'account-context',
+  'unauthenticated',
+] as const;
+
+function accessForAccount(account: AccountContext): IdentityAccessState {
+  switch (account.status) {
+    case 'active':
+      return { account, kind: 'active' };
+    case 'archived':
+      return { account, kind: 'archived' };
+    case 'invited':
+      return { account, kind: 'invited' };
+    case 'pending_profile':
+      return { account, kind: 'pending-profile' };
+    case 'suspended':
+      return { account, kind: 'suspended' };
+  }
 }
 
 export function IdentityProvider({
@@ -23,75 +57,152 @@ export function IdentityProvider({
   children,
   service,
 }: IdentityProviderProps) {
-  const [user, setUser] = useState<AuthenticatedUser | null>(null);
-  const [account, setAccount] = useState<AccountContext | null>(null);
-  const [status, setStatus] = useState<'loading' | 'ready'>('loading');
-  const [error, setError] = useState<string | null>(null);
-  const actorGeneration = useRef(0);
+  const queryClient = useQueryClient();
+  const [userState, setUserState] = useState<
+    AuthenticatedUser | null | undefined
+  >(undefined);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const authEventGeneration = useRef(0);
   const actorId = useRef<string | null>(null);
-  const contextRequest = useRef(0);
+  const currentActorId = userState?.id ?? null;
+
+  const loadAccountContext = useCallback(async () => {
+    const result = await accountService.getCurrentAccountContext();
+    if (!result.ok) throw new AppResultError(result.error);
+    return result.value;
+  }, [accountService]);
+
+  const accountQuery = useQuery<AccountContext | null, AppResultError>({
+    enabled: currentActorId !== null,
+    gcTime: 5 * 60_000,
+    queryFn: loadAccountContext,
+    queryKey: currentActorId
+      ? getAccountContextQueryKey(currentActorId)
+      : disabledAccountContextKey,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    retry: 1,
+    staleTime: 0,
+  });
+
+  const removeActorAuthority = useCallback(
+    (previousActorId: string) => {
+      const queryKey = getAccountContextQueryKey(previousActorId);
+      void queryClient.cancelQueries({ exact: true, queryKey }).finally(() => {
+        queryClient.removeQueries({ exact: true, queryKey });
+      });
+    },
+    [queryClient],
+  );
+
+  const applyActor = useCallback(
+    (nextUser: AuthenticatedUser | null): boolean => {
+      const nextActorId = nextUser?.id ?? null;
+      const previousActorId = actorId.current;
+      if (previousActorId === nextActorId) {
+        setUserState(nextUser);
+        setSessionError(null);
+        return false;
+      }
+
+      actorId.current = nextActorId;
+      if (previousActorId) removeActorAuthority(previousActorId);
+      setUserState(nextUser);
+      setSessionError(null);
+      return true;
+    },
+    [removeActorAuthority],
+  );
+
+  const fetchAccountContextFor = useCallback(
+    async (
+      requestedActorId: string,
+    ): Promise<Result<AccountContext | null>> => {
+      try {
+        const account = await queryClient.fetchQuery({
+          queryFn: loadAccountContext,
+          queryKey: getAccountContextQueryKey(requestedActorId),
+          staleTime: 0,
+        });
+        return success(account);
+      } catch (error) {
+        return error instanceof AppResultError
+          ? failure(error.appError)
+          : failure({
+              code: 'unexpected',
+              message: 'No fue posible verificar la autoridad actual.',
+            });
+      }
+    },
+    [loadAccountContext, queryClient],
+  );
 
   const refreshAccountContext = useCallback(async () => {
     const requestedActorId = actorId.current;
-    const requestedGeneration = actorGeneration.current;
-    const requestedContext = ++contextRequest.current;
-    const result = await accountService.getCurrentAccountContext();
-    if (
-      requestedActorId !== actorId.current ||
-      requestedGeneration !== actorGeneration.current ||
-      requestedContext !== contextRequest.current
-    ) {
-      return result;
+    if (!requestedActorId) {
+      return failure({
+        code: 'unauthenticated',
+        message: 'Debes iniciar sesión.',
+      });
     }
+    return fetchAccountContextFor(requestedActorId);
+  }, [fetchAccountContextFor]);
 
-    if (result.ok) {
-      setAccount(result.value);
-      setError(null);
-    } else {
-      setAccount(null);
-      setError(result.error.message);
-    }
+  const signIn = useCallback<IdentityContextValue['signIn']>(
+    async (credentials) => {
+      const generation = authEventGeneration.current;
+      const result = await service.signIn(credentials);
+      if (generation !== authEventGeneration.current) return result;
+      if (!result.ok) {
+        setSessionError(result.error.message);
+        return result;
+      }
+
+      applyActor(result.value);
+      await fetchAccountContextFor(result.value.id);
+      return result;
+    },
+    [applyActor, fetchAccountContextFor, service],
+  );
+
+  const signOut = useCallback<IdentityContextValue['signOut']>(async () => {
+    const generation = authEventGeneration.current;
+    const result = await service.signOut();
+    if (generation !== authEventGeneration.current) return result;
+    if (result.ok) applyActor(null);
+    else setSessionError(result.error.message);
     return result;
-  }, [accountService]);
+  }, [applyActor, service]);
 
   useEffect(() => {
     let active = true;
-    const initialGeneration = actorGeneration.current;
-    const applyActor = (nextUser: AuthenticatedUser | null) => {
-      const generation = ++actorGeneration.current;
-      contextRequest.current += 1;
-      actorId.current = nextUser?.id ?? null;
-      setUser(nextUser);
-      setAccount(null);
-      setError(null);
-      if (!nextUser) {
-        setStatus('ready');
+    const initialGeneration = authEventGeneration.current;
+    const unsubscribe = service.onAuthStateChange((change) => {
+      if (!active) return;
+      authEventGeneration.current += 1;
+      if (change.event === 'signed-out' || !change.user) {
+        applyActor(null);
         return;
       }
 
-      setStatus('loading');
-      void refreshAccountContext().finally(() => {
-        if (active && actorGeneration.current === generation) {
-          setStatus('ready');
-        }
-      });
-    };
-    const unsubscribe = service.onAuthStateChange((nextUser) => {
-      if (active) applyActor(nextUser);
+      const changedActor = applyActor(change.user);
+      if (!changedActor) {
+        void queryClient.invalidateQueries({
+          exact: true,
+          queryKey: getAccountContextQueryKey(change.user.id),
+          refetchType: 'active',
+        });
+      }
     });
 
     void service.getCurrentUser().then((result) => {
-      if (!active || actorGeneration.current !== initialGeneration) return;
-
+      if (!active || authEventGeneration.current !== initialGeneration) return;
       if (result.ok) {
         applyActor(result.value);
       } else {
-        actorGeneration.current += 1;
-        contextRequest.current += 1;
         actorId.current = null;
-        setAccount(null);
-        setError(result.error.message);
-        setStatus('ready');
+        setUserState(null);
+        setSessionError(result.error.message);
       }
     });
 
@@ -99,67 +210,63 @@ export function IdentityProvider({
       active = false;
       unsubscribe();
     };
-  }, [refreshAccountContext, service]);
+  }, [applyActor, queryClient, service]);
 
   useEffect(() => {
-    if (!user) return undefined;
+    if (accountQuery.error?.appError.code === 'unauthenticated') {
+      applyActor(null);
+    }
+  }, [accountQuery.error, applyActor]);
 
-    const refresh = () => {
-      void refreshAccountContext();
-    };
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === 'visible') refresh();
-    };
-    const intervalId = window.setInterval(refresh, 30_000);
-    window.addEventListener('focus', refresh);
-    document.addEventListener('visibilitychange', refreshWhenVisible);
+  const account = currentActorId ? (accountQuery.data ?? null) : null;
 
-    return () => {
-      window.clearInterval(intervalId);
-      window.removeEventListener('focus', refresh);
-      document.removeEventListener('visibilitychange', refreshWhenVisible);
-    };
-  }, [refreshAccountContext, user]);
+  const access = useMemo<IdentityAccessState>(() => {
+    if (userState === undefined) return { kind: 'initializing' };
+    if (!userState) {
+      return sessionError
+        ? {
+            account: null,
+            kind: 'recoverable-error',
+            message: sessionError,
+          }
+        : { kind: 'unauthenticated' };
+    }
+    if (accountQuery.error) {
+      return accountQuery.error.appError.code === 'unauthenticated'
+        ? { kind: 'unauthenticated' }
+        : {
+            account,
+            kind: 'recoverable-error',
+            message: accountQuery.error.appError.message,
+          };
+    }
+    if (accountQuery.isPending) {
+      return { account, kind: 'loading-authority' };
+    }
+    if (!account) return { kind: 'forbidden' };
+    if (accountQuery.isFetching) {
+      return { account, kind: 'loading-authority' };
+    }
+    return accessForAccount(account);
+  }, [
+    account,
+    accountQuery.error,
+    accountQuery.isFetching,
+    accountQuery.isPending,
+    sessionError,
+    userState,
+  ]);
 
   const value = useMemo<IdentityContextValue>(
     () => ({
+      access,
       account,
-      error,
       refreshAccountContext,
-      signIn: async (credentials) => {
-        const result = await service.signIn(credentials);
-        if (result.ok) {
-          const generation = ++actorGeneration.current;
-          contextRequest.current += 1;
-          actorId.current = result.value.id;
-          setUser(result.value);
-          setError(null);
-          setStatus('loading');
-          await refreshAccountContext();
-          if (actorGeneration.current === generation) setStatus('ready');
-        } else {
-          setError(result.error.message);
-        }
-        return result;
-      },
-      signOut: async () => {
-        const result = await service.signOut();
-        if (result.ok) {
-          actorGeneration.current += 1;
-          contextRequest.current += 1;
-          actorId.current = null;
-          setUser(null);
-          setAccount(null);
-          setError(null);
-        } else {
-          setError(result.error.message);
-        }
-        return result;
-      },
-      status,
-      user,
+      signIn,
+      signOut,
+      user: userState ?? null,
     }),
-    [account, error, refreshAccountContext, service, status, user],
+    [access, account, refreshAccountContext, signIn, signOut, userState],
   );
 
   return (

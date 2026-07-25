@@ -70,6 +70,12 @@ async function parseFunctionFailure<T>(error: unknown): Promise<Result<T>> {
       return supabaseFailure({ message: 'unexpected' });
     }
   }
+  if (isRecord(error) && error['name'] === 'FunctionsFetchError') {
+    return supabaseFailure({ message: 'network_error' });
+  }
+  if (isRecord(error) && error['name'] === 'FunctionsRelayError') {
+    return supabaseFailure({ message: 'server_error' });
+  }
   return supabaseFailure({ message: 'unexpected' });
 }
 

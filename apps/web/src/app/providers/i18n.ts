@@ -7,8 +7,15 @@ const sharedEnglish = {
     archived: 'This account is archived and has no operational access.',
     blockedTitle: 'Access unavailable',
     eyebrow: 'Account access',
+    forbiddenDescription:
+      'Your active account does not have permission for this feature.',
+    forbiddenTitle: 'Access denied',
     invited: 'Finish accepting your invitation to continue.',
+    loadingAuthority: 'Refreshing account access…',
     pending_profile: 'Complete your profile to activate the account.',
+    recoveryDescription:
+      'Account access could not be refreshed. Your session is still active.',
+    recoveryTitle: 'Account access needs to be refreshed',
     suspended: 'This account is suspended. Contact an administrator.',
     unavailable: 'This identity does not have an authorized account.',
   },
@@ -80,6 +87,15 @@ const sharedEnglish = {
     description: 'Create and track invitations within your authority.',
     detailTitle: 'Invitation detail',
     empty: 'There are no invitations in your authorized scope.',
+    errors: {
+      network: 'The invitation service could not be reached. Try again.',
+      originDenied:
+        'This local application origin is not authorized for invitations.',
+      permissionDenied: 'You do not have permission for this invitation.',
+      roleNotGrantable: 'You cannot grant the requested role.',
+      server: 'The invitation service is temporarily unavailable.',
+      sessionExpired: 'Your session is no longer valid. Sign in again.',
+    },
     expires: 'Expires',
     initialRole: 'Initial role',
     locale: 'Language',
@@ -126,8 +142,15 @@ const sharedSpanish = {
     archived: 'Esta cuenta está archivada y no tiene acceso operativo.',
     blockedTitle: 'Acceso no disponible',
     eyebrow: 'Acceso de cuenta',
+    forbiddenDescription:
+      'Tu cuenta activa no tiene permiso para esta funcionalidad.',
+    forbiddenTitle: 'Acceso denegado',
     invited: 'Termina de aceptar la invitación para continuar.',
+    loadingAuthority: 'Actualizando acceso de cuenta…',
     pending_profile: 'Completa tu perfil para activar la cuenta.',
+    recoveryDescription:
+      'No fue posible actualizar el acceso. Tu sesión continúa activa.',
+    recoveryTitle: 'Es necesario actualizar el acceso de cuenta',
     suspended: 'Esta cuenta está suspendida. Contacta a administración.',
     unavailable: 'Esta identidad no tiene una cuenta autorizada.',
   },
@@ -199,6 +222,16 @@ const sharedSpanish = {
     description: 'Crea y consulta invitaciones dentro de tu autoridad.',
     detailTitle: 'Detalle de invitación',
     empty: 'No hay invitaciones en tu alcance autorizado.',
+    errors: {
+      network:
+        'No fue posible conectar con el servicio de invitaciones. Reintenta.',
+      originDenied:
+        'El origen local de la aplicación no está autorizado para invitaciones.',
+      permissionDenied: 'No tienes permiso para esta invitación.',
+      roleNotGrantable: 'No puedes conceder el rol solicitado.',
+      server: 'El servicio de invitaciones no está disponible temporalmente.',
+      sessionExpired: 'Tu sesión ya no es válida. Inicia sesión de nuevo.',
+    },
     expires: 'Vence',
     initialRole: 'Rol inicial',
     locale: 'Idioma',

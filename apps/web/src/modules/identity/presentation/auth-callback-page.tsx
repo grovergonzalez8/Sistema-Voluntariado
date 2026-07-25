@@ -10,11 +10,11 @@ export function AuthCallbackPage() {
   const { t } = useTranslation();
 
   useEffect(() => {
-    if (identity.status !== 'ready') return;
+    if (identity.access.kind === 'initializing') return;
     void navigate(identity.user ? '/invite/accept' : '/login', {
       replace: true,
     });
-  }, [identity.status, identity.user, navigate]);
+  }, [identity.access.kind, identity.user, navigate]);
 
   return (
     <main className="centered-status" role="status">
