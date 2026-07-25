@@ -1,6 +1,12 @@
 export type AppErrorCode =
+  | 'account-blocked'
   | 'configuration'
+  | 'conflict'
   | 'forbidden'
+  | 'invitation-expired'
+  | 'invitation-revoked'
+  | 'invitation-superseded'
+  | 'invitation-used'
   | 'not-found'
   | 'unexpected'
   | 'unauthenticated'

@@ -442,6 +442,7 @@ No se afirmará atomicidad distribuida. La clave de idempotencia evita reservas 
 | 2026-07-24 | Planificación        | completada | prompt íntegro y ExecPlan aprobados antes del código/SQL/UI                                                       |
 | 2026-07-24 | Revisión del plan    | completada | cuatro NO-GO iniciales corregidos; architect/domain/database/QA emitieron GO explícito                            |
 | 2026-07-24 | Spike Auth/Mailpit   | parcial    | create/resend/reconcile ACK: dos correos y una identidad; expiry pasa al gate de Edge Function                    |
+| 2026-07-24 | Dominio/aplicación   | completada | 42 unitarias, typecheck, lint de límites y 4 probes arquitectónicos aprobados                                     |
 
 ## Descubrimientos
 
@@ -484,7 +485,16 @@ Pendiente. No se marcará completado hasta ejecutar validaciones finales, resolv
 
 ## Validaciones ejecutadas
 
-La tabla de línea base contiene la evidencia inicial. Cada fase agregará aquí comandos y resultados frescos; una comprobación no ejecutada se marcará explícitamente como tal.
+La tabla de línea base contiene la evidencia inicial. Validaciones incrementales adicionales:
+
+| Fase               | Comando                                                      | Resultado                     |
+| ------------------ | ------------------------------------------------------------ | ----------------------------- |
+| Dominio/aplicación | `corepack pnpm --filter @sistema-voluntariado/web test:unit` | aprobada; 42/42               |
+| Dominio/aplicación | `corepack pnpm typecheck`                                    | aprobada; 3 tareas TypeScript |
+| Dominio/aplicación | `corepack pnpm lint:boundaries`                              | aprobada; cero hallazgos      |
+| Dominio/aplicación | `corepack pnpm lint:architecture`                            | aprobada; 4 probes negativos  |
+
+Cada fase posterior agregará comandos y resultados frescos; una comprobación no ejecutada se marcará explícitamente como tal.
 
 ## Riesgos pendientes
 
