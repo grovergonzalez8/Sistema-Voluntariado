@@ -16,13 +16,14 @@ Proyecto privado y sin licencia definitiva. No se permite redistribución hasta 
 
 ```powershell
 Copy-Item .env.example .env.local
+Copy-Item supabase/functions/.env.example supabase/functions/.env.local
 corepack pnpm install --frozen-lockfile
 corepack pnpm db:start
 corepack pnpm db:reset
 corepack pnpm exec supabase status
 ```
 
-Después de iniciar Supabase, complete `.env.local` con la URL y la clave `anon` locales mostradas por la CLI. No copie `service_role` al frontend ni confirme archivos de entorno. `functions:serve` usa las credenciales de servidor que inyecta la CLI y `supabase/functions/.env.example` define `APP_ORIGIN` y la allowlist `ALLOWED_ORIGINS` locales.
+Después de iniciar Supabase, complete `.env.local` con la URL y la clave `anon` locales mostradas por la CLI. No copie `service_role` al frontend ni confirme archivos de entorno. `supabase/functions/.env.example` es solo una plantilla versionada: `functions:serve` exige la copia ignorada `supabase/functions/.env.local`, valida `APP_ORIGIN` y `ALLOWED_ORIGINS`, y no admite comodines como solución local. La configuración predeterminada autoriza exactamente `http://localhost:5173`.
 
 Mantenga dos terminales adicionales abiertas. En la segunda, sirva la Edge Function:
 

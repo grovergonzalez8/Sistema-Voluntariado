@@ -1,6 +1,6 @@
 # ExecPlan 0002: Invitaciones y ciclo de vida de cuentas
 
-- Estado: completado
+- Estado: hito y corrección de regresión completados
 - Inicio: 2026-07-24
 - Cierre: 2026-07-25
 - Responsable: agente principal de Codex, con revisión humana obligatoria
@@ -236,7 +236,7 @@ El correo autorizado de cuentas, incluidas las migradas, no se duplica en `accou
 11. La Edge Function validará método, Content-Type, origen permitido, JSON estricto, JWT, cuenta activa, permiso y política antes de construir el cliente administrativo.
 12. Las respuestas serán tipadas y seguras; no incluirán stack traces, secretos ni detalles internos.
 13. Redirects se limitarán a rutas locales exactas aprobadas; no se aceptará destino arbitrario del navegador.
-14. Todas las claves TanStack Query sensibles incluirán actor y `authority_version`. Al cambiar actor se cancelan operaciones y `queryClient.clear()`. Al cambiar autoridad se conserva/refetchea solo la consulta de contexto, se eliminan las demás consultas sensibles y las mutaciones capturan la versión para descartar respuestas obsoletas.
+14. Las claves TanStack Query sensibles incluyen actor y, cuando ya se conoce, `authority_version`. La consulta especial que obtiene `get_my_account_context` usa únicamente `user_id`, porque es la fuente de `authority_version`; esta excepción sustituye la regla anterior para esa clave. Al cambiar actor se cancelan y eliminan las consultas del actor anterior sin borrar la nueva clave; al cambiar autoridad se conserva/refetchea solo la consulta de contexto, se eliminan las demás consultas sensibles y las mutaciones capturan la versión para descartar respuestas obsoletas.
 15. Motivos administrativos se normalizan y exigen 3–500 caracteres para suspender, archivar y reactivar. Aceptación y activación registran códigos de sistema `invitation.accepted` y `profile.completed`.
 16. Las acciones de auditoría conservarán el formato con punto del constraint actual (`invitation.created`, `account.suspended`, `role.assigned`, etc.). `changed_fields` tendrá una allowlist no vacía; metadata JSON, si se añade, tendrá claves tipadas (`reason_code`, `provider_error_code`) y nunca texto libre, correo o valores personales.
 
@@ -538,3 +538,60 @@ Cada fase posterior agregará comandos y resultados frescos; una comprobación n
 - Suspensión/archivo bloquean PostgreSQL y el E2E confirma redirección durante una sesión, pero no existe invalidación criptográfica global de refresh tokens.
 - El backfill se ejecuta en la migración, pero `db:reset` aplica migraciones antes del seed y no simula por sí solo una base 0001 poblada; una prueba de upgrade dedicada sigue siendo recomendable antes de producción.
 - Revisión humana obligatoria antes de cualquier uso fuera del entorno local.
+
+## Apéndice correctivo 2026-07-25: sesión y autoridad al recuperar foco
+
+### Problema y reproducción
+
+Una sesión válida de `administrator@example.invalid` puede abandonar una ruta administrativa y quedar en `/account-blocked` durante un cambio de pestaña, refresh de token o refetch de autoridad. PostgreSQL continúa respondiendo `account_status = active`, con permisos administrativos y `authority_version = 1`. Abrir `/account-blocked` directamente con esa misma sesión reprodujo además el estado contradictorio `Acceso no disponible` junto a `Tu cuenta está activa`.
+
+El fallo de invitación `origin_denied` es independiente: el navegador se sirve desde `http://localhost:5173`, pero `functions:serve` carga la plantilla versionada con allowlist `http://127.0.0.1:5173`. El formulario conserva sesión y ruta, aunque actualmente traduce el código a un error genérico.
+
+### Causa raíz confirmada antes de la corrección
+
+1. `SupabaseAuthGateway.onAuthStateChange` descarta el tipo de evento Auth y solo entrega usuario/null.
+2. `IdentityProvider` trata todo evento con usuario —incluidos `TOKEN_REFRESHED`, `SIGNED_IN` repetido y `USER_UPDATED` del mismo `user_id`— como cambio completo de actor: incrementa generaciones, borra `account`, cambia a loading y dispara otra consulta.
+3. Los listeners propios de `focus` y `visibilitychange` pueden competir con ese evento. Un resultado temporal vacío/error borra también la última autoridad válida; las respuestas fuera de orden se descartan, pero no existe un estado explícito que conserve el último contexto del mismo actor.
+4. `OperationalAccountRoute` interpreta cualquier `account` ausente como bloqueada. No distingue inicialización, refetch, error recuperable, identidad no provisionada o bloqueo autoritativo.
+5. Una vez navegada, `AccountBlockedPage` no valida su precondición. Si después llega el contexto `active`, permanece en la URL bloqueada y renderiza el título de bloqueo junto al texto de cuenta activa.
+6. `PersonalDataCacheGuard` usa `queryClient.clear()` al variar actor/autoridad, sin poder preservar una futura query global de contexto. Una mutación o invalidación no debe eliminar autoridad válida.
+
+El evento desencadenante es la recuperación de visibilidad/foco cuando Supabase revalida o renueva la sesión y emite `TOKEN_REFRESHED` o un `SIGNED_IN` repetido para el mismo usuario, solapado con el refetch de `get_my_account_context`.
+
+### Plan de corrección
+
+1. Modelar acceso con una unión discriminada: initializing, unauthenticated, loading-authority con último contexto del mismo actor, active, invited, pending-profile, suspended, archived, forbidden y recoverable-error.
+2. Conservar el tipo de evento Auth. Refresh/sign-in repetido del mismo actor preserva autoridad y solo invalida/refetchea su query; cambio real de actor cancela y elimina datos privados anteriores; sign-out limpia y va a login.
+3. Llevar `get_my_account_context` a TanStack Query con key por `user_id`, datos previos durante refetch del mismo key, `refetchOnWindowFocus` explícito y descarte natural de respuestas de otras keys.
+4. Hacer exhaustivos los guards: solo suspended/archived usan `/account-blocked`; pending-profile completa onboarding; forbidden y recoverable-error tienen pantallas propias; active abierto en blocked vuelve a una ruta válida.
+5. Limitar errores de invitación al formulario y distinguir sesión inválida, origen, permiso, rol no concedible y error temporal.
+6. Usar `supabase/functions/.env.local` ignorado como configuración ejecutable y `.env.example` únicamente como plantilla para `http://localhost:5173`, con validación previa y documentación/CI coherentes.
+7. Añadir regresiones unitarias, de componente, Function y E2E para foco, visibilidad, token refresh, eventos repetidos, actor distinto, respuesta tardía, errores recuperables, 403 y CORS.
+
+### Validaciones de cierre previstas
+
+Se repetirán instalación congelada, formato, lint, límites/arquitectura, typecheck, unit/integration, Functions, build, reset/lint/pgTAP, E2E, gate compuesto, scans y estado Git. Architect, database_security_reviewer, qa_reviewer y docs_governor revisarán el diff en modo de solo lectura antes del cierre.
+
+### Resultado de la corrección
+
+La regresión quedó corregida en `feat/account-lifecycle` mediante `c61ab59`, `df19362` y `dd9b6e6`, más el cierre documental. No hubo push, rebase, amend, despliegue ni modificación de `main`.
+
+La recuperación de foco conserva la última autoridad válida del mismo usuario durante el refetch. Los eventos Auth repetidos no se convierten en cambios de identidad; un cambio real cancela y elimina la autoridad anterior. Solo una respuesta autoritativa `suspended` o `archived` permite `/account-blocked`. `forbidden` permanece local a la funcionalidad y un error temporal produce una vista recuperable con reintento.
+
+Las operaciones tardías se descartan mediante generaciones de Auth, query keys por usuario y tokens vivos de actor/autoridad. Invitaciones se remonta sincrónicamente por `user_id + authority_version`, y sus operaciones junto con las mutaciones de perfil se invalidan en layout antes de que una microtarea antigua pueda cerrar la sesión o repoblar caché privada.
+
+| Gate                                      | Resultado real 2026-07-25                                                                               |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `corepack pnpm install --frozen-lockfile` | aprobado; lockfile sin cambios                                                                          |
+| `corepack pnpm verify`                    | aprobado; formato, lint, boundaries, 4 probes, typecheck, Functions typecheck, unit/integration y build |
+| Unitarias web                             | 21 archivos, 102/102                                                                                    |
+| Integración web                           | 1 archivo, 2/2                                                                                          |
+| Edge Function                             | 21/21                                                                                                   |
+| `db:start`, `db:reset` y DB lint warning  | aprobados; cero hallazgos SQL                                                                           |
+| pgTAP                                     | 119/119                                                                                                 |
+| E2E                                       | 5/5, cero skips                                                                                         |
+| `account-lifecycle:test`                  | aprobado; Functions 21/21, pgTAP 119/119 y E2E 5/5                                                      |
+| `git diff --check`                        | aprobado                                                                                                |
+| Scans                                     | cero secretos versionados, `service_role` en frontend, `any`, `@ts-ignore` o `eslint-disable`           |
+
+Revisiones finales independientes: architect GO, database_security_reviewer GO, qa_reviewer GO y docs_governor GO. Los hallazgos intermedios sobre bootstrap Auth, respuestas 401 tardías, mutaciones de perfil, purgas A→B→C, entorno E2E remoto y ventana de efectos pasivos fueron corregidos antes del cierre.

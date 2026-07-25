@@ -21,9 +21,9 @@ Activos: identidades Auth, cuentas, invitaciones, perfiles mínimos, roles/polic
 | Token de invitación filtrado | Auth es único custodio; no DB/UI/log/audit                                          | plantilla/canal productivo            |
 | `service_role` expuesto      | Edge env productivo; runner E2E local solo en Node; ninguna variable `VITE_`; scans | rotación y secret manager             |
 | Auth/DB divergentes          | reserva, estado de entrega y reconciliación exacta                                  | runbook y observabilidad              |
-| CORS/origin abusivo          | método/content type y allowlist exacta                                              | dominios de preview/producción        |
+| CORS/origin abusivo          | método/content type, allowlist exacta y `.env.local` no versionado                  | dominios de preview/producción        |
 | Último admin eliminado       | advisory lock común + conteo transaccional                                          | recuperación humana de emergencia     |
-| Cuenta bloqueada             | estado en helpers/RLS/RPC; caché invalidada                                         | invalidación global de refresh token  |
+| Cuenta bloqueada             | confirmación autoritativa `suspended`/`archived`; estados transitorios separados    | invalidación global de refresh token  |
 | Recuperación de contraseña   | Supabase Auth                                                                       | Política y mensajes organizacionales  |
 | Auditoría manipulada         | sin insert/update/delete cliente                                                    | Exportación y acceso `audit.read`     |
 
@@ -32,6 +32,8 @@ Activos: identidades Auth, cuentas, invitaciones, perfiles mínimos, roles/polic
 Toda función `security definer` fija `search_path = ''`, usa nombres cualificados y revoca ejecución pública. Las funciones de usuario derivan el actor con `auth.uid()`; las funciones internas de finalización solo admiten `service_role`. `has_permission` no recibe un usuario arbitrario y exige una cuenta `active`. Tablas administrativas tienen RLS, cero grants directos para `anon`/`authenticated` y solo se exponen mediante proyecciones/RPC mínimas.
 
 La Edge Function valida Origin, método, Content-Type, esquema, JWT, estado, permiso y policy antes de construir el cliente Auth Admin. Responde con IDs/estado, traduce errores a códigos seguros y registra solo correlación/operación/códigos allowlist; nunca correo completo, JWT, enlace o stack.
+
+El frontend no infiere bloqueo desde ausencia de caché, refetch, 403 de una operación o error de red. Solo una respuesta satisfactoria del contexto de cuenta con `suspended` o `archived` habilita la pantalla bloqueada. La autoridad se particiona por `user_id`; al cambiar de identidad se cancelan consultas anteriores y se elimina la caché privada, evitando que una respuesta tardía transfiera permisos entre sesiones.
 
 ## Privacidad y retención
 

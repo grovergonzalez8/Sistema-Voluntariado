@@ -4,6 +4,13 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 
 ## Unreleased
 
+### Fixed
+
+- El refresh de sesión, la recuperación de foco y el refetch de autoridad ya no convierten estados transitorios de una cuenta activa en `/account-blocked`.
+- `/account-blocked` valida `suspended` o `archived`; los errores recuperables y permisos insuficientes tienen estados independientes.
+- Los errores 403 de invitaciones permanecen en el formulario y distinguen origen, permiso y rol no concedible sin cerrar la sesión.
+- El servidor local de Functions usa `supabase/functions/.env.local` e iguala el origen de Vite en `http://localhost:5173`.
+
 ### Added
 
 - Workspace pnpm/Turborepo con calidad reproducible.
