@@ -24,6 +24,7 @@ export interface InvitationAdministrationGateway {
   createInvitation(
     input: CreateInvitationCommand,
   ): Promise<Result<InvitationCommandResult>>;
+  getInvitationDetail(invitationId: string): Promise<Result<InvitationSummary>>;
   listInvitations(): Promise<Result<readonly InvitationSummary[]>>;
   replaceInvitation(
     input: InvitationIdempotentCommand,

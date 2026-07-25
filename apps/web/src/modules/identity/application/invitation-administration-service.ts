@@ -66,6 +66,20 @@ export class InvitationAdministrationService {
     return this.gateway.listInvitations();
   }
 
+  public getInvitationDetail(
+    invitationId: string,
+  ): Promise<Result<InvitationSummary>> {
+    if (!idempotencyKeyPattern.test(invitationId)) {
+      return Promise.resolve(
+        failure({
+          code: 'validation',
+          message: 'La invitación no es válida.',
+        }),
+      );
+    }
+    return this.gateway.getInvitationDetail(invitationId);
+  }
+
   public replaceInvitation(
     input: InvitationIdempotentCommand,
   ): Promise<Result<InvitationCommandResult>> {

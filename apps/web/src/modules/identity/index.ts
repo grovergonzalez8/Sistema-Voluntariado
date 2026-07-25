@@ -78,7 +78,27 @@ export type {
   RoleMutationOperation,
 } from './domain/role-grant-policy';
 export { SupabaseAuthGateway } from './infrastructure/supabase-auth-gateway';
+export { SupabaseAccountAdministrationGateway } from './infrastructure/supabase-account-administration-gateway';
+export { SupabaseAccountContextGateway } from './infrastructure/supabase-account-context-gateway';
+export { SupabaseInvitationAdministrationGateway } from './infrastructure/supabase-invitation-administration-gateway';
+export { SupabaseOnboardingGateway } from './infrastructure/supabase-onboarding-gateway';
 export { IdentityProvider } from './presentation/identity-provider';
+export {
+  IdentityContext,
+  type IdentityContextValue,
+} from './presentation/identity-context';
+export {
+  AccountBlockedPage,
+  OperationalAccountRoute,
+  PermissionRoute,
+} from './presentation/account-access-route';
+export { AccountDetailPage } from './presentation/account-detail-page';
+export { AccountsPage } from './presentation/accounts-page';
+export { AuthCallbackPage } from './presentation/auth-callback-page';
+export { CompleteProfilePage } from './presentation/complete-profile-page';
+export { InvitationAcceptancePage } from './presentation/invitation-acceptance-page';
+export { InvitationDetailPage } from './presentation/invitation-detail-page';
+export { InvitationsPage } from './presentation/invitations-page';
 export { LoginPage } from './presentation/login-page';
 export { ProtectedRoute } from './presentation/protected-route';
 export { useIdentity } from './presentation/identity-context';

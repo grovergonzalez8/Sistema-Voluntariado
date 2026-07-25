@@ -20,6 +20,7 @@ export interface InvitationSummary {
   readonly requestedInitialRoleCode: string;
   readonly sentAt: string | null;
   readonly status: InvitationStatus;
+  readonly supersededBy: string | null;
 }
 
 export interface AccountSummary {

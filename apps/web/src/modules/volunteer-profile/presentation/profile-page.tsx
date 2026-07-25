@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
@@ -25,6 +25,7 @@ type ProfileFormValues = z.infer<typeof profileSchema>;
 
 interface ProfilePageProps {
   readonly actorId: string;
+  readonly authorityVersion: string;
   readonly service: ProfileService;
 }
 
@@ -33,10 +34,15 @@ const getErrorMessage = (error: unknown): string =>
     ? error.appError.message
     : 'Ocurrió un error inesperado.';
 
-export function ProfilePage({ actorId, service }: ProfilePageProps) {
+export function ProfilePage({
+  actorId,
+  authorityVersion,
+  service,
+}: ProfilePageProps) {
   const { i18n, t } = useTranslation();
   const queryClient = useQueryClient();
-  const profileQueryKey = getProfileQueryKey(actorId);
+  const currentAuthority = useRef(authorityVersion);
+  const profileQueryKey = getProfileQueryKey(actorId, authorityVersion);
   const profileQuery = useQuery({
     queryFn: () => unwrapResult(service.getOwnProfile()),
     queryKey: profileQueryKey,
@@ -51,10 +57,16 @@ export function ProfilePage({ actorId, service }: ProfilePageProps) {
     resolver: zodResolver(profileSchema),
   });
   const updateProfile = useMutation({
-    mutationFn: (values: ProfileFormValues) =>
-      unwrapResult(service.updateOwnProfile(values)),
-    onSuccess: (profile) => {
-      queryClient.setQueryData(profileQueryKey, profile);
+    mutationFn: (input: {
+      readonly authorityVersion: string;
+      readonly values: ProfileFormValues;
+    }) => unwrapResult(service.updateOwnProfile(input.values)),
+    onSuccess: (profile, input) => {
+      if (input.authorityVersion !== currentAuthority.current) return;
+      queryClient.setQueryData(
+        getProfileQueryKey(actorId, input.authorityVersion),
+        profile,
+      );
       reset({
         displayName: profile.displayName ?? '',
         preferredLocale: profile.preferredLocale,
@@ -62,6 +74,10 @@ export function ProfilePage({ actorId, service }: ProfilePageProps) {
       void i18n.changeLanguage(profile.preferredLocale);
     },
   });
+
+  useEffect(() => {
+    currentAuthority.current = authorityVersion;
+  }, [authorityVersion]);
 
   useEffect(() => {
     if (profileQuery.data) {
@@ -101,7 +117,7 @@ export function ProfilePage({ actorId, service }: ProfilePageProps) {
   }
 
   const onSubmit = handleSubmit((values) => {
-    updateProfile.mutate(values);
+    updateProfile.mutate({ authorityVersion, values });
   });
 
   return (

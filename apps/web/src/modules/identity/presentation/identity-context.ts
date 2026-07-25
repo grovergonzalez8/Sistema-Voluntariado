@@ -2,13 +2,16 @@ import { createContext, useContext } from 'react';
 
 import type { Result } from '@sistema-voluntariado/shared-kernel';
 
+import type { AccountContext } from '../domain/account-administration';
 import type {
   AuthenticatedUser,
   SignInCredentials,
 } from '../domain/authenticated-user';
 
 export interface IdentityContextValue {
+  readonly account: AccountContext | null;
   readonly error: string | null;
+  readonly refreshAccountContext: () => Promise<Result<AccountContext | null>>;
   readonly signIn: (
     credentials: SignInCredentials,
   ) => Promise<Result<AuthenticatedUser>>;

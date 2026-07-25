@@ -31,6 +31,16 @@ export function AppShell() {
       <div className="app-body">
         <nav aria-label="Navegación principal" className="app-nav">
           <NavLink to="/app/profile">{t('navigation.profile')}</NavLink>
+          {identity.account?.permissions.includes('invitation.read') ? (
+            <NavLink to="/app/admin/invitations">
+              {t('navigation.invitations')}
+            </NavLink>
+          ) : null}
+          {identity.account?.permissions.includes('account.read') ? (
+            <NavLink to="/app/admin/accounts">
+              {t('navigation.accounts')}
+            </NavLink>
+          ) : null}
         </nav>
         <main className="app-content">
           <Outlet />

@@ -1,6 +1,17 @@
 import { failure, success } from '@sistema-voluntariado/shared-kernel';
 
-import { IdentityService, SupabaseAuthGateway } from '../../modules/identity';
+import {
+  AccountAdministrationService,
+  AccountContextService,
+  IdentityService,
+  InvitationAdministrationService,
+  OnboardingService,
+  SupabaseAccountAdministrationGateway,
+  SupabaseAccountContextGateway,
+  SupabaseAuthGateway,
+  SupabaseInvitationAdministrationGateway,
+  SupabaseOnboardingGateway,
+} from '../../modules/identity';
 import {
   ProfileService,
   SupabaseProfileRepository,
@@ -10,7 +21,11 @@ import { createSupabaseBrowserClient } from '../../shared/infrastructure/supabas
 import type { Environment } from '../config/environment';
 
 export interface ApplicationServices {
+  readonly accountAdministration: AccountAdministrationService;
+  readonly accountContext: AccountContextService;
   readonly identity: IdentityService;
+  readonly invitations: InvitationAdministrationService;
+  readonly onboarding: OnboardingService;
   readonly profile: ProfileService;
 }
 
@@ -19,6 +34,18 @@ export function createApplicationServices(
 ): ApplicationServices {
   const supabase = createSupabaseBrowserClient(environment);
   const identity = new IdentityService(new SupabaseAuthGateway(supabase));
+  const accountContext = new AccountContextService(
+    new SupabaseAccountContextGateway(supabase),
+  );
+  const invitations = new InvitationAdministrationService(
+    new SupabaseInvitationAdministrationGateway(supabase),
+  );
+  const onboarding = new OnboardingService(
+    new SupabaseOnboardingGateway(supabase),
+  );
+  const accountAdministration = new AccountAdministrationService(
+    new SupabaseAccountAdministrationGateway(supabase),
+  );
   const currentActor: CurrentActorPort = {
     getCurrentUserId: async () => {
       const currentUser = await identity.getCurrentUser();
@@ -40,5 +67,12 @@ export function createApplicationServices(
     new SupabaseProfileRepository(supabase),
   );
 
-  return { identity, profile };
+  return {
+    accountAdministration,
+    accountContext,
+    identity,
+    invitations,
+    onboarding,
+    profile,
+  };
 }
