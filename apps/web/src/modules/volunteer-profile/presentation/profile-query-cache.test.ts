@@ -22,25 +22,38 @@ describe('personal profile query cache', () => {
     const secondUserId = '00000000-0000-4000-8000-000000000002';
 
     queryClient.setQueryData(
-      getProfileQueryKey(firstUserId),
+      getProfileQueryKey(firstUserId, 'v1'),
       profile(firstUserId, 'Usuario A'),
     );
 
-    expect(queryClient.getQueryData(getProfileQueryKey(secondUserId))).toBe(
-      undefined,
-    );
+    expect(
+      queryClient.getQueryData(getProfileQueryKey(secondUserId, 'v1')),
+    ).toBe(undefined);
 
     queryClient.setQueryData(
-      getProfileQueryKey(secondUserId),
+      getProfileQueryKey(secondUserId, 'v1'),
       profile(secondUserId, 'Usuario B'),
     );
     clearPersonalProfileQuery(queryClient, firstUserId);
 
-    expect(queryClient.getQueryData(getProfileQueryKey(firstUserId))).toBe(
+    expect(
+      queryClient.getQueryData(getProfileQueryKey(firstUserId, 'v1')),
+    ).toBe(undefined);
+    expect(
+      queryClient.getQueryData(getProfileQueryKey(secondUserId, 'v1')),
+    ).toMatchObject({ displayName: 'Usuario B' });
+  });
+
+  it('partitions a user profile by authority version', () => {
+    const queryClient = new QueryClient();
+    const actorId = '00000000-0000-4000-8000-000000000001';
+    queryClient.setQueryData(
+      getProfileQueryKey(actorId, 'v1'),
+      profile(actorId, 'Autoridad anterior'),
+    );
+
+    expect(queryClient.getQueryData(getProfileQueryKey(actorId, 'v2'))).toBe(
       undefined,
     );
-    expect(
-      queryClient.getQueryData(getProfileQueryKey(secondUserId)),
-    ).toMatchObject({ displayName: 'Usuario B' });
   });
 });

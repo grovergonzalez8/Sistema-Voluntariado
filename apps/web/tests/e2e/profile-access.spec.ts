@@ -16,11 +16,6 @@ test('shows public access and protects the profile route', async ({ page }) => {
 test('an authenticated local user reads and updates their own profile', async ({
   page,
 }) => {
-  test.skip(
-    process.env['RUN_LOCAL_PROFILE_E2E'] !== 'true',
-    'Requires the local Supabase URL and anon key.',
-  );
-
   await page.goto('/login');
   await page
     .getByLabel('Correo electrónico')

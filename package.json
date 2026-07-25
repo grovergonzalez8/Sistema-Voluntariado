@@ -18,15 +18,19 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "turbo run typecheck",
+    "typecheck:functions": "tsc --noEmit -p supabase/functions/tsconfig.json",
     "test": "corepack pnpm test:unit && corepack pnpm test:integration",
     "test:unit": "turbo run test:unit",
     "test:integration": "turbo run test:integration",
+    "test:functions": "corepack pnpm --filter @sistema-voluntariado/web test:functions",
     "test:e2e": "corepack pnpm --filter @sistema-voluntariado/web test:e2e",
+    "functions:serve": "supabase functions serve manage-account-invitation --no-verify-jwt --env-file supabase/functions/.env.example",
+    "account-lifecycle:test": "corepack pnpm test:functions && corepack pnpm db:reset && corepack pnpm exec supabase db lint --local --level warning && corepack pnpm db:test && corepack pnpm test:e2e",
     "db:start": "supabase start",
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset --local",
     "db:test": "supabase test db",
-    "verify": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm lint:boundaries && corepack pnpm lint:architecture && corepack pnpm typecheck && corepack pnpm test:unit && corepack pnpm test:integration && corepack pnpm build"
+    "verify": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm lint:boundaries && corepack pnpm lint:architecture && corepack pnpm typecheck && corepack pnpm typecheck:functions && corepack pnpm test:unit && corepack pnpm test:integration && corepack pnpm build"
   },
   "devDependencies": {
     "@sistema-voluntariado/eslint-config": "workspace:*",

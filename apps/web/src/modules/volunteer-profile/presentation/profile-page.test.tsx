@@ -66,7 +66,7 @@ const renderProfile = async (service: ProfileService) => {
   return render(
     <I18nextProvider i18n={i18n}>
       <QueryClientProvider client={queryClient}>
-        <ProfilePage actorId={actorId} service={service} />
+        <ProfilePage actorId={actorId} authorityVersion="1" service={service} />
       </QueryClientProvider>
     </I18nextProvider>,
   );

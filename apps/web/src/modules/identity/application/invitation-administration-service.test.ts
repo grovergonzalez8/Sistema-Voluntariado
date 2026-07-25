@@ -11,10 +11,28 @@ const operationResult = {
   status: 'pending' as const,
 };
 
+const invitation = {
+  accountId: operationResult.accountId,
+  createdAt: '2026-07-24T00:00:00.000Z',
+  createdBy: 'actor-id',
+  displayName: null,
+  expiresAt: '2026-07-24T01:00:00.000Z',
+  id: operationResult.invitationId,
+  normalizedEmail: 'invited@example.invalid',
+  preferredLocale: 'es' as const,
+  requestedInitialRoleCode: 'volunteer',
+  sentAt: null,
+  status: 'pending' as const,
+  supersededBy: null,
+};
+
 const createGateway = () => ({
   createInvitation: vi.fn<InvitationAdministrationGateway['createInvitation']>(
     () => Promise.resolve(success(operationResult)),
   ),
+  getInvitationDetail: vi.fn<
+    InvitationAdministrationGateway['getInvitationDetail']
+  >(() => Promise.resolve(success(invitation))),
   listInvitations: vi.fn<InvitationAdministrationGateway['listInvitations']>(
     () => Promise.resolve(success([])),
   ),
@@ -70,5 +88,40 @@ describe('InvitationAdministrationService', () => {
     ).toMatchObject({ error: { code: 'validation' }, ok: false });
     expect(gateway.resendInvitation).not.toHaveBeenCalled();
     expect(gateway.revokeInvitation).not.toHaveBeenCalled();
+  });
+
+  it('dispatches list, resend, replace, and revoke through their ports', async () => {
+    const gateway = createGateway();
+    const service = new InvitationAdministrationService(gateway);
+    const command = {
+      idempotencyKey: '00000000-0000-4000-8000-000000000104',
+      invitationId: operationResult.invitationId,
+    };
+
+    expect(await service.listInvitations()).toMatchObject({ ok: true });
+    expect(
+      await service.getInvitationDetail(operationResult.invitationId),
+    ).toMatchObject({ ok: true });
+    expect(await service.resendInvitation(command)).toMatchObject({ ok: true });
+    expect(await service.replaceInvitation(command)).toMatchObject({
+      ok: true,
+    });
+    expect(
+      await service.revokeInvitation({
+        invitationId: operationResult.invitationId,
+        reason: '  Revocación autorizada  ',
+      }),
+    ).toMatchObject({ ok: true });
+
+    expect(gateway.listInvitations).toHaveBeenCalledOnce();
+    expect(gateway.getInvitationDetail).toHaveBeenCalledWith(
+      operationResult.invitationId,
+    );
+    expect(gateway.resendInvitation).toHaveBeenCalledWith(command);
+    expect(gateway.replaceInvitation).toHaveBeenCalledWith(command);
+    expect(gateway.revokeInvitation).toHaveBeenCalledWith({
+      invitationId: operationResult.invitationId,
+      reason: 'Revocación autorizada',
+    });
   });
 });

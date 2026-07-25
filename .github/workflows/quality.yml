@@ -50,6 +50,9 @@ jobs:
       - name: Verify application
         run: pnpm verify
 
+      - name: Test Edge Function handler
+        run: pnpm test:functions
+
       - name: Start and reset local Supabase
         run: |
           pnpm db:start

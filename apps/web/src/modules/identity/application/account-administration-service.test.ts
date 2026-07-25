@@ -80,4 +80,35 @@ describe('AccountAdministrationService', () => {
     expect(gateway.getAccountDetail).not.toHaveBeenCalled();
     expect(gateway.manageAccountRole).not.toHaveBeenCalled();
   });
+
+  it('dispatches detail, lifecycle, and role commands through the gateway', async () => {
+    const gateway = createGateway();
+    const service = new AccountAdministrationService(gateway);
+
+    expect(await service.getAccountDetail(accountId)).toMatchObject({
+      ok: true,
+    });
+    for (const status of ['suspended', 'archived', 'active'] as const) {
+      expect(
+        await service.changeAccountStatus({
+          accountId,
+          reason: 'Cambio administrativo',
+          status,
+        }),
+      ).toMatchObject({ ok: true });
+    }
+    for (const operation of ['grant', 'revoke'] as const) {
+      expect(
+        await service.manageAccountRole({
+          accountId,
+          operation,
+          roleCode: 'coordinator',
+        }),
+      ).toMatchObject({ ok: true });
+    }
+
+    expect(gateway.getAccountDetail).toHaveBeenCalledWith(accountId);
+    expect(gateway.changeAccountStatus).toHaveBeenCalledTimes(3);
+    expect(gateway.manageAccountRole).toHaveBeenCalledTimes(2);
+  });
 });

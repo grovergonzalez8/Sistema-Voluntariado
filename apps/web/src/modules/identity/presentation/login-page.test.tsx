@@ -8,6 +8,7 @@ import { success } from '@sistema-voluntariado/shared-kernel';
 
 import { createI18n } from '../../../app/providers/i18n';
 import type { AuthGateway } from '../application/auth-gateway';
+import { AccountContextService } from '../application/account-context-service';
 import { IdentityService } from '../application/identity-service';
 import { IdentityProvider } from './identity-provider';
 import { LoginPage } from './login-page';
@@ -29,7 +30,14 @@ describe('LoginPage', () => {
 
     render(
       <I18nextProvider i18n={i18n}>
-        <IdentityProvider service={new IdentityService(gateway)}>
+        <IdentityProvider
+          accountService={
+            new AccountContextService({
+              getCurrentAccountContext: () => Promise.resolve(success(null)),
+            })
+          }
+          service={new IdentityService(gateway)}
+        >
           <MemoryRouter>
             <LoginPage />
           </MemoryRouter>
