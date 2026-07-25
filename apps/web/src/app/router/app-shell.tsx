@@ -29,7 +29,7 @@ export function AppShell() {
         </Button>
       </header>
       <div className="app-body">
-        <nav aria-label="Navegación principal" className="app-nav">
+        <nav aria-label={t('navigation.mainLabel')} className="app-nav">
           <NavLink to="/app/profile">{t('navigation.profile')}</NavLink>
           {identity.account?.permissions.includes('invitation.read') ? (
             <NavLink to="/app/admin/invitations">

@@ -94,6 +94,7 @@ const sharedEnglish = {
   navigation: {
     accounts: 'Accounts',
     invitations: 'Invitations',
+    mainLabel: 'Main navigation',
     profile: 'My profile',
   },
   onboarding: {
@@ -212,6 +213,7 @@ const sharedSpanish = {
   navigation: {
     accounts: 'Cuentas',
     invitations: 'Invitaciones',
+    mainLabel: 'Navegación principal',
     profile: 'Mi perfil',
   },
   onboarding: {
