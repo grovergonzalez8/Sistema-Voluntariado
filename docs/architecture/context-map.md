@@ -2,9 +2,10 @@
 
 ```mermaid
 flowchart LR
-  Auth["Supabase Auth\nupstream"] -->|sesión y UserId| Identity["Identity & Authorization"]
-  Identity -->|actor y permisos| Profile["Volunteer Profile"]
+  Auth["Supabase Auth\nupstream"] -->|identidad, credenciales y enlace| Identity["Identity & Account Lifecycle"]
+  Identity -->|actor activo y permisos efectivos| Profile["Volunteer Profile"]
   Identity -->|actor| Audit["Audit"]
+  Identity -->|estado, roles e invitaciones| Audit
   Profile -->|profile.updated| Audit
   Identity -. futuro .-> Groups["Volunteer Groups"]
   Identity -. futuro .-> Accommodation["Accommodation"]
@@ -14,7 +15,9 @@ flowchart LR
   Identity -. futuro .-> Incidents["Incidents"]
 ```
 
-Supabase Auth es la fuente de credenciales. Identity posee roles, permisos y asignaciones. Volunteer Profile no conoce tablas internas de autorización; recibe el actor y depende de un puerto propio. Audit observa cambios sensibles y no gobierna el perfil.
+Supabase Auth es la fuente de credenciales, sesiones y enlaces de correo. Identity posee la cuenta de aplicación, invitaciones, roles, permisos, policies y transiciones. `accounts.auth_user_id` enlaza ambas fuentes; no se duplican credenciales ni tokens. Volunteer Profile no conoce tablas internas de autorización; recibe el actor mediante su puerto. Audit recibe escrituras privilegiadas controladas y no gobierna el dominio.
+
+El alcance de coordinator es provisionalmente “origen propio”: solo observa cuentas e invitaciones cuyo `origin_invited_by` corresponde al actor. Los scopes organizacionales requieren otro hito y nuevas reglas.
 
 ## Flujo futuro de aprobación
 

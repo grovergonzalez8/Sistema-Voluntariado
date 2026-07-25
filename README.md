@@ -1,6 +1,6 @@
 # Sistema-Voluntariado
 
-Fundación técnica para gestionar progresivamente la operación de voluntariado. Esta entrega implementa solamente autenticación básica y consulta/actualización segura del perfil propio.
+Monolito modular para gestionar progresivamente la operación de voluntariado. El alcance actual incluye autenticación, perfil propio, invitaciones, onboarding, ciclo de vida de cuentas y administración segura de roles.
 
 ## Estado
 
@@ -20,20 +20,35 @@ corepack pnpm install --frozen-lockfile
 corepack pnpm db:start
 corepack pnpm db:reset
 corepack pnpm exec supabase status
+```
+
+Después de iniciar Supabase, complete `.env.local` con la URL y la clave `anon` locales mostradas por la CLI. No copie `service_role` al frontend ni confirme archivos de entorno. `functions:serve` usa las credenciales de servidor que inyecta la CLI y `supabase/functions/.env.example` define `APP_ORIGIN` y la allowlist `ALLOWED_ORIGINS` locales.
+
+Mantenga dos terminales adicionales abiertas. En la segunda, sirva la Edge Function:
+
+```powershell
+corepack pnpm functions:serve
+```
+
+En la tercera, inicie Vite:
+
+```powershell
 corepack pnpm dev
 ```
 
-Después de iniciar Supabase, complete `.env.local` con los valores locales mostrados por la CLI. No confirme ese archivo.
+El seed local crea `administrator@example.invalid`, `coordinator@example.invalid` y `volunteer-a@example.invalid` con la contraseña pública de fixture `local-test-only-not-a-secret`. Son identidades ficticias exclusivamente locales; nunca reutilice esa contraseña.
 
-El seed local crea `volunteer-a@example.invalid` con la contraseña pública de fixture `local-test-only-not-a-secret`. Esta cuenta solo existe en la base local y sirve para verificar el recorrido; nunca reutilice esa contraseña.
+Mailpit está disponible en `http://127.0.0.1:54324`. Use solamente destinatarios `.invalid`; no guarde enlaces ni cuerpos de invitación en Git.
 
 ## Verificación
 
 ```powershell
 corepack pnpm verify
+corepack pnpm test:functions
 corepack pnpm db:test
 corepack pnpm --filter @sistema-voluntariado/web exec playwright install chromium
 corepack pnpm test:e2e
+corepack pnpm account-lifecycle:test
 ```
 
-Consulte `docs/deployment/local-development.md` para el recorrido completo. Los módulos de alojamiento, proyectos, asignaciones, actividades y finanzas son evolución futura, no funcionalidades existentes.
+`verify` no exige Docker; las pruebas de funciones, PostgreSQL, Auth, Mailpit y E2E sí requieren Supabase local. Consulte `docs/deployment/local-development.md` para el recorrido completo. Alojamiento, proyectos, actividades, finanzas y los demás contextos operativos siguen fuera de alcance.

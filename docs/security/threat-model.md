@@ -1,29 +1,37 @@
-# Modelo de amenazas inicial
+# Modelo de amenazas
 
 ## Activos y fronteras
 
-Activos: cuentas, perfiles mínimos, roles/permisos y auditoría. Datos médicos, documentos de identidad, emergencia, ubicación detallada y finanzas son futuros y no se capturan. Fronteras: navegador no confiable, Supabase Auth/Data API y PostgreSQL protegido por RLS.
+Activos: identidades Auth, cuentas, invitaciones, perfiles mínimos, roles/policies/permisos, estados e historial/auditoría. Datos médicos, documentos de identidad, emergencia, ubicación detallada y finanzas no se capturan. Fronteras: navegador no confiable, Edge Function, Supabase Auth/Data API y PostgreSQL protegido por RLS.
 
-| Amenaza                     | Control inicial                                   | Pendiente                             |
-| --------------------------- | ------------------------------------------------- | ------------------------------------- |
-| Acceso horizontal           | `auth.uid()`, RLS, prueba con dos usuarios        | Revisar cada tabla futura             |
-| Escalamiento de privilegios | RBAC sin grants cliente; helper sin `user_id`     | Flujo administrativo y scopes         |
-| Campo protegido modificado  | grants de columna + trigger de guarda             | Revisar nuevos campos                 |
-| Claves expuestas            | solo anon en navegador; env ignorados             | Rotación por entorno                  |
-| Inyección                   | SDK parametrizado, checks y sin SQL cliente       | Revisar RPC futuras                   |
-| XSS                         | React escapa texto; sin HTML arbitrario           | CSP al desplegar                      |
-| CSRF                        | tokens Bearer; no cookies propias                 | Reevaluar si cambia sesión            |
-| Carga insegura              | sin buckets ni UI de carga                        | Tipo, tamaño, malware y acceso futuro |
-| Logs con PII                | auditoría solo metadatos; sin console de perfil   | Retención y monitoreo                 |
-| RLS incorrecta              | denegar por defecto y pgTAP real                  | Revisión en cada migración            |
-| Invitaciones abusivas       | altas públicas desactivadas localmente            | Diseñar cuotas y expiración           |
-| Cuenta finalizada           | `archived_at` bloquea perfil y permisos efectivos | Revocar sesiones y retención          |
-| Recuperación de contraseña  | Supabase Auth                                     | Política y mensajes organizacionales  |
-| Auditoría manipulada        | sin insert/update/delete cliente                  | Exportación y acceso `audit.read`     |
+| Amenaza                      | Control inicial                                                                     | Pendiente                             |
+| ---------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------- |
+| Acceso horizontal            | `auth.uid()`, RLS, prueba con dos usuarios                                          | Revisar cada tabla futura             |
+| Escalamiento de privilegios  | permiso + policy explícita + RPC; sin grants cliente                                | scopes organizacionales               |
+| Campo protegido modificado   | grants de columna + trigger de guarda                                               | Revisar nuevos campos                 |
+| Claves expuestas             | solo anon en navegador; env ignorados                                               | Rotación por entorno                  |
+| Inyección                    | SDK parametrizado, checks y sin SQL cliente                                         | Revisar RPC futuras                   |
+| XSS                          | React escapa texto; sin HTML arbitrario                                             | CSP al desplegar                      |
+| CSRF                         | tokens Bearer; no cookies propias                                                   | Reevaluar si cambia sesión            |
+| Carga insegura               | sin buckets ni UI de carga                                                          | Tipo, tamaño, malware y acceso futuro |
+| Logs con PII                 | auditoría solo metadatos; sin console de perfil                                     | Retención y monitoreo                 |
+| RLS incorrecta               | denegar por defecto y pgTAP real                                                    | Revisión en cada migración            |
+| Invitaciones abusivas        | signup off, permiso/policy, TTL e idempotencia                                      | cuotas productivas y alertas          |
+| Replay/doble clic            | fingerprint, clave por actor, lease e índices                                       | monitoreo productivo                  |
+| Token de invitación filtrado | Auth es único custodio; no DB/UI/log/audit                                          | plantilla/canal productivo            |
+| `service_role` expuesto      | Edge env productivo; runner E2E local solo en Node; ninguna variable `VITE_`; scans | rotación y secret manager             |
+| Auth/DB divergentes          | reserva, estado de entrega y reconciliación exacta                                  | runbook y observabilidad              |
+| CORS/origin abusivo          | método/content type y allowlist exacta                                              | dominios de preview/producción        |
+| Último admin eliminado       | advisory lock común + conteo transaccional                                          | recuperación humana de emergencia     |
+| Cuenta bloqueada             | estado en helpers/RLS/RPC; caché invalidada                                         | invalidación global de refresh token  |
+| Recuperación de contraseña   | Supabase Auth                                                                       | Política y mensajes organizacionales  |
+| Auditoría manipulada         | sin insert/update/delete cliente                                                    | Exportación y acceso `audit.read`     |
 
 ## Funciones privilegiadas
 
-Toda función `security definer` fija `search_path = ''`, usa nombres cualificados y revoca ejecución pública. Las funciones que necesitan un actor lo derivan con `auth.uid()`; el trigger de alta deriva el perfil de `NEW.id`. `has_permission` no recibe un usuario a consultar y niega permisos si su perfil está archivado.
+Toda función `security definer` fija `search_path = ''`, usa nombres cualificados y revoca ejecución pública. Las funciones de usuario derivan el actor con `auth.uid()`; las funciones internas de finalización solo admiten `service_role`. `has_permission` no recibe un usuario arbitrario y exige una cuenta `active`. Tablas administrativas tienen RLS, cero grants directos para `anon`/`authenticated` y solo se exponen mediante proyecciones/RPC mínimas.
+
+La Edge Function valida Origin, método, Content-Type, esquema, JWT, estado, permiso y policy antes de construir el cliente Auth Admin. Responde con IDs/estado, traduce errores a códigos seguros y registra solo correlación/operación/códigos allowlist; nunca correo completo, JWT, enlace o stack.
 
 ## Privacidad y retención
 
@@ -31,4 +39,4 @@ Esta fase evita pasaportes, documentos, salud, emergencia, archivos y pagos. Ant
 
 ## Abuso residual
 
-Una cuenta comprometida puede modificar sus dos campos permitidos y generar auditoría. Rate limiting, MFA, alertas y sesión finalizada se definirán antes de producción. RLS no impide XSS dentro de la sesión del propietario; CSP y revisión de dependencias siguen siendo necesarias.
+Una cuenta administrativa comprometida puede actuar dentro de sus policies y enviar invitaciones. Rate limiting productivo, MFA, alertas, invalidación global de sesiones y procedimiento break-glass deben definirse antes de producción. RLS no impide XSS dentro de una sesión; CSP y revisión de dependencias siguen siendo necesarias.

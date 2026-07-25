@@ -11,7 +11,9 @@
 
 Un módulo exporta una API explícita desde `index.ts`. Ningún consumidor importa internos de otro módulo. Los paquetes compartidos nunca importan desde `apps/web`.
 
-`volunteer-profile/application` no depende de `identity`; recibe el usuario actual mediante un puerto. Navegación por permiso es UX, no control de seguridad.
+`identity` conserva estas responsabilidades porque sesión, cuenta, onboarding y autoridad comparten invariantes y lenguaje; no se creó un módulo administrativo artificial. Sus adaptadores Supabase viven en `identity/infrastructure`; la Edge Function tiene un handler puro con dependencias inyectadas y un entrypoint aislado.
+
+`volunteer-profile/application` no depende de `identity`; recibe el usuario actual mediante un puerto. `app/router` usa guards de sesión, estado y permiso para UX, pero las RPC/RLS vuelven a autorizar. El cambio de identidad o `authority_version` limpia cachés sensibles.
 
 ## Evolución
 

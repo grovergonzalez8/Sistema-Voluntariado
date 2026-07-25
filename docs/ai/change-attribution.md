@@ -18,8 +18,12 @@ La atribución no implica autoría legal ni aprobación. El propietario debe rev
 - Rama: `feat/account-lifecycle`.
 - Prompt íntegro: `docs/ai/prompts/0002-account-lifecycle.md`.
 - Plan: `docs/exec-plans/0002-account-lifecycle.md`.
-- Revisión inicial independiente: `architect`, `domain_modeler`, `database_security_reviewer` y `qa_reviewer` en modo de solo lectura.
+- Revisión independiente inicial y final: `architect`, `domain_modeler`, `database_security_reviewer` y `qa_reviewer` en modo de solo lectura; `docs_governor` aprobó el cierre documental.
 - Integración y escritura: exclusivamente el agente principal.
-- Estado: en progreso; archivos, validaciones, decisiones, hallazgos corregidos y commits se completarán al cerrar el hito.
+- Commits técnicos: `245b09b`, `9aea410`, `7ee34c2`, `a5b912d` y `ed54f64`, más el cierre documental.
+- Validación local: `pnpm verify` y `pnpm account-lifecycle:test` aprobados; 73 pruebas unitarias web, 2 de integración, 21 de Edge Function, 119 pgTAP y 5 E2E sin omisiones.
+- Estado: implementación y validaciones completadas en la rama autorizada, sin push ni despliegue.
+
+Hallazgos materiales corregidos durante la revisión: partición y descarte de caché por actor/autoridad, refresh inmediato tras mutaciones propias, serialización del último administrador, leases de entrega correlacionados, reconciliación de ACK, historial inmutable de sustituciones, detalle autorizado de invitación y carreras E2E con fallos cerrados.
 
 La revisión humana sigue siendo obligatoria. No se registrarán claves locales, tokens, enlaces de Mailpit, correos reales ni salida sensible.

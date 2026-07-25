@@ -1,7 +1,8 @@
 # ExecPlan 0002: Invitaciones y ciclo de vida de cuentas
 
-- Estado: en progreso
+- Estado: completado
 - Inicio: 2026-07-24
+- Cierre: 2026-07-25
 - Responsable: agente principal de Codex, con revisión humana obligatoria
 - Rama autorizada: `feat/account-lifecycle`
 - Commit base: `6a47d1f3d5c2c3fdfdb33a8f94193adea5774e29`
@@ -132,9 +133,10 @@ stateDiagram-v2
 - `created_at`/`updated_at` son de servidor; `sent_at`, `accepted_at`, `revoked_at`, `expired_at` y `superseded_at` se fijan solo al entrar en su estado. `delivery_error_code` usa una allowlist segura y se limpia al volver a `sent`; `revoked_by`/motivo solo existen para revocación y `superseded_by` apunta a la nueva fila.
 - Reenviar reutiliza la misma fila/cuenta/rol y actualiza `sent_at`, `expires_at` y auditoría cuando Auth confirma. Si falla un reenvío de una invitación ya `sent`, conserva `sent` y el enlace anterior, registra `invitation.resend_failed` y un código seguro de intento; `delivery_failed` solo representa una invitación que nunca alcanzó `sent`.
 - Sustituir marca la fila anterior `superseded` y crea una nueva fila `pending` para la misma cuenta, correo canónico, usuario Auth si existe y rol inicial; ambas acciones son atómicas en PostgreSQL.
-- Revocar, expirar o fallar entrega no cambia `accounts.status = 'invited'`. Retry solo aplica a `delivery_failed`. Para una terminal `revoked` o `expired`, administrator puede crear una fila sucesora `pending` para la misma cuenta sin mutar la terminal; `supersedes_invitation_id` conserva el vínculo histórico. `accepted` nunca admite sucesora.
+- Revocar o expirar no cambia `accounts.status = 'invited'`; ambos estados son terminales y nunca se reabren. Administrator puede crear una sucesora `pending` en la misma cuenta y enlazarla mediante `superseded_by`; una invitación abierta, en cambio, pasa a `superseded`. Si Auth ya confirmó la identidad, PostgreSQL rechaza el reemplazo antes de mutar porque GoTrue local responde 422 al reinvitarla. Retry aplica a `delivery_failed`; resend reutiliza la fila.
 - Solo puede existir una invitación abierta (`pending`, `sent` o `delivery_failed`) por cuenta y por correo normalizado. Se conserva cualquier cantidad de filas terminales como historial.
 - Una solicitud para correo ya enlazado a otra cuenta o usuario Auth provisionado se rechaza con conflicto genérico. Nunca se enlaza automáticamente un usuario preexistente distinto.
+- Cualquier invitación histórica, incluso terminal, reserva el correo para su cuenta original. La recuperación normal crea una sucesora en esa cuenta. Si Auth ya confirmó una invitación revocada/vencida sin aceptación PostgreSQL, se requiere un runbook humano futuro; este hito no elimina identidades Auth ni crea agregados paralelos.
 
 ### Normalización, unicidad e idempotencia
 
@@ -211,7 +213,7 @@ Contratos previstos:
 - `AccountContextService`: estado, permisos y versión de autoridad del actor.
 - `OnboardingService`: aceptación y finalización.
 - `OnboardingGateway.completeProfileAndActivate`: puerto propio de Identity implementado en `identity/infrastructure` mediante una RPC transaccional; no importa `ProfileService` ni internos de `volunteer-profile`.
-- `InvitationAdministrationService`: listar y llamar la Edge Function para crear/revocar/reenviar/sustituir.
+- `InvitationAdministrationService`: listar/detallar y llamar la Edge Function para crear/revocar/reenviar/sustituir.
 - `AccountAdministrationService`: listar/detallar cuentas, estados, roles y auditoría.
 - `ProtectedRoute`: solo sesión Auth.
 - `AccountStateGate`: invited/pending/active/bloqueada/no provisionada.
@@ -442,7 +444,14 @@ No se afirmará atomicidad distribuida. La clave de idempotencia evita reservas 
 | 2026-07-24 | Planificación        | completada | prompt íntegro y ExecPlan aprobados antes del código/SQL/UI                                                       |
 | 2026-07-24 | Revisión del plan    | completada | cuatro NO-GO iniciales corregidos; architect/domain/database/QA emitieron GO explícito                            |
 | 2026-07-24 | Spike Auth/Mailpit   | parcial    | create/resend/reconcile ACK: dos correos y una identidad; expiry pasa al gate de Edge Function                    |
-| 2026-07-24 | Dominio/aplicación   | completada | 42 unitarias, typecheck, lint de límites y 4 probes arquitectónicos aprobados                                     |
+| 2026-07-25 | Dominio/aplicación   | completada | 73 unitarias, typecheck estricto, aislamiento de autoridad/caché y gates de permisos                              |
+| 2026-07-25 | PostgreSQL           | completada | migración incremental, seed, RLS/RPC y 119/119 pgTAP; linter DB sin hallazgos                                     |
+| 2026-07-25 | Edge Function        | completada | handler inyectable, reconciliación ACK y 21/21 pruebas de contrato                                                |
+| 2026-07-24 | Onboarding/sesión    | completada | callback, aceptación, perfil pendiente, contexto de cuenta, guards y limpieza de caché                            |
+| 2026-07-25 | Administración UI    | completada | lista/detalle de invitaciones, cuentas, roles, estados, historial y auditoría en español/inglés                   |
+| 2026-07-25 | E2E                  | completada | 5/5: signup cerrado, dos recorridos 0002, perfil público/autenticado y carreras reales del último administrador   |
+| 2026-07-24 | Documentación        | completada | producto, arquitectura, ADR 0012, datos, seguridad, operación, riesgos/deuda e IA actualizados                    |
+| 2026-07-25 | Revisión final       | completada | architect, domain_modeler, database_security_reviewer, qa_reviewer y docs_governor emitieron GO                   |
 
 ## Descubrimientos
 
@@ -456,6 +465,9 @@ No se afirmará atomicidad distribuida. La clave de idempotencia evita reservas 
 - El contenedor vector local puede reiniciarse sin bloquear Auth/DB/Mailpit; no se usará como señal única de salud.
 - Supabase Auth local 2.109.1 acepta reenviar `inviteUserByEmail` a una identidad aún no confirmada: dos llamadas produjeron dos mensajes Mailpit y una sola fila Auth. No se imprimieron cuerpos, enlaces ni claves.
 - El spike descartó el ACK/identificador de las llamadas y después consultó Auth Admin por metadata de fixture: recuperó exactamente una identidad no confirmada con `confirmation_sent_at`. Esto valida la rama local de reconciliación única; casos ambiguos se probarán en la Edge Function.
+- Playwright descarta `window.confirm` por defecto; los E2E administrativos deben registrar y aceptar cada diálogo antes del click o la aplicación cancela correctamente la operación.
+- La primera inicialización de Edge Runtime local puede tardar mientras prepara la imagen; el timeout de webServer es 120 segundos.
+- Ejecutar pgTAP después de un E2E sin `db:reset` altera conteos de fixtures por diseño. El cierre siempre restablece la base antes del gate combinado.
 
 ## Decisiones tomadas durante la implementación
 
@@ -473,33 +485,56 @@ No se afirmará atomicidad distribuida. La clave de idempotencia evita reservas 
 - 2026-07-24: permitir cuentas activas sin roles, congelar roles mientras están bloqueadas y negar toda mutación propia de roles.
 - 2026-07-24: capturar authority/policy al crear invitación; una aceptación terminal conserva esa concesión y activación solo revalida el rol activo.
 - 2026-07-24: implementar resend sobre la misma invitación/cuenta/identidad; el spike local confirmó que Auth no duplica el usuario no confirmado.
+- 2026-07-24: reservar/finalizar entrega con un lease exclusivo; todo replay con lease vigente devuelve `should_deliver = false`.
+- 2026-07-24: exigir consistencia bilateral del enlace Auth mediante snapshot inmutable y constraints diferidos que consultan el estado final al commit.
+- 2026-07-24: adquirir el advisory lock antes de cualquier fila en todas las rutas de invitación para evitar inversión de locks.
+- 2026-07-24: permitir reactivar cuentas sin roles y hacer que `account.activate` restaure el rol protegido de una invitación aceptada.
+- 2026-07-24: hacer fallar Playwright cuando falten URL/anon locales; los recorridos no se omiten silenciosamente.
+- 2026-07-24: registrar en ADR 0012 la separación entre identidad Auth y cuenta de aplicación, incluida la consistencia eventual controlada.
+- 2026-07-25: reservar de forma permanente un correo para su cuenta; reemplazar `revoked`/`expired` mediante una sucesora sin mutar su estado terminal y negar la operación si Auth ya confirmó la identidad.
+- 2026-07-25: el spike Auth confirmado devolvió HTTP 422 al segundo `invite`; PostgreSQL comprueba esta condición antes de superseder para evitar un fallo externo destructivo.
+- 2026-07-25: reconciliar ACK perdido exclusivamente por correo normalizado y metadata de invitación emitida por servidor; coincidencias ambiguas fallan cerradas.
+- 2026-07-25: versionar cachés personales por actor y autoridad, cancelar consultas antes de purgarlas y descartar respuestas tardías de otra identidad o versión.
+- 2026-07-25: recuperar leases de entrega vencidos sin permitir que un replay con lease vigente duplique correo.
 
 ## Desviaciones respecto del plan
 
 - La primera versión del plan no definía por completo estados de invitación, fingerprint/lease de idempotencia, backfill ni contratos de caché. Los cuatro revisores emitieron NO-GO y el plan se amplió antes de escribir código o SQL.
 - La expiración supuesta de 72 horas se redujo a 3.600 segundos para coincidir con Auth local.
+- La Edge Function local se sirve con `--no-verify-jwt` para que el handler emita errores controlados durante readiness; el handler sigue verificando Auth y producción conservará además la verificación del gateway.
+- La prueba concurrente del último administrador se implementó en E2E con dos sesiones/JWT y `Promise.all`, no mediante `dblink`; ejercita la Data API y el mismo lock transaccional usado en producción.
+- La segunda revisión amplió las carreras a revoke/revoke y revoke/archive, añadió reconciliación de ACK perdido y cerró las proyecciones de auditoría/policies según permisos efectivos.
 
 ## Resultado final
 
-Pendiente. No se marcará completado hasta ejecutar validaciones finales, resolver revisiones y registrar commits reales.
+La implementación técnica quedó completada en `feat/account-lifecycle` mediante los commits `245b09b`, `9aea410`, `7ee34c2`, `a5b912d` y `ed54f64`, más el cierre documental. El hito incorpora invitación exclusiva, onboarding, contexto de autoridad, administración de cuentas/roles/estados, auditoría, Edge Function y defensas transaccionales en PostgreSQL. `pnpm verify` y `pnpm account-lifecycle:test` aprobaron de forma fresca; no hubo push, despliegue ni conexión a un proyecto Supabase remoto.
+
+La sustitución de una identidad Auth ya confirmada queda deliberadamente cerrada y requiere recuperación humana futura. También permanecen como deuda explícita la invalidación global de refresh tokens, la prueba de upgrade sobre una base 0001 poblada, el consumo de un enlace Auth tras una hora real y el runbook/observabilidad productivos de reconciliación.
 
 ## Validaciones ejecutadas
 
 La tabla de línea base contiene la evidencia inicial. Validaciones incrementales adicionales:
 
-| Fase               | Comando                                                      | Resultado                     |
-| ------------------ | ------------------------------------------------------------ | ----------------------------- |
-| Dominio/aplicación | `corepack pnpm --filter @sistema-voluntariado/web test:unit` | aprobada; 42/42               |
-| Dominio/aplicación | `corepack pnpm typecheck`                                    | aprobada; 3 tareas TypeScript |
-| Dominio/aplicación | `corepack pnpm lint:boundaries`                              | aprobada; cero hallazgos      |
-| Dominio/aplicación | `corepack pnpm lint:architecture`                            | aprobada; 4 probes negativos  |
+| Fase                  | Comando                                                       | Resultado                      |
+| --------------------- | ------------------------------------------------------------- | ------------------------------ |
+| Dominio/aplicación/UI | `corepack pnpm --filter @sistema-voluntariado/web test:unit`  | aprobada; 73/73                |
+| Dominio/aplicación    | `corepack pnpm typecheck`                                     | aprobada; 3 tareas TypeScript  |
+| Dominio/aplicación    | `corepack pnpm lint:boundaries`                               | aprobada; cero hallazgos       |
+| Dominio/aplicación    | `corepack pnpm lint:architecture`                             | aprobada; 4 probes negativos   |
+| Edge Function         | `corepack pnpm test:functions`                                | aprobada; 21/21                |
+| PostgreSQL            | `corepack pnpm db:reset`                                      | aprobada; 2 migraciones + seed |
+| PostgreSQL            | `corepack pnpm exec supabase db lint --local --level warning` | aprobada; cero hallazgos       |
+| PostgreSQL            | `corepack pnpm db:test`                                       | aprobada; 119/119              |
+| E2E                   | `corepack pnpm test:e2e`                                      | aprobada; 5/5, cero skips      |
+| Gate compuesto        | `corepack pnpm account-lifecycle:test`                        | aprobada; 21/21, 119/119, 5/5  |
+| Gate estático         | `corepack pnpm verify`                                        | aprobada; todos los gates      |
 
 Cada fase posterior agregará comandos y resultados frescos; una comprobación no ejecutada se marcará explícitamente como tal.
 
 ## Riesgos pendientes
 
-- Implementar y probar rechazo de reconciliaciones ambiguas; el caso local único tras ACK descartado ya fue validado por spike.
-- Validar expiración Auth real con TTL/clock controlados durante la fase Edge; no se esperará una hora en la planificación.
-- Probar invalidación visual de una cuenta bloqueada durante sesión sin confundirla con revocación criptográfica inmediata del JWT.
-- Mantener pruebas de concurrencia deterministas en Windows/Docker local.
+- La reconciliación única tras ACK descartado está validada localmente y los casos ambiguos se rechazan en pruebas de handler; falta observabilidad/runbook productivo.
+- El TTL de una hora está alineado entre Auth y DB y la expiración DB está probada con clock controlado; no se esperó una hora real para consumir un enlace Auth vencido.
+- Suspensión/archivo bloquean PostgreSQL y el E2E confirma redirección durante una sesión, pero no existe invalidación criptográfica global de refresh tokens.
+- El backfill se ejecuta en la migración, pero `db:reset` aplica migraciones antes del seed y no simula por sí solo una base 0001 poblada; una prueba de upgrade dedicada sigue siendo recomendable antes de producción.
 - Revisión humana obligatoria antes de cualquier uso fuera del entorno local.

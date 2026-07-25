@@ -1,26 +1,30 @@
-# Recorrido inicial
+# Recorridos de cuenta
 
 ```mermaid
 flowchart LR
-  A["Abrir acceso público"] --> B["Ingresar correo y contraseña"]
-  B --> C{"Supabase Auth valida"}
-  C -->|No| D["Error seguro sin revelar cuentas"]
-  C -->|Sí| E["Shell autenticado"]
-  E --> F["Abrir /app/profile"]
-  F --> G{"RLS permite leer perfil propio"}
-  G -->|No| H["Estado vacío, prohibido o error tipado"]
-  G -->|Sí| I["Editar nombre visible e idioma"]
-  I --> J["Validación Zod"]
-  J --> K{"RLS + privilegios de columna"}
-  K -->|No| L["Error seguro; no se alteran datos"]
-  K -->|Sí| M["Perfil actualizado y evento auditado"]
+  A["Actor autorizado"] --> B["Crear invitación"]
+  B --> C["Reserva idempotente en PostgreSQL"]
+  C --> D["Auth envía correo a Mailpit"]
+  D --> E["Invitado abre enlace"]
+  E --> F["Auth establece sesión"]
+  F --> G["Aceptar una vez"]
+  G --> H["pending_profile"]
+  H --> I["Contraseña en Auth + perfil mínimo"]
+  I --> J["Rol inicial protegido"]
+  J --> K["active"]
 ```
+
+La invitación vencida, revocada, sustituida o ya aceptada termina en una pantalla segura y no concede acceso. Administrator puede sustituir una invitación abierta o crear una sucesora para una revocada/vencida dentro de la misma cuenta; si Auth ya confirmó la identidad, la operación falla cerrada y requiere revisión humana. Durante `pending_profile` solo se permite completar el onboarding. El registro público permanece desactivado.
+
+## Administración
+
+Administrator puede buscar cuentas, consultar detalle, conceder o retirar roles permitidos, suspender, archivar y reactivar con confirmación y motivo. Coordinator ve exclusivamente el alcance originado por sus invitaciones y solo crea invitaciones `volunteer`. El servidor vuelve a validar cada acción aunque la UI o una petición hayan sido manipuladas.
 
 ## Estados observables
 
-- Acceso: envío, credenciales inválidas y sesión creada.
-- Perfil: carga, error, ausente y éxito.
-- Actualización: validación, envío, confirmación y fallo recuperable.
-- Cierre de sesión: limpia el estado cliente y vuelve a `/login`.
+- Invitaciones y cuentas: carga, vacío, error seguro, envío y confirmación.
+- Estado bloqueado: `suspended` y `archived` redirigen a `/account-blocked`; PostgreSQL ya negó permisos.
+- Cambio de identidad, estado o versión de autoridad: limpia toda caché sensible y vuelve a resolver el contexto.
+- Cierre de sesión: limpia estado/caché y vuelve a `/login`.
 
-La interfaz nunca promete alta pública, administración ni módulos futuros.
+La interfaz nunca promete alta pública ni módulos futuros.
