@@ -15,8 +15,11 @@
     "src",
     "tests",
     "playwright.config.ts",
+    "playwright-local-environment.ts",
+    "playwright-local-environment.test.ts",
     "vite.config.ts",
     "vitest.integration.config.ts",
+    "vitest.functions.config.ts",
     "vitest.unit.config.ts"
   ]
 }

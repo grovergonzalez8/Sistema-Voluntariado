@@ -9,11 +9,17 @@ interface ProfileRouteProps {
 }
 
 export function ProfileRoute({ profileService }: ProfileRouteProps) {
-  const { user } = useIdentity();
+  const { account, user } = useIdentity();
 
-  if (!user) {
+  if (!account || !user) {
     return null;
   }
 
-  return <ProfilePage actorId={user.id} service={profileService} />;
+  return (
+    <ProfilePage
+      actorId={user.id}
+      authorityVersion={account.authorityVersion}
+      service={profileService}
+    />
+  );
 }

@@ -229,6 +229,106 @@ h1 {
   max-width: 62rem;
 }
 
+.admin-page {
+  display: grid;
+  gap: 1.5rem;
+  max-width: 78rem;
+}
+
+.page-heading h1 {
+  margin-bottom: 0.6rem;
+}
+
+.compact-form,
+.search-row {
+  align-items: end;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: none;
+  padding: 1.5rem;
+}
+
+.search-row {
+  grid-template-columns: minmax(16rem, 32rem) auto;
+}
+
+.data-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.data-card {
+  align-items: start;
+  background: #fff;
+  border: 1px solid #d7ded3;
+  border-radius: 0.9rem;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(12rem, 1.5fr) minmax(12rem, 1fr) auto;
+  padding: 1.25rem;
+}
+
+.data-card p,
+.data-card dd {
+  color: #5b6b62;
+  margin: 0.25rem 0;
+}
+
+.data-card dl {
+  display: grid;
+  gap: 0.25rem 0.75rem;
+  grid-template-columns: auto 1fr;
+  margin: 0;
+}
+
+.data-card dt {
+  font-weight: 800;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.detail-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.detail-grid .panel {
+  max-width: none;
+  padding: 1.5rem;
+}
+
+.inline-item {
+  align-items: center;
+  border-bottom: 1px solid #e1e7df;
+  display: flex;
+  justify-content: space-between;
+  padding: 0.6rem 0;
+}
+
+.timeline {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0;
+  padding-left: 1.3rem;
+}
+
+.timeline li {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.timeline time {
+  color: #6b776f;
+  font-size: 0.85rem;
+}
+
 @media (max-width: 720px) {
   .app-header {
     align-items: flex-start;
@@ -236,7 +336,11 @@ h1 {
   }
 
   .app-body,
-  .profile-panel {
+  .profile-panel,
+  .compact-form,
+  .data-card,
+  .detail-grid,
+  .search-row {
     grid-template-columns: 1fr;
   }
 

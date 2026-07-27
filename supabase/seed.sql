@@ -34,6 +34,17 @@ values
   ('task.complete', 'Completar tareas'),
   ('payment.read_self', 'Consultar pagos propios'),
   ('payment.manage', 'Administrar pagos'),
+  ('invitation.read', 'Consultar invitaciones autorizadas'),
+  ('invitation.create', 'Crear invitaciones autorizadas'),
+  ('invitation.revoke', 'Revocar invitaciones'),
+  ('invitation.resend', 'Reenviar o sustituir invitaciones'),
+  ('account.read', 'Consultar cuentas autorizadas'),
+  ('account.activate', 'Recuperar onboarding pendiente'),
+  ('account.suspend', 'Suspender cuentas'),
+  ('account.archive', 'Archivar cuentas'),
+  ('account.reactivate', 'Reactivar cuentas'),
+  ('role_assignment.read', 'Consultar asignaciones de rol'),
+  ('role_assignment.manage', 'Administrar asignaciones de rol'),
   ('audit.read', 'Consultar auditoría')
 on conflict (code) do update
 set description = excluded.description,
@@ -71,6 +82,17 @@ where r.code = 'administrator'
     'task.complete',
     'payment.read_self',
     'payment.manage',
+    'invitation.read',
+    'invitation.create',
+    'invitation.revoke',
+    'invitation.resend',
+    'account.read',
+    'account.activate',
+    'account.suspend',
+    'account.archive',
+    'account.reactivate',
+    'role_assignment.read',
+    'role_assignment.manage',
     'audit.read'
   )
 on conflict do nothing;
@@ -160,6 +182,23 @@ values
     '',
     '',
     ''
+  ),
+  (
+    '00000000-0000-0000-0000-000000000000',
+    '00000000-0000-4000-8000-000000000006',
+    'authenticated',
+    'authenticated',
+    'coordinator@example.invalid',
+    extensions.crypt('local-test-only-not-a-secret', extensions.gen_salt('bf')),
+    statement_timestamp(),
+    '{"provider":"email","providers":["email"]}',
+    '{}',
+    statement_timestamp(),
+    statement_timestamp(),
+    '',
+    '',
+    '',
+    ''
   )
 on conflict (id) do nothing;
 
@@ -187,7 +226,8 @@ where u.email in (
   'volunteer-a@example.invalid',
   'volunteer-b@example.invalid',
   'unprovisioned@example.invalid',
-  'administrator@example.invalid'
+  'administrator@example.invalid',
+  'coordinator@example.invalid'
 )
 on conflict (provider_id, provider) do nothing;
 
@@ -197,7 +237,66 @@ from (
   values
     ('00000000-0000-4000-8000-000000000001'::uuid, 'volunteer'),
     ('00000000-0000-4000-8000-000000000002'::uuid, 'volunteer'),
-    ('00000000-0000-4000-8000-000000000004'::uuid, 'administrator')
+    ('00000000-0000-4000-8000-000000000004'::uuid, 'administrator'),
+    ('00000000-0000-4000-8000-000000000006'::uuid, 'coordinator')
 ) as fixture(user_id, role_code)
 inner join public.roles as r on r.code = fixture.role_code
 on conflict do nothing;
+
+insert into public.role_permissions (role_id, permission_id)
+select role.id, permission.id
+from public.roles as role
+cross join public.permissions as permission
+where role.code = 'coordinator'
+  and permission.code in (
+    'volunteer.read_self',
+    'volunteer.update_self',
+    'invitation.read',
+    'invitation.create',
+    'account.read',
+    'role_assignment.read'
+  )
+on conflict do nothing;
+
+insert into public.accounts (auth_user_id, status)
+select fixture.user_id, 'active'
+from (
+  values
+    ('00000000-0000-4000-8000-000000000001'::uuid),
+    ('00000000-0000-4000-8000-000000000002'::uuid),
+    ('00000000-0000-4000-8000-000000000004'::uuid),
+    ('00000000-0000-4000-8000-000000000006'::uuid)
+) as fixture(user_id)
+on conflict (auth_user_id) do update
+set status = 'active',
+    status_changed_at = statement_timestamp();
+
+insert into public.role_grant_policies (
+  actor_role_id,
+  target_role_id,
+  can_grant,
+  can_revoke
+)
+select actor_role.id, target_role.id, true, true
+from public.roles as actor_role
+cross join public.roles as target_role
+where actor_role.code = 'administrator'
+on conflict (actor_role_id, target_role_id) do update
+set can_grant = excluded.can_grant,
+    can_revoke = excluded.can_revoke,
+    is_active = true;
+
+insert into public.role_grant_policies (
+  actor_role_id,
+  target_role_id,
+  can_grant,
+  can_revoke
+)
+select actor_role.id, target_role.id, true, false
+from public.roles as actor_role
+inner join public.roles as target_role on target_role.code = 'volunteer'
+where actor_role.code = 'coordinator'
+on conflict (actor_role_id, target_role_id) do update
+set can_grant = excluded.can_grant,
+    can_revoke = excluded.can_revoke,
+    is_active = true;

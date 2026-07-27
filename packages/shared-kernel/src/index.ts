@@ -1,7 +1,17 @@
 export type AppErrorCode =
+  | 'account-blocked'
   | 'configuration'
+  | 'conflict'
   | 'forbidden'
+  | 'invitation-expired'
+  | 'invitation-revoked'
+  | 'invitation-superseded'
+  | 'invitation-used'
+  | 'network'
   | 'not-found'
+  | 'origin-denied'
+  | 'role-not-grantable'
+  | 'server'
   | 'unexpected'
   | 'unauthenticated'
   | 'validation';

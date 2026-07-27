@@ -1,0 +1,16 @@
+{
+  "extends": "../../packages/typescript-config/base.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "baseUrl": ".",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "noEmit": true,
+    "paths": {
+      "npm:@supabase/supabase-js@2.110.8": [
+        "../../apps/web/node_modules/@supabase/supabase-js"
+      ],
+      "vitest": ["../../apps/web/node_modules/vitest"]
+    }
+  },
+  "include": ["**/*.ts"]
+}

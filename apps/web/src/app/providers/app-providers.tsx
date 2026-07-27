@@ -25,7 +25,10 @@ export function AppProviders({ children, i18n, services }: AppProvidersProps) {
   return (
     <I18nextProvider i18n={i18n}>
       <QueryClientProvider client={queryClient}>
-        <IdentityProvider service={services.identity}>
+        <IdentityProvider
+          accountService={services.accountContext}
+          service={services.identity}
+        >
           <PersonalDataCacheGuard>{children}</PersonalDataCacheGuard>
         </IdentityProvider>
       </QueryClientProvider>

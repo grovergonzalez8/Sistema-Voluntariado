@@ -4,7 +4,7 @@ Sistema-Voluntariado será la fuente operacional para personas voluntarias y res
 
 ## Resultado de esta entrega
 
-Una cuenta autenticada y provisionada puede iniciar sesión, consultar su perfil y actualizar únicamente `display_name` y `preferred_locale`. Correo y credenciales pertenecen a Supabase Auth. No se capturan documentos, información médica, datos financieros ni contactos de emergencia.
+Las personas entran exclusivamente por invitación, completan el perfil mínimo y acceden según el estado y los permisos efectivos de su cuenta. Una cuenta activa puede consultar y actualizar únicamente su propio `display_name` y `preferred_locale`; responsables autorizados pueden gestionar invitaciones, roles y estados de cuenta con historial y auditoría. Correo y credenciales pertenecen a Supabase Auth. No se capturan documentos, información médica, datos financieros ni contactos de emergencia.
 
 ## Evolución futura
 

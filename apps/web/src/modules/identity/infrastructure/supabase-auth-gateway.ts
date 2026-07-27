@@ -3,10 +3,15 @@ import {
   success,
   type Result,
 } from '@sistema-voluntariado/shared-kernel';
-import type { SupabaseClient, User } from '@supabase/supabase-js';
+import type {
+  AuthChangeEvent,
+  SupabaseClient,
+  User,
+} from '@supabase/supabase-js';
 
 import type {
   AuthGateway,
+  AuthStateEvent,
   AuthStateListener,
 } from '../application/auth-gateway';
 import type {
@@ -18,6 +23,16 @@ const mapUser = (user: User): AuthenticatedUser => ({
   email: user.email ?? null,
   id: user.id,
 });
+
+const authStateEvents: Readonly<Record<AuthChangeEvent, AuthStateEvent>> = {
+  INITIAL_SESSION: 'initial-session',
+  MFA_CHALLENGE_VERIFIED: 'mfa-challenge-verified',
+  PASSWORD_RECOVERY: 'password-recovery',
+  SIGNED_IN: 'signed-in',
+  SIGNED_OUT: 'signed-out',
+  TOKEN_REFRESHED: 'token-refreshed',
+  USER_UPDATED: 'user-updated',
+};
 
 export class SupabaseAuthGateway implements AuthGateway {
   public constructor(private readonly client: SupabaseClient) {}
@@ -40,8 +55,11 @@ export class SupabaseAuthGateway implements AuthGateway {
   }
 
   public onAuthStateChange(listener: AuthStateListener): () => void {
-    const { data } = this.client.auth.onAuthStateChange((_event, session) => {
-      listener(session?.user ? mapUser(session.user) : null);
+    const { data } = this.client.auth.onAuthStateChange((event, session) => {
+      listener({
+        event: authStateEvents[event],
+        user: session?.user ? mapUser(session.user) : null,
+      });
     });
 
     return () => {

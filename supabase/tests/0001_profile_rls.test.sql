@@ -171,9 +171,10 @@ select is(
 );
 
 reset role;
-update public.profiles
-set archived_at = statement_timestamp()
-where id = '00000000-0000-4000-8000-000000000001';
+update public.accounts
+set status = 'suspended',
+    status_changed_at = statement_timestamp()
+where auth_user_id = '00000000-0000-4000-8000-000000000001';
 select set_config(
   'request.jwt.claims',
   '{"sub":"00000000-0000-4000-8000-000000000001","role":"authenticated"}',
@@ -191,13 +192,14 @@ select results_eq(
     select count(*) from changed
   $$,
   $$values (0::bigint)$$,
-  'an archived profile cannot be updated by its owner'
+  'a suspended account cannot update its profile'
 );
 
 reset role;
-update public.profiles
-set archived_at = null
-where id = '00000000-0000-4000-8000-000000000001';
+update public.accounts
+set status = 'active',
+    status_changed_at = statement_timestamp()
+where auth_user_id = '00000000-0000-4000-8000-000000000001';
 select set_config(
   'request.jwt.claims',
   '{"sub":"00000000-0000-4000-8000-000000000001","role":"authenticated"}',
@@ -308,9 +310,10 @@ select is(
 );
 
 reset role;
-update public.profiles
-set archived_at = statement_timestamp()
-where id = '00000000-0000-4000-8000-000000000004';
+update public.accounts
+set status = 'archived',
+    status_changed_at = statement_timestamp()
+where auth_user_id = '00000000-0000-4000-8000-000000000004';
 select set_config(
   'request.jwt.claims',
   '{"sub":"00000000-0000-4000-8000-000000000004","role":"authenticated"}',

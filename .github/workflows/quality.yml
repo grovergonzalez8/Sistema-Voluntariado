@@ -50,6 +50,9 @@ jobs:
       - name: Verify application
         run: pnpm verify
 
+      - name: Test Edge Function handler
+        run: pnpm test:functions
+
       - name: Start and reset local Supabase
         run: |
           pnpm db:start
@@ -67,11 +70,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          cp supabase/functions/.env.example supabase/functions/.env.local
           status="$(pnpm exec supabase status -o env)"
           export VITE_SUPABASE_URL="$(sed -n 's/^API_URL="\(.*\)"$/\1/p' <<< "$status")"
           export VITE_SUPABASE_ANON_KEY="$(sed -n 's/^ANON_KEY="\(.*\)"$/\1/p' <<< "$status")"
           test -n "$VITE_SUPABASE_URL"
           test -n "$VITE_SUPABASE_ANON_KEY"
+          # pnpm test:e2e owns exactly one Edge Function process, verifies
+          # its typed readiness response, and tears it down before returning.
           pnpm test:e2e
 
       - name: Stop local Supabase

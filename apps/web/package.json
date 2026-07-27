@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "test:e2e": "playwright test"
+    "test:functions": "vitest run --config vitest.functions.config.ts",
+    "test:e2e:playwright": "playwright test"
   },
   "dependencies": {
     "@hookform/resolvers": "catalog:",
