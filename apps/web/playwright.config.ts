@@ -44,24 +44,17 @@ export default defineConfig({
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
   },
-  webServer: [
-    {
-      command: 'vite --host localhost --port 5173',
-      env: {
-        VITE_SUPABASE_ANON_KEY: suppliedSupabaseKey,
-        VITE_SUPABASE_URL: suppliedSupabaseUrl,
-      },
-      reuseExistingServer: !process.env['CI'],
-      timeout: 120_000,
-      url: 'http://localhost:5173',
+  webServer: {
+    command: 'vite --host localhost --port 5173',
+    env: {
+      VITE_SUPABASE_ANON_KEY: suppliedSupabaseKey,
+      VITE_SUPABASE_URL: suppliedSupabaseUrl,
     },
-    {
-      command: 'corepack pnpm --dir ../.. functions:serve',
-      reuseExistingServer: !process.env['CI'],
-      timeout: 120_000,
-      url: 'http://127.0.0.1:54321/functions/v1/manage-account-invitation',
-    },
-  ],
+    name: 'Frontend',
+    reuseExistingServer: !process.env['CI'],
+    timeout: 120_000,
+    url: 'http://localhost:5173',
+  },
   workers: 1,
   projects: [
     {

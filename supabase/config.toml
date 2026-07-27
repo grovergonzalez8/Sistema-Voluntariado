@@ -372,7 +372,10 @@ authorization_url_path = "/oauth/consent"
 allow_dynamic_registration = false
 
 [edge_runtime]
-enabled = true
+# Edge Functions are started explicitly by functions:serve. Keeping the
+# automatic runtime disabled prevents db:start/db:reset from creating a
+# second owner before the E2E orchestrator performs typed readiness checks.
+enabled = false
 # Supported request policies: `oneshot`, `per_worker`.
 # `per_worker` (default) — enables hot reload during local development.
 # `oneshot` — fallback mode if hot reload causes issues (e.g. in large repos or with symlinks).

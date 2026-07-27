@@ -76,6 +76,8 @@ jobs:
           export VITE_SUPABASE_ANON_KEY="$(sed -n 's/^ANON_KEY="\(.*\)"$/\1/p' <<< "$status")"
           test -n "$VITE_SUPABASE_URL"
           test -n "$VITE_SUPABASE_ANON_KEY"
+          # pnpm test:e2e owns exactly one Edge Function process, verifies
+          # its typed readiness response, and tears it down before returning.
           pnpm test:e2e
 
       - name: Stop local Supabase

@@ -23,14 +23,15 @@
     "test:unit": "turbo run test:unit",
     "test:integration": "turbo run test:integration",
     "test:functions": "corepack pnpm --filter @sistema-voluntariado/web test:functions",
-    "test:e2e": "corepack pnpm --filter @sistema-voluntariado/web test:e2e",
+    "test:ci-orchestration": "node --test scripts/e2e-service-orchestrator.test.mjs",
+    "test:e2e": "node scripts/e2e-service-orchestrator.mjs",
     "functions:serve": "node scripts/serve-local-function.mjs",
     "account-lifecycle:test": "corepack pnpm test:functions && corepack pnpm db:reset && corepack pnpm exec supabase db lint --local --level warning && corepack pnpm db:test && corepack pnpm test:e2e",
-    "db:start": "supabase start",
+    "db:start": "supabase start --exclude edge-runtime",
     "db:stop": "supabase stop",
-    "db:reset": "supabase db reset --local",
+    "db:reset": "node scripts/reset-local-database.mjs",
     "db:test": "supabase test db",
-    "verify": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm lint:boundaries && corepack pnpm lint:architecture && corepack pnpm typecheck && corepack pnpm typecheck:functions && corepack pnpm test:unit && corepack pnpm test:integration && corepack pnpm build"
+    "verify": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm lint:boundaries && corepack pnpm lint:architecture && corepack pnpm typecheck && corepack pnpm typecheck:functions && corepack pnpm test:ci-orchestration && corepack pnpm test:unit && corepack pnpm test:integration && corepack pnpm build"
   },
   "devDependencies": {
     "@sistema-voluntariado/eslint-config": "workspace:*",
