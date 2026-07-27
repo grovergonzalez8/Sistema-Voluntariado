@@ -40,3 +40,16 @@ La revisión humana sigue siendo obligatoria. No se registrarán claves locales,
 - Estado: corrección completada en la rama autorizada, sin push, rebase, amend ni despliegue.
 
 Hallazgos materiales corregidos durante la revisión: epoch Auth para bootstrap/sign-in/sign-out tardíos; descarte de 401 administrativos de un actor anterior; tokens vivos de perfil; purga de caché A→B→C; bloqueo de E2E contra Supabase remoto; y eliminación de la ventana entre commit React y efectos pasivos mediante remount por identidad y `useLayoutEffect`.
+
+## Corrección de orquestación CI 0004
+
+- Objetivo: eliminar el doble propietario de `manage-account-invitation` y hacer reproducible la suite E2E local/Actions.
+- Prompt: `docs/ai/prompts/0004-ci-edge-function-orchestration.md`.
+- Plan: apéndice 2026-07-26 de `docs/exec-plans/0002-account-lifecycle.md`.
+- Integración y escritura: exclusivamente el agente principal.
+- Revisión independiente: `architect`, `database_security_reviewer`, `qa_reviewer` y `docs_governor`, todos con veredicto GO final y sin modificar archivos.
+- Commits técnicos: `bb59d3c` y `d7531c4`, más el cierre documental.
+- Validación local: `pnpm verify`, `CI=true pnpm test:e2e` y `pnpm account-lifecycle:test` aprobados; 13 pruebas de orquestación, 102 unitarias web, 2 de integración, 21 de Edge Function, 119 pgTAP y 5 E2E.
+- Estado: corrección completada en la rama autorizada, sin push, rebase, amend, despliegue ni modificación de `main`; confirmación remota del PR pendiente.
+
+Hallazgos materiales corregidos durante revisión: cleanup de Edge aun si falla `db:reset`; preservación conjunta de fallos funcionales y de teardown; cleanup independiente de Playwright/Vite y Functions ante señales; salud GoTrue obligatoria; y adquisición de un contenedor solamente con cardinalidad no ambigua.

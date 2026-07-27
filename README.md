@@ -25,6 +25,8 @@ corepack pnpm exec supabase status
 
 Después de iniciar Supabase, complete `.env.local` con la URL y la clave `anon` locales mostradas por la CLI. No copie `service_role` al frontend ni confirme archivos de entorno. `supabase/functions/.env.example` es solo una plantilla versionada: `functions:serve` exige la copia ignorada `supabase/functions/.env.local`, valida `APP_ORIGIN` y `ALLOWED_ORIGINS`, y no admite comodines como solución local. La configuración predeterminada autoriza exactamente `http://localhost:5173`.
 
+Los scripts raíz deshabilitan el Edge Runtime automático: en desarrollo manual, la terminal que ejecuta `functions:serve` es su único propietario. No mantenga esa terminal activa al ejecutar `test:e2e`; el orquestador de pruebas inicia su propia Function, valida una respuesta tipada y la detiene al terminar.
+
 Mantenga dos terminales adicionales abiertas. En la segunda, sirva la Edge Function:
 
 ```powershell
@@ -53,3 +55,5 @@ corepack pnpm account-lifecycle:test
 ```
 
 `verify` no exige Docker; las pruebas de funciones, PostgreSQL, Auth, Mailpit y E2E sí requieren Supabase local. Consulte `docs/deployment/local-development.md` para el recorrido completo. Alojamiento, proyectos, actividades, finanzas y los demás contextos operativos siguen fuera de alcance.
+
+La propiedad de procesos y el comando Linux equivalente al job `Quality` se documentan en `docs/deployment/continuous-integration.md`.

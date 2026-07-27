@@ -6,6 +6,8 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 
 ### Fixed
 
+- GitHub Actions y la suite local asignan un único propietario explícito a Edge Functions; el runtime automático de Supabase queda deshabilitado y Playwright gestiona únicamente Vite.
+- La readiness E2E valida el contrato tipado de `manage-account-invitation` y limpia PID, logs y contenedor aun cuando el arranque o Playwright fallen.
 - El refresh de sesión, la recuperación de foco y el refetch de autoridad ya no convierten estados transitorios de una cuenta activa en `/account-blocked`.
 - `/account-blocked` valida `suspended` o `archived`; los errores recuperables y permisos insuficientes tienen estados independientes.
 - Los errores 403 de invitaciones permanecen en el formulario y distinguen origen, permiso y rol no concedible sin cerrar la sesión.

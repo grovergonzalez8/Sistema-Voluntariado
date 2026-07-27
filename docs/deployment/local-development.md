@@ -15,6 +15,8 @@ corepack pnpm exec supabase status
 
 Copie únicamente la URL local y la clave anon local mostradas por `supabase status` a `.env.local`. No use ni confirme `service_role` en el frontend. La CLI inyecta las credenciales de servidor en la Edge Function local. `supabase/functions/.env.example` es únicamente la plantilla versionada; `supabase/functions/.env.local` es la configuración ejecutable ignorada por Git y debe definir `APP_ORIGIN=http://localhost:5173` y `ALLOWED_ORIGINS=http://localhost:5173`. `functions:serve` falla con un mensaje accionable si falta el archivo o una variable. No use `*`.
 
+`db:start` excluye Edge Runtime y `db:reset` elimina defensivamente cualquier contenedor Edge que la CLI reinicie. Así, en desarrollo manual, `functions:serve` es el único propietario de la Function.
+
 Mantenga dos terminales adicionales abiertas. En la segunda, sirva la Edge Function:
 
 ```powershell
@@ -68,10 +70,12 @@ corepack pnpm test:e2e
 corepack pnpm account-lifecycle:test
 ```
 
-`test:e2e` falla de forma explícita si `.env.local` no contiene URL/anon locales; no omite recorridos silenciosamente. Playwright inicia Vite y `manage-account-invitation`, usa un worker serial y requiere Auth, PostgreSQL y Mailpit. Su configuración obtiene la clave `service_role` local únicamente en el proceso Node para comprobar invariantes de Auth; no la expone a Vite ni al navegador.
+`test:e2e` falla de forma explícita si `.env.local` no contiene URL/anon locales; no omite recorridos silenciosamente. El orquestador Node comprueba que no exista otro Edge Runtime, inicia exactamente un `functions:serve`, captura PID y log temporal, espera el contrato tipado `401/unauthenticated` y siempre detiene proceso y contenedor. Playwright inicia únicamente Vite bajo el nombre `Frontend`, usa un worker serial y requiere Auth, PostgreSQL y Mailpit. Su configuración obtiene la clave `service_role` local únicamente en el proceso Node para comprobar invariantes de Auth; no la expone a Vite ni al navegador.
+
+No se usa `OPTIONS` como readiness porque Kong devuelve 200 incluso para rutas inexistentes. La comprobación envía un `POST` sin JWT con origen permitido y exige la respuesta JSON propia del handler. Un 502/503 firmado por Kong solo significa que el gateway está disponible y la Function aún no; una respuesta inesperada o un contenedor previo aborta con diagnóstico. Si aparece ese diagnóstico, ejecute `corepack pnpm db:stop`, luego `db:start` y `db:reset`; no active `reuseExistingServer` para ocultarlo.
 
 `verify` es el gate estático y no requiere Docker. `test:functions` prueba el handler puro; DB/E2E requieren Supabase local. `account-lifecycle:test` ejecuta funciones, reconstruye la base local, aplica lint SQL, corre pgTAP y finaliza con E2E; no depende del estado residual de una ejecución anterior.
 
 La URL del navegador, `site_url`, los redirects de Auth y la allowlist de Functions usan el mismo origen exacto `http://localhost:5173`. No mezcle `localhost` con `127.0.0.1`: para CORS y redirects son orígenes distintos.
 
-Detenga servicios preservando volúmenes con `corepack pnpm db:stop`. `db:reset` reemplaza exclusivamente la base local con migraciones/seed y nunca debe apuntar a un proyecto remoto.
+Detenga servicios preservando volúmenes con `corepack pnpm db:stop`. `db:reset` reemplaza exclusivamente la base local con migraciones/seed, retira el runtime Edge automático y nunca debe apuntar a un proyecto remoto. Para reproducir Actions en Linux consulte `continuous-integration.md`.

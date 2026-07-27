@@ -1,12 +1,15 @@
 # ExecPlan 0002: Invitaciones y ciclo de vida de cuentas
 
-- Estado: hito y corrección de regresión completados
+- Estado: corrección de orquestación E2E/CI completada
 - Inicio: 2026-07-24
-- Cierre: 2026-07-25
+- Cierre original: 2026-07-25
+- Reapertura correctiva CI: 2026-07-26
+- Cierre correctivo CI: 2026-07-26
 - Responsable: agente principal de Codex, con revisión humana obligatoria
 - Rama autorizada: `feat/account-lifecycle`
 - Commit base: `6a47d1f3d5c2c3fdfdb33a8f94193adea5774e29`
-- Prompt: `docs/ai/prompts/0002-account-lifecycle.md`
+- Prompt del hito: `docs/ai/prompts/0002-account-lifecycle.md`
+- Prompt correctivo vigente: `docs/ai/prompts/0004-ci-edge-function-orchestration.md`
 
 ## Objetivo
 
@@ -466,7 +469,7 @@ No se afirmará atomicidad distribuida. La clave de idempotencia evita reservas 
 - Supabase Auth local 2.109.1 acepta reenviar `inviteUserByEmail` a una identidad aún no confirmada: dos llamadas produjeron dos mensajes Mailpit y una sola fila Auth. No se imprimieron cuerpos, enlaces ni claves.
 - El spike descartó el ACK/identificador de las llamadas y después consultó Auth Admin por metadata de fixture: recuperó exactamente una identidad no confirmada con `confirmation_sent_at`. Esto valida la rama local de reconciliación única; casos ambiguos se probarán en la Edge Function.
 - Playwright descarta `window.confirm` por defecto; los E2E administrativos deben registrar y aceptar cada diálogo antes del click o la aplicación cancela correctamente la operación.
-- La primera inicialización de Edge Runtime local puede tardar mientras prepara la imagen; el timeout de webServer es 120 segundos.
+- La primera inicialización de Edge Runtime local puede tardar mientras prepara la imagen; desde la corrección 0004 su readiness tipada y timeout pertenecen al orquestador raíz, no a `webServer` de Playwright.
 - Ejecutar pgTAP después de un E2E sin `db:reset` altera conteos de fixtures por diseño. El cierre siempre restablece la base antes del gate combinado.
 
 ## Decisiones tomadas durante la implementación
@@ -595,3 +598,59 @@ Las operaciones tardías se descartan mediante generaciones de Auth, query keys 
 | Scans                                     | cero secretos versionados, `service_role` en frontend, `any`, `@ts-ignore` o `eslint-disable`           |
 
 Revisiones finales independientes: architect GO, database_security_reviewer GO, qa_reviewer GO y docs_governor GO. Los hallazgos intermedios sobre bootstrap Auth, respuestas 401 tardías, mutaciones de perfil, purgas A→B→C, entorno E2E remoto y ventana de efectos pasivos fueron corregidos antes del cierre.
+
+## Apéndice correctivo 2026-07-26: propiedad de procesos E2E y CI
+
+Prompt autorizante: `docs/ai/prompts/0004-ci-edge-function-orchestration.md`.
+
+### Fallo reproducido y causa raíz
+
+La secuencia del job `Quality` fue reproducida localmente con `CI=true`: después de `pnpm db:start` y `pnpm db:reset`, `pnpm test:e2e` aborta antes de ejecutar tests porque `http://127.0.0.1:54321/functions/v1/manage-account-invitation` ya está ocupada.
+
+El propietario duplicado exacto es `supabase start`. Con `[edge_runtime].enabled = true`, la CLI crea `supabase_edge_runtime_sistema-voluntariado` y publica Functions mediante Kong en 54321. `apps/web/playwright.config.ts` declara además `functions:serve` como segundo `webServer`. En CI, `reuseExistingServer = false` detecta la ruta ocupada y falla; localmente `true` ocultaba la duplicación reutilizando el runtime de Supabase sin ejecutar el comando declarado por Playwright.
+
+Un `OPTIONS` no sirve como readiness: Kong devuelve el mismo 200 y CORS genérico tanto para la Function real como para una ruta inexistente. Con Supabase iniciado mediante `--exclude edge-runtime`, la ruta queda en 503; al iniciar una sola vez `functions:serve`, un `POST` sin JWT y con origen permitido devuelve el contrato seguro y tipado `401` con `code = unauthenticated`, mientras una Function inexistente devuelve 404.
+
+| Servicio            | Propietario antes                   | Puerto/URL                                            | Teardown antes       | Riesgo de duplicación                    |
+| ------------------- | ----------------------------------- | ----------------------------------------------------- | -------------------- | ---------------------------------------- |
+| Supabase local/Kong | workflow mediante `db:start`        | API 54321, DB 54322 y servicios auxiliares            | paso final `db:stop` | no                                       |
+| Edge Function       | `db:start` y Playwright `webServer` | `/functions/v1/manage-account-invitation` sobre 54321 | implícito/incompleto | sí, causa confirmada                     |
+| Vite                | Playwright `webServer`              | localhost:5173                                        | Playwright           | no en CI; reutilización deliberada local |
+| Playwright          | workflow mediante `pnpm test:e2e`   | proceso de test                                       | propio               | no                                       |
+
+### Decisión de orquestación
+
+Se adopta la estrategia A. Los scripts raíz, usados tanto localmente como por Actions, inician Supabase sin Edge Runtime. Un orquestador Node iniciado por `pnpm test:e2e` posee exactamente un `functions:serve`, captura su PID y log temporal, exige readiness tipado y lo detiene incluso si readiness o Playwright fallan. Playwright posee únicamente Vite. El workflow posee la suite mediante esos scripts raíz y conserva `db:stop` como cleanup final.
+
+No se habilitará `reuseExistingServer` para Functions ni se aceptará una respuesta genérica de Kong. Vite conserva `reuseExistingServer: !CI`. El orquestador rechazará una Function o contenedor Edge Runtime ya existente, mostrará diagnóstico accionable y no reutilizará código de otra ejecución.
+
+### Plan y aceptación
+
+1. Deshabilitar el Edge Runtime automático en `config.toml` y hacer que `db:start` lo excluya defensivamente, porque `db:reset` reinicia servicios habilitados.
+2. Retirar Functions de `playwright.webServer`, nombrar el único servidor `Frontend` y conservar `baseURL` explícita.
+3. Implementar un orquestador Node multiplataforma con preflight, proceso hijo, readiness específica, timeout, logs redactados y teardown de PID/grupo y contenedor propio.
+4. Añadir pruebas del contrato de readiness, orden start→ready→E2E→stop, fallos de arranque/test, configuración Playwright/workflow y diagnóstico de propietario inesperado.
+5. Alinear Actions, scripts raíz, README, runbook, CHANGELOG y gobernanza de IA.
+6. Reproducir `pnpm verify`, la cadena DB/Functions/E2E, `account-lifecycle:test` y el comando local equivalente al job. La ejecución remota del PR seguirá siendo la confirmación definitiva de GitHub Actions.
+
+### Descubrimientos durante la implementación
+
+- Supabase CLI reinicia Edge Runtime durante `db reset` incluso después de un `start --exclude edge-runtime`; la configuración deshabilitada y el wrapper de reset retiran el contenedor exacto antes de E2E.
+- El wrapper ejecuta esa retirada en `finally`, incluso cuando el reset falla. El teardown E2E solo detiene el ID adquirido después de readiness y deja intacto cualquier runtime concurrente, que se reporta como fallo.
+- Sin upstream Edge, Kong puede devolver 502, 503 o mantener la ruta hasta timeout según el estado de su upstream. La salud separada de Auth confirma si Supabase está realmente disponible.
+- La primera ejecución integral posterior al cambio agotó una espera funcional de invitación; el orquestador imprimió logs y retiró Function/Vite correctamente. Tras reset limpio, la misma suite aprobó 5/5. Este flake debe vigilarse en las repeticiones finales y no se presenta como aprobación del primer intento.
+
+### Cierre de la corrección 0004
+
+La implementación quedó registrada en `bb59d3c` (`fix(ci): prevent duplicate edge function server`) y `d7531c4` (`test(ci): verify e2e service orchestration`), más el cierre documental. La evidencia final local fue:
+
+- instalación congelada, formato y `pnpm verify`: aprobados;
+- pruebas del orquestador: 13/13;
+- Functions: 21/21; lint SQL sin hallazgos; pgTAP: 119/119;
+- `CI=true pnpm test:e2e`: 5/5;
+- `pnpm account-lifecycle:test`: aprobado con 21 Functions, 119 pgTAP y 5 E2E;
+- post-check: cero contenedores Edge Runtime, cero listeners Vite en 5173 y cero procesos del orquestador;
+- scans: cero secretos versionados, `service_role` en frontend, `any` explícito, `@ts-ignore`, `eslint-disable`, TODO o FIXME en fuentes;
+- `git diff --check`: aprobado.
+
+Revisiones finales independientes: architect GO, database_security_reviewer GO, qa_reviewer GO y docs_governor GO. Los hallazgos intermedios sobre cleanup cuando falla el reset, agregación de errores, señales, salud tipada de GoTrue y propiedad ambigua de contenedores fueron corregidos antes del cierre. La ejecución remota nueva del Pull Request sigue siendo la confirmación definitiva de GitHub Actions; no hubo push, rebase, amend, despliegue ni modificación de `main`.
