@@ -8,6 +8,11 @@
 - Suspensión y archivo conservan historial/roles pero bloquean permisos; reactivación es administrativa y explícita.
 - Una invitación revocada o vencida puede recibir una sucesora en la misma cuenta; nunca se crea otra cuenta para el correo.
 
+## Resueltas en el hito 0003
+
+- Se necesita una entidad `volunteers` separada del perfil universal para representar personas actuales e históricas sin crear Auth, cuenta, invitación ni onboarding.
+- Email y teléfono son señales de posible duplicado, no claves únicas; el administrador puede confirmar históricos legítimos.
+
 ## Pendientes
 
 1. ¿Se separarán nombre legal, preferido y de presentación?
@@ -22,8 +27,8 @@
 10. ¿Reactivar una cuenta archivada requiere doble aprobación?
 11. ¿Debe invalidarse globalmente el refresh token al suspender/archivar, además del bloqueo inmediato en RLS?
 12. ¿Se permitirán cambios de correo y recuperación de contraseña desde la aplicación?
-13. ¿Se necesita una entidad `volunteers` separada del perfil universal?
-14. ¿Qué runbook recupera una identidad que Auth confirmó pero cuya invitación PostgreSQL fue revocada o venció antes de aceptarse? GoTrue no permite reinvitar esa identidad.
-15. ¿Se conservará `account.activate` como recuperación administrativa excepcional de un perfil ya completo que quedó `pending_profile`, o requerirá soporte humano fuera de la UI?
+13. ¿Qué runbook recupera una identidad que Auth confirmó pero cuya invitación PostgreSQL fue revocada o venció antes de aceptarse? GoTrue no permite reinvitar esa identidad.
+14. ¿Se conservará `account.activate` como recuperación administrativa excepcional de un perfil ya completo que quedó `pending_profile`, o requerirá soporte humano fuera de la UI?
+15. ¿Qué política de retención, anonimización, archivo y fusión se aplicará al padrón histórico?
 
-Hasta responderlas se aplica la decisión de menor privilegio y se evita crear tablas o pantallas relacionadas.
+Hasta responderlas se aplica la decisión de menor privilegio y se evitan evoluciones que dependan de esas respuestas.

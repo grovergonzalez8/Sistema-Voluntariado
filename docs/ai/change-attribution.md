@@ -53,3 +53,18 @@ Hallazgos materiales corregidos durante la revisión: epoch Auth para bootstrap/
 - Estado: corrección completada en la rama autorizada, sin push, rebase, amend, despliegue ni modificación de `main`; confirmación remota del PR pendiente.
 
 Hallazgos materiales corregidos durante revisión: cleanup de Edge aun si falla `db:reset`; preservación conjunta de fallos funcionales y de teardown; cleanup independiente de Playwright/Vite y Functions ante señales; salud GoTrue obligatoria; y adquisición de un contenedor solamente con cardinalidad no ambigua.
+
+## Volunteer Registry 0005
+
+- Objetivo: padrón administrativo independiente con CRUD, consultas server-side e importación/exportación Excel.
+- Herramienta: agente principal de Codex, GPT-5.6 Sol con reasoning medium.
+- Rama: `feat/volunteer-registry-v1` desde `main@c6f7392`.
+- Prompt: `docs/ai/prompts/0005-volunteer-registry-v1.md`.
+- Plan: `docs/exec-plans/0003-volunteer-registry-v1.md`.
+- Revisión inicial de solo lectura: `architect`, `domain_modeler` y `database_security_reviewer`; la revisión final usa `architect`, `database_security_reviewer`, `qa_reviewer` y `docs_governor`.
+- Integración y escritura: exclusivamente el agente principal.
+- Commit técnico: `01c127d`, más el cierre documental.
+- Validación: `pnpm verify`, frozen lockfile, 21 Edge Function, DB reset/lint, 176 pgTAP y 7 E2E aprobados; cuatro revisiones especializadas en GO.
+- Estado: implementación y validación local completadas; sin push, PR, merge ni despliegue.
+
+Decisiones materiales: agregado y tabla sin relación con Auth/cuentas/perfil; RBAC por cinco permisos exclusivos; tabla RLS default-deny expuesta solo mediante RPC; duplicados como advertencia confirmable bajo lock; importación seleccionada all-or-nothing; Excel efímero con límites técnicos; auditoría sin PII duplicada.

@@ -15,6 +15,8 @@ Un módulo exporta una API explícita desde `index.ts`. Ningún consumidor impor
 
 `volunteer-profile/application` no depende de `identity`; recibe el usuario actual mediante un puerto. `app/router` usa guards de sesión, estado y permiso para UX, pero las RPC/RLS vuelven a autorizar. El cambio de identidad o `authority_version` limpia cachés sensibles.
 
+`volunteers` posee el agregado `RegisteredVolunteer`, sus consultas paginadas y los casos de uso de alta, edición e importación/exportación. Su capa de aplicación recibe autorización mediante un puerto propio y no importa `identity`; composición adapta el contexto de cuenta. Excel se representa como bytes y filas en un puerto, de modo que dominio y aplicación no conocen `File`, navegador ni la biblioteca XLSX. El padrón no depende de `volunteer-profile`, Auth ni `accounts`.
+
 ## Evolución
 
 No existen directorios de código para alojamiento, proyectos, grupos, actividades, tareas, finanzas o incidencias. Cada contexto futuro requiere reglas, recorrido vertical y ExecPlan propios.

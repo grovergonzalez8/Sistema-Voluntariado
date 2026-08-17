@@ -19,6 +19,7 @@ flowchart TB
 
 - `identity`: sesión, contexto de cuenta, invitaciones, onboarding, estados, administración de roles y cuentas.
 - `volunteer-profile`: perfil, consulta propia y actualización de campos permitidos.
+- `volunteers`: padrón administrativo de personas voluntarias actuales e históricas, independiente de cuentas y Auth.
 
 ## Capas
 

@@ -25,4 +25,6 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 - Onboarding por invitación, definición de contraseña en Auth y activación atómica con rol inicial protegido.
 - Panel bilingüe de invitaciones, cuentas, roles, estados e historial/auditoría autorizada.
 - Matriz explícita de concesión de roles y protección concurrente del último administrador activo.
-- Pruebas de Edge Function, 119 comprobaciones pgTAP y recorridos E2E reales con Mailpit local.
+- Pruebas de Edge Function, 176 comprobaciones pgTAP y recorridos E2E reales con Mailpit local.
+- Padrón administrativo independiente de Auth/cuentas con alta, detalle, edición, búsqueda y orden paginados, advertencias de duplicados y auditoría sin snapshots de PII.
+- Preview e importación atómica `.xlsx`, plantilla y exportación del conjunto filtrado, protegidas por permisos exclusivos de administrator y límites de 5 MiB/1.000 filas.

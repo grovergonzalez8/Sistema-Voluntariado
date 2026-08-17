@@ -113,3 +113,22 @@ sequenceDiagram
 ```
 
 No existe transacción distribuida. La idempotencia, el lease exclusivo con actor/correlación por intento, el snapshot bilateral de `auth_user_id`, constraints diferidos y la reconciliación por correo exacto + identificador de invitación en metadata emitida por el servidor limitan divergencias. Los casos ambiguos o una identidad ya confirmada quedan fallidos para intervención; nunca se enlazan ni eliminan usuarios automáticamente.
+
+## Padrón administrativo de voluntarios
+
+```mermaid
+sequenceDiagram
+  participant A as Administrator
+  participant UI as Volunteer Registry UI
+  participant UC as VolunteerRegistryService
+  participant DB as PostgreSQL RPC
+  A->>UI: buscar, crear o editar
+  UI->>UC: operación validada
+  UC->>UC: permiso efectivo mediante puerto
+  UC->>DB: RPC con JWT y sin actor recibido del formulario
+  DB->>DB: cuenta activa + permiso + lock de duplicados
+  DB->>DB: mutación y auditoría atómicas
+  DB-->>UI: proyección mínima o error seguro
+```
+
+Listado, búsqueda, orden y exportación se ejecutan paginados en PostgreSQL. En importación, el navegador analiza un `.xlsx` de hasta 5 MiB y 1.000 filas, muestra errores y coincidencias, y envía solo las filas elegidas. La RPC vuelve a validar estructura, datos y duplicados bajo un advisory lock; todo el lote se confirma o revierte. El archivo no se persiste y ninguna operación toca Supabase Auth, `accounts`, invitaciones o perfiles.

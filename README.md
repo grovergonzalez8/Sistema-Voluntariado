@@ -1,6 +1,6 @@
 # Sistema-Voluntariado
 
-Monolito modular para gestionar progresivamente la operación de voluntariado. El alcance actual incluye autenticación, perfil propio, invitaciones, onboarding, ciclo de vida de cuentas y administración segura de roles.
+Monolito modular para gestionar progresivamente la operación de voluntariado. El alcance actual incluye autenticación, perfil propio, invitaciones, onboarding, ciclo de vida de cuentas, administración segura de roles y un padrón administrativo independiente con importación/exportación Excel.
 
 ## Estado
 
