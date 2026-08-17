@@ -45,7 +45,12 @@ values
   ('account.reactivate', 'Reactivar cuentas'),
   ('role_assignment.read', 'Consultar asignaciones de rol'),
   ('role_assignment.manage', 'Administrar asignaciones de rol'),
-  ('audit.read', 'Consultar auditoría')
+  ('audit.read', 'Consultar auditoría'),
+  ('volunteer_registry.read', 'Consultar el registro institucional de voluntarios'),
+  ('volunteer_registry.create', 'Registrar voluntarios institucionales'),
+  ('volunteer_registry.update', 'Actualizar voluntarios institucionales'),
+  ('volunteer_registry.import', 'Importar voluntarios institucionales'),
+  ('volunteer_registry.export', 'Exportar voluntarios institucionales')
 on conflict (code) do update
 set description = excluded.description,
     updated_at = statement_timestamp(),
@@ -93,7 +98,12 @@ where r.code = 'administrator'
     'account.reactivate',
     'role_assignment.read',
     'role_assignment.manage',
-    'audit.read'
+    'audit.read',
+    'volunteer_registry.read',
+    'volunteer_registry.create',
+    'volunteer_registry.update',
+    'volunteer_registry.import',
+    'volunteer_registry.export'
   )
 on conflict do nothing;
 

@@ -17,6 +17,16 @@ interface AccountRow {
   updated_at: string;
 }
 
+interface VolunteerRow {
+  [key: string]: unknown;
+  created_at: string;
+  email: string | null;
+  full_name: string;
+  id: string;
+  phone: string | null;
+  updated_at: string;
+}
+
 export interface Database {
   public: {
     CompositeTypes: Record<string, never>;
@@ -122,6 +132,77 @@ export interface Database {
           user_id: string | null;
         }[];
       };
+      create_volunteer: {
+        Args: {
+          accept_potential_duplicate?: boolean;
+          requested_email: string | null;
+          requested_full_name: string;
+          requested_phone: string | null;
+        };
+        Returns: VolunteerRow[];
+      };
+      export_volunteers: {
+        Args: {
+          requested_limit?: number;
+          requested_offset?: number;
+          requested_search?: string;
+          requested_sort?: string;
+        };
+        Returns: {
+          created_at: string;
+          email: string | null;
+          full_name: string;
+          phone: string | null;
+          updated_at: string;
+          volunteer_id: string;
+        }[];
+      };
+      find_volunteer_duplicates: {
+        Args: {
+          requested_email: string | null;
+          requested_exclude_id?: string | null;
+          requested_phone: string | null;
+        };
+        Returns: {
+          full_name: string;
+          matched_fields: string[];
+          volunteer_id: string;
+        }[];
+      };
+      get_volunteer_detail: {
+        Args: { requested_volunteer_id: string };
+        Returns: VolunteerRow[];
+      };
+      import_volunteers: {
+        Args: { requested_rows: Json };
+        Returns: { batch_id: string; inserted_count: number }[];
+      };
+      list_volunteers: {
+        Args: {
+          requested_limit?: number;
+          requested_offset?: number;
+          requested_search?: string;
+          requested_sort?: string;
+        };
+        Returns: {
+          created_at: string;
+          email: string | null;
+          full_name: string;
+          phone: string | null;
+          total_count: number;
+          updated_at: string;
+          volunteer_id: string;
+        }[];
+      };
+      preview_volunteer_import_duplicates: {
+        Args: { requested_rows: Json };
+        Returns: {
+          full_name: string;
+          matched_fields: string[];
+          requested_row_number: number;
+          volunteer_id: string;
+        }[];
+      };
       manage_account_role: {
         Args: {
           requested_account_id: string;
@@ -129,6 +210,16 @@ export interface Database {
           requested_role_code: string;
         };
         Returns: AccountRow[];
+      };
+      update_volunteer: {
+        Args: {
+          accept_potential_duplicate?: boolean;
+          requested_email: string | null;
+          requested_full_name: string;
+          requested_phone: string | null;
+          requested_volunteer_id: string;
+        };
+        Returns: VolunteerRow[];
       };
     };
     Tables: {
@@ -157,6 +248,23 @@ export interface Database {
           id?: string;
           preferred_locale?: 'en' | 'es';
           updated_at?: string;
+        };
+      };
+      volunteers: {
+        Insert: {
+          created_at?: string;
+          email?: string | null;
+          full_name: string;
+          id?: string;
+          phone?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+        Row: VolunteerRow;
+        Update: {
+          email?: string | null;
+          full_name?: string;
+          phone?: string | null;
         };
       };
     };

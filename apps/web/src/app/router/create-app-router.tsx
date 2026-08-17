@@ -19,6 +19,13 @@ import {
   ProtectedRoute,
 } from '../../modules/identity';
 import type { ApplicationServices } from '../composition/application-services';
+import {
+  VolunteerCreatePage,
+  VolunteerDetailPage,
+  VolunteerEditPage,
+  VolunteerImportPage,
+  VolunteersPage,
+} from '../../modules/volunteers';
 import { AppShell } from './app-shell';
 import { ProfileRoute } from './profile-route';
 
@@ -90,6 +97,70 @@ export function createAppRouter(
                         },
                       ],
                       element: <PermissionRoute permission="account.read" />,
+                    },
+                    {
+                      children: [
+                        {
+                          element: (
+                            <VolunteersPage service={services.volunteers} />
+                          ),
+                          path: 'admin/volunteers',
+                        },
+                        {
+                          element: (
+                            <VolunteerDetailPage
+                              service={services.volunteers}
+                            />
+                          ),
+                          path: 'admin/volunteers/:id',
+                        },
+                      ],
+                      element: (
+                        <PermissionRoute permission="volunteer_registry.read" />
+                      ),
+                    },
+                    {
+                      children: [
+                        {
+                          element: (
+                            <VolunteerCreatePage
+                              service={services.volunteers}
+                            />
+                          ),
+                          path: 'admin/volunteers/new',
+                        },
+                      ],
+                      element: (
+                        <PermissionRoute permission="volunteer_registry.create" />
+                      ),
+                    },
+                    {
+                      children: [
+                        {
+                          element: (
+                            <VolunteerEditPage service={services.volunteers} />
+                          ),
+                          path: 'admin/volunteers/:id/edit',
+                        },
+                      ],
+                      element: (
+                        <PermissionRoute permission="volunteer_registry.update" />
+                      ),
+                    },
+                    {
+                      children: [
+                        {
+                          element: (
+                            <VolunteerImportPage
+                              service={services.volunteers}
+                            />
+                          ),
+                          path: 'admin/volunteers/import',
+                        },
+                      ],
+                      element: (
+                        <PermissionRoute permission="volunteer_registry.import" />
+                      ),
                     },
                     { element: <Navigate replace to="profile" />, index: true },
                   ],
