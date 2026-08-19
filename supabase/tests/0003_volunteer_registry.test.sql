@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(57);
+select plan(93);
 
 select has_table('public', 'volunteers', 'volunteers table exists');
 select ok(
@@ -203,6 +203,64 @@ select is(
   5::bigint,
   'an administrator has every registry capability'
 );
+select throws_ok(
+  $$select * from public.preview_volunteer_import_duplicates(null::jsonb)$$,
+  '22023',
+  'invalid_import_payload',
+  'preview rejects a SQL null row collection'
+);
+select throws_ok(
+  $$select * from public.preview_volunteer_import_duplicates('[]'::jsonb)$$,
+  '22023',
+  'invalid_import_payload',
+  'preview rejects an empty row collection'
+);
+select throws_ok(
+  $$select * from public.preview_volunteer_import_duplicates('[1]'::jsonb)$$,
+  '22023',
+  'invalid_import_payload',
+  'preview rejects a non-object row'
+);
+select throws_ok(
+  $$select * from public.preview_volunteer_import_duplicates('[{"email":null,"phone":null}]'::jsonb)$$,
+  '22023',
+  'invalid_import_payload',
+  'preview requires rowNumber'
+);
+select throws_ok(
+  $$select * from public.preview_volunteer_import_duplicates('[{"rowNumber":null,"email":null,"phone":null}]'::jsonb)$$,
+  '22023',
+  'invalid_import_payload',
+  'preview rejects a null rowNumber'
+);
+select throws_ok(
+  $$select * from public.preview_volunteer_import_duplicates('[{"rowNumber":"2","email":null,"phone":null}]'::jsonb)$$,
+  '22023',
+  'invalid_import_payload',
+  'preview rejects a string rowNumber'
+);
+select throws_ok(
+  $$select * from public.preview_volunteer_import_duplicates('[{"rowNumber":2.5,"email":null,"phone":null}]'::jsonb)$$,
+  '22023',
+  'invalid_import_payload',
+  'preview rejects a decimal rowNumber'
+);
+select throws_ok(
+  $$select * from public.preview_volunteer_import_duplicates('[{"rowNumber":0,"email":null,"phone":null}]'::jsonb)$$,
+  '22023',
+  'invalid_import_payload',
+  'preview rejects rowNumber zero'
+);
+select throws_ok(
+  $$select * from public.preview_volunteer_import_duplicates('[{"rowNumber":-2,"email":null,"phone":null}]'::jsonb)$$,
+  '22023',
+  'invalid_import_payload',
+  'preview rejects a negative rowNumber'
+);
+select lives_ok(
+  $$select * from public.preview_volunteer_import_duplicates('[{"rowNumber":2,"email":null,"phone":null}]'::jsonb)$$,
+  'preview accepts a structurally valid row'
+);
 select lives_ok(
   $$
     create temporary table test_historical_volunteer as
@@ -274,6 +332,52 @@ select throws_ok(
   'duplicate_confirmation_required',
   'null cannot bypass duplicate confirmation during creation'
 );
+select throws_ok(
+  $$select * from public.import_volunteers('[{"fullName":"Duplicada sin confirmación","email":"contacto@example.invalid","phone":null}]'::jsonb)$$,
+  '22023',
+  'invalid_import_payload',
+  'import requires the duplicate confirmation property'
+);
+select throws_ok(
+  $$select * from public.import_volunteers('[{"fullName":"Duplicada nula","email":"contacto@example.invalid","phone":null,"acceptPotentialDuplicate":null}]'::jsonb)$$,
+  '22023',
+  'invalid_import_payload',
+  'import rejects a null duplicate confirmation'
+);
+select throws_ok(
+  $$select * from public.import_volunteers('[{"fullName":"Duplicada falsa","email":"contacto@example.invalid","phone":null,"acceptPotentialDuplicate":false}]'::jsonb)$$,
+  '23505',
+  'duplicate_confirmation_required',
+  'boolean false cannot confirm an import duplicate'
+);
+select throws_ok(
+  $$select * from public.import_volunteers('[{"fullName":"Duplicada string","email":"contacto@example.invalid","phone":null,"acceptPotentialDuplicate":"true"}]'::jsonb)$$,
+  '22023',
+  'invalid_import_payload',
+  'import rejects a string duplicate confirmation'
+);
+select throws_ok(
+  $$select * from public.import_volunteers('[{"fullName":"Duplicada numérica","email":"contacto@example.invalid","phone":null,"acceptPotentialDuplicate":1}]'::jsonb)$$,
+  '22023',
+  'invalid_import_payload',
+  'import rejects a numeric duplicate confirmation'
+);
+select throws_ok(
+  $$select * from public.import_volunteers('[{"fullName":"Duplicada objeto","email":"contacto@example.invalid","phone":null,"acceptPotentialDuplicate":{}}]'::jsonb)$$,
+  '22023',
+  'invalid_import_payload',
+  'import rejects an object duplicate confirmation'
+);
+select throws_ok(
+  $$select * from public.import_volunteers('[{"fullName":"Duplicada array","email":"contacto@example.invalid","phone":null,"acceptPotentialDuplicate":[]}]'::jsonb)$$,
+  '22023',
+  'invalid_import_payload',
+  'import rejects an array duplicate confirmation'
+);
+select lives_ok(
+  $$select * from public.import_volunteers('[{"fullName":"Fila válida independiente","email":"no-duplicada@example.invalid","phone":null,"acceptPotentialDuplicate":false}]'::jsonb)$$,
+  'boolean false remains valid for a non-duplicate import row'
+);
 select lives_ok(
   $$select * from public.create_volunteer('Persona Histórica', null, null, false)$$,
   'a matching name alone is not a duplicate signal'
@@ -311,6 +415,10 @@ select lives_ok(
     '+591 (02) 001-020'
   ),
   'editing excludes the volunteer itself from duplicate checks'
+);
+select lives_ok(
+  $$select * from public.import_volunteers('[{"fullName":"Duplicada confirmada","email":"contacto@example.invalid","phone":null,"acceptPotentialDuplicate":true}]'::jsonb)$$,
+  'only explicit boolean true confirms an import duplicate'
 );
 select lives_ok(
   $$select * from public.create_volunteer('Histórico legítimo', 'contacto@example.invalid', null, true)$$,
@@ -369,6 +477,46 @@ select is(
   ),
   1::bigint,
   'pagination applies limit and offset server-side'
+);
+select throws_ok(
+  $$select * from public.list_volunteers('', 'newest', null, 0)$$,
+  '22023',
+  'invalid_volunteer_query',
+  'list rejects a null limit'
+);
+select throws_ok(
+  $$select * from public.list_volunteers('', 'newest', 0, 0)$$,
+  '22023',
+  'invalid_volunteer_query',
+  'list rejects a zero limit'
+);
+select throws_ok(
+  $$select * from public.list_volunteers('', 'newest', -1, 0)$$,
+  '22023',
+  'invalid_volunteer_query',
+  'list rejects a negative limit'
+);
+select lives_ok(
+  $$select * from public.list_volunteers('', 'newest', 100, 0)$$,
+  'list accepts its maximum limit'
+);
+select throws_ok(
+  $$select * from public.list_volunteers('', 'newest', 101, 0)$$,
+  '22023',
+  'invalid_volunteer_query',
+  'list rejects a limit above its maximum'
+);
+select throws_ok(
+  $$select * from public.list_volunteers('', 'newest', 25, null)$$,
+  '22023',
+  'invalid_volunteer_query',
+  'list rejects a null offset'
+);
+select throws_ok(
+  $$select * from public.list_volunteers('', null, 25, 0)$$,
+  '22023',
+  'invalid_volunteer_query',
+  'list rejects a null sort'
 );
 select is(
   (
@@ -483,6 +631,24 @@ select throws_ok(
   'invalid_import_payload',
   'import rejects unknown client-controlled properties'
 );
+select throws_ok(
+  $$select * from public.import_volunteers(null::jsonb)$$,
+  '22023',
+  'invalid_import_payload',
+  'import rejects a SQL null row collection'
+);
+select throws_ok(
+  $$select * from public.import_volunteers('[]'::jsonb)$$,
+  '22023',
+  'invalid_import_size',
+  'import rejects an empty row collection'
+);
+select throws_ok(
+  $$select * from public.import_volunteers('[1]'::jsonb)$$,
+  '22023',
+  'invalid_import_payload',
+  'import rejects a non-object row'
+);
 select is(
   (
     select count(*)
@@ -490,6 +656,46 @@ select is(
   ),
   2::bigint,
   'export returns the complete filtered set rather than a rendered page'
+);
+select throws_ok(
+  $$select * from public.export_volunteers('', 'newest', null, 0)$$,
+  '22023',
+  'invalid_volunteer_query',
+  'export rejects a null limit'
+);
+select throws_ok(
+  $$select * from public.export_volunteers('', 'newest', 0, 0)$$,
+  '22023',
+  'invalid_volunteer_query',
+  'export rejects a zero limit'
+);
+select throws_ok(
+  $$select * from public.export_volunteers('', 'newest', -1, 0)$$,
+  '22023',
+  'invalid_volunteer_query',
+  'export rejects a negative limit'
+);
+select lives_ok(
+  $$select * from public.export_volunteers('', 'newest', 1000, 0)$$,
+  'export accepts its maximum limit'
+);
+select throws_ok(
+  $$select * from public.export_volunteers('', 'newest', 1001, 0)$$,
+  '22023',
+  'invalid_volunteer_query',
+  'export rejects a limit above its maximum'
+);
+select throws_ok(
+  $$select * from public.export_volunteers('', 'newest', 1000, null)$$,
+  '22023',
+  'invalid_volunteer_query',
+  'export rejects a null offset'
+);
+select throws_ok(
+  $$select * from public.export_volunteers('', null, 1000, 0)$$,
+  '22023',
+  'invalid_volunteer_query',
+  'export rejects a null sort'
 );
 
 select * from finish();

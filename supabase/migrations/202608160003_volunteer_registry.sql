@@ -263,20 +263,36 @@ begin
   then
     raise exception 'permission_denied' using errcode = '42501';
   end if;
-  if jsonb_typeof(requested_rows) <> 'array'
-    or jsonb_array_length(requested_rows) not between 1 and 1000
-    or exists (
+  if requested_rows is null
+    or jsonb_typeof(requested_rows) is distinct from 'array'
+  then
+    raise exception 'invalid_import_payload' using errcode = '22023';
+  end if;
+  if jsonb_array_length(requested_rows) not between 1 and 1000 then
+    raise exception 'invalid_import_payload' using errcode = '22023';
+  end if;
+  if exists (
+    select 1
+    from jsonb_array_elements(requested_rows) as element(value)
+    where jsonb_typeof(element.value) is distinct from 'object'
+  ) then
+    raise exception 'invalid_import_payload' using errcode = '22023';
+  end if;
+  if exists (
       select 1
       from jsonb_array_elements(requested_rows) as element(value)
-      where jsonb_typeof(element.value) <> 'object'
-        or exists (
+      where exists (
           select 1
           from jsonb_object_keys(element.value) as key_name
           where key_name not in ('rowNumber', 'email', 'phone')
         )
-        or jsonb_typeof(element.value -> 'rowNumber') <> 'number'
-        or element.value ->> 'rowNumber' !~ '^[0-9]+$'
-        or (element.value ->> 'rowNumber')::integer not between 2 and 1001
+        or not (element.value ? 'rowNumber')
+        or not case
+          when jsonb_typeof(element.value -> 'rowNumber') = 'number'
+            and element.value ->> 'rowNumber' ~ '^[0-9]+$'
+          then (element.value ->> 'rowNumber')::numeric between 2 and 1001
+          else false
+        end
         or (
           element.value ? 'email'
           and jsonb_typeof(element.value -> 'email') not in ('string', 'null')
@@ -285,8 +301,7 @@ begin
           element.value ? 'phone'
           and jsonb_typeof(element.value -> 'phone') not in ('string', 'null')
         )
-    )
-  then
+  ) then
     raise exception 'invalid_import_payload' using errcode = '22023';
   end if;
 
@@ -354,9 +369,12 @@ begin
   then
     raise exception 'permission_denied' using errcode = '42501';
   end if;
-  if requested_limit not between 1 and 100
+  if requested_limit is null
+    or requested_limit not between 1 and 100
+    or requested_offset is null
     or requested_offset < 0
     or char_length(canonical_search) > 100
+    or requested_sort is null
     or requested_sort not in ('name_asc', 'name_desc', 'newest', 'oldest')
   then
     raise exception 'invalid_volunteer_query' using errcode = '22023';
@@ -702,7 +720,9 @@ begin
   then
     raise exception 'permission_denied' using errcode = '42501';
   end if;
-  if jsonb_typeof(requested_rows) <> 'array' then
+  if requested_rows is null
+    or jsonb_typeof(requested_rows) is distinct from 'array'
+  then
     raise exception 'invalid_import_payload' using errcode = '22023';
   end if;
   row_count := jsonb_array_length(requested_rows);
@@ -712,15 +732,22 @@ begin
   if exists (
     select 1
     from jsonb_array_elements(requested_rows) as element(value)
-    where jsonb_typeof(element.value) <> 'object'
-      or exists (
+    where jsonb_typeof(element.value) is distinct from 'object'
+  ) then
+    raise exception 'invalid_import_payload' using errcode = '22023';
+  end if;
+  if exists (
+    select 1
+    from jsonb_array_elements(requested_rows) as element(value)
+    where exists (
         select 1
         from jsonb_object_keys(element.value) as key_name
         where key_name not in (
           'fullName', 'email', 'phone', 'acceptPotentialDuplicate'
         )
       )
-      or jsonb_typeof(element.value -> 'fullName') <> 'string'
+      or not (element.value ? 'fullName')
+      or jsonb_typeof(element.value -> 'fullName') is distinct from 'string'
       or (
         element.value ? 'email'
         and jsonb_typeof(element.value -> 'email') not in ('string', 'null')
@@ -729,7 +756,9 @@ begin
         element.value ? 'phone'
         and jsonb_typeof(element.value -> 'phone') not in ('string', 'null')
       )
-      or jsonb_typeof(element.value -> 'acceptPotentialDuplicate') <> 'boolean'
+      or not (element.value ? 'acceptPotentialDuplicate')
+      or jsonb_typeof(element.value -> 'acceptPotentialDuplicate')
+        is distinct from 'boolean'
   ) then
     raise exception 'invalid_import_payload' using errcode = '22023';
   end if;
@@ -765,7 +794,10 @@ begin
       regexp_replace(coalesce(canonical_phone, ''), '[^0-9]', '', 'g'),
       ''
     );
-    accept_duplicate := (requested_row ->> 'acceptPotentialDuplicate')::boolean;
+    accept_duplicate := coalesce(
+      (requested_row ->> 'acceptPotentialDuplicate')::boolean,
+      false
+    );
 
     if char_length(canonical_full_name) not between 1 and 100
       or (
@@ -796,7 +828,7 @@ begin
       )
     ) then
       duplicate_count := duplicate_count + 1;
-      if not accept_duplicate then
+      if not coalesce(accept_duplicate, false) then
         raise exception 'duplicate_confirmation_required' using errcode = '23505';
       end if;
     end if;
@@ -870,9 +902,12 @@ begin
   then
     raise exception 'permission_denied' using errcode = '42501';
   end if;
-  if requested_limit not between 1 and 1000
+  if requested_limit is null
+    or requested_limit not between 1 and 1000
+    or requested_offset is null
     or requested_offset < 0
     or char_length(canonical_search) > 100
+    or requested_sort is null
     or requested_sort not in ('name_asc', 'name_desc', 'newest', 'oldest')
   then
     raise exception 'invalid_volunteer_query' using errcode = '22023';

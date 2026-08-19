@@ -17,7 +17,7 @@ interface AccountRow {
   updated_at: string;
 }
 
-interface VolunteerRow {
+interface VolunteerProjectionRow {
   [key: string]: unknown;
   created_at: string;
   email: string | null;
@@ -25,6 +25,10 @@ interface VolunteerRow {
   id: string;
   phone: string | null;
   updated_at: string;
+}
+
+interface VolunteerTableRow extends VolunteerProjectionRow {
+  phone_match_key: string | null;
 }
 
 export interface Database {
@@ -139,7 +143,7 @@ export interface Database {
           requested_full_name: string;
           requested_phone: string | null;
         };
-        Returns: VolunteerRow[];
+        Returns: VolunteerProjectionRow[];
       };
       export_volunteers: {
         Args: {
@@ -171,7 +175,7 @@ export interface Database {
       };
       get_volunteer_detail: {
         Args: { requested_volunteer_id: string };
-        Returns: VolunteerRow[];
+        Returns: VolunteerProjectionRow[];
       };
       import_volunteers: {
         Args: { requested_rows: Json };
@@ -219,7 +223,7 @@ export interface Database {
           requested_phone: string | null;
           requested_volunteer_id: string;
         };
-        Returns: VolunteerRow[];
+        Returns: VolunteerProjectionRow[];
       };
     };
     Tables: {
@@ -257,14 +261,19 @@ export interface Database {
           full_name: string;
           id?: string;
           phone?: string | null;
+          phone_match_key?: never;
           updated_at?: string;
         };
         Relationships: [];
-        Row: VolunteerRow;
+        Row: VolunteerTableRow;
         Update: {
+          created_at?: string;
           email?: string | null;
           full_name?: string;
+          id?: string;
           phone?: string | null;
+          phone_match_key?: never;
+          updated_at?: string;
         };
       };
     };
