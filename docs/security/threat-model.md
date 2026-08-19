@@ -4,30 +4,30 @@
 
 Activos: identidades Auth, cuentas, invitaciones, perfiles mínimos, padrón administrativo de voluntarios, roles/policies/permisos, estados e historial/auditoría. Datos médicos, documentos de identidad, emergencia, ubicación detallada y finanzas no se capturan. Fronteras: navegador no confiable, analizador/generador Excel, Edge Function, Supabase Auth/Data API y PostgreSQL protegido por RLS.
 
-| Amenaza                        | Control inicial                                                                             | Pendiente                            |
-| ------------------------------ | ------------------------------------------------------------------------------------------- | ------------------------------------ |
-| Acceso horizontal              | `auth.uid()`, RLS, prueba con dos usuarios                                                  | Revisar cada tabla futura            |
-| Escalamiento de privilegios    | permiso + policy explícita + RPC; sin grants cliente                                        | scopes organizacionales              |
-| Campo protegido modificado     | grants de columna + trigger de guarda                                                       | Revisar nuevos campos                |
-| Claves expuestas               | solo anon en navegador; env ignorados                                                       | Rotación por entorno                 |
-| Inyección                      | SDK parametrizado, checks y sin SQL cliente                                                 | Revisar RPC futuras                  |
-| XSS                            | React escapa texto; sin HTML arbitrario                                                     | CSP al desplegar                     |
-| CSRF                           | tokens Bearer; no cookies propias                                                           | Reevaluar si cambia sesión           |
-| Carga Excel abusiva            | solo `.xlsx`, 5 MiB/1.000 filas, encabezados exactos, celdas texto y sin persistir          | reevaluar límites con uso real       |
-| Fórmulas/formatos destructivos | parser no ejecuta fórmulas; preview usa valor cacheado y exporta texto; celular exige texto | valor cacheado puede estar obsoleto  |
-| Exfiltración del padrón        | permisos exclusivos, RPC proyectadas, exportación filtrada y auditoría                      | MFA/alertas productivas              |
-| Logs con PII                   | auditoría solo metadatos; sin console de perfil                                             | Retención y monitoreo                |
-| RLS incorrecta                 | denegar por defecto y pgTAP real                                                            | Revisión en cada migración           |
-| Invitaciones abusivas          | signup off, permiso/policy, TTL e idempotencia                                              | cuotas productivas y alertas         |
-| Replay/doble clic              | fingerprint, clave por actor, lease e índices                                               | monitoreo productivo                 |
-| Token de invitación filtrado   | Auth es único custodio; no DB/UI/log/audit                                                  | plantilla/canal productivo           |
-| `service_role` expuesto        | Edge env productivo; runner E2E local solo en Node; ninguna variable `VITE_`; scans         | rotación y secret manager            |
-| Auth/DB divergentes            | reserva, estado de entrega y reconciliación exacta                                          | runbook y observabilidad             |
-| CORS/origin abusivo            | método/content type, allowlist exacta y `.env.local` no versionado                          | dominios de preview/producción       |
-| Último admin eliminado         | advisory lock común + conteo transaccional                                                  | recuperación humana de emergencia    |
-| Cuenta bloqueada               | confirmación autoritativa `suspended`/`archived`; estados transitorios separados            | invalidación global de refresh token |
-| Recuperación de contraseña     | Supabase Auth                                                                               | Política y mensajes organizacionales |
-| Auditoría manipulada           | sin insert/update/delete cliente                                                            | Exportación y acceso `audit.read`    |
+| Amenaza                        | Control inicial                                                                                    | Pendiente                            |
+| ------------------------------ | -------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Acceso horizontal              | `auth.uid()`, RLS, prueba con dos usuarios                                                         | Revisar cada tabla futura            |
+| Escalamiento de privilegios    | permiso + policy explícita + RPC; sin grants cliente                                               | scopes organizacionales              |
+| Campo protegido modificado     | grants de columna + trigger de guarda                                                              | Revisar nuevos campos                |
+| Claves expuestas               | solo anon en navegador; env ignorados                                                              | Rotación por entorno                 |
+| Inyección                      | SDK parametrizado, checks y sin SQL cliente                                                        | Revisar RPC futuras                  |
+| XSS                            | React escapa texto; sin HTML arbitrario                                                            | CSP al desplegar                     |
+| CSRF                           | tokens Bearer; no cookies propias                                                                  | Reevaluar si cambia sesión           |
+| Carga Excel abusiva            | 5 MiB/1.000 filas; preflight ZIP de 100 entradas, 20 MiB expandidos, ratio y dimensiones; una hoja | reevaluar límites con uso real       |
+| Fórmulas/formatos destructivos | parser no ejecuta fórmulas; preview usa valor cacheado y exporta texto; celular exige texto        | valor cacheado puede estar obsoleto  |
+| Exfiltración del padrón        | permisos exclusivos, RPC proyectadas, exportación filtrada y auditoría                             | MFA/alertas productivas              |
+| Logs con PII                   | auditoría solo metadatos; sin console de perfil                                                    | Retención y monitoreo                |
+| RLS incorrecta                 | denegar por defecto y pgTAP real                                                                   | Revisión en cada migración           |
+| Invitaciones abusivas          | signup off, permiso/policy, TTL e idempotencia                                                     | cuotas productivas y alertas         |
+| Replay/doble clic              | fingerprint, clave por actor, lease e índices                                                      | monitoreo productivo                 |
+| Token de invitación filtrado   | Auth es único custodio; no DB/UI/log/audit                                                         | plantilla/canal productivo           |
+| `service_role` expuesto        | Edge env productivo; runner E2E local solo en Node; ninguna variable `VITE_`; scans                | rotación y secret manager            |
+| Auth/DB divergentes            | reserva, estado de entrega y reconciliación exacta                                                 | runbook y observabilidad             |
+| CORS/origin abusivo            | método/content type, allowlist exacta y `.env.local` no versionado                                 | dominios de preview/producción       |
+| Último admin eliminado         | advisory lock común + conteo transaccional                                                         | recuperación humana de emergencia    |
+| Cuenta bloqueada               | confirmación autoritativa `suspended`/`archived`; estados transitorios separados                   | invalidación global de refresh token |
+| Recuperación de contraseña     | Supabase Auth                                                                                      | Política y mensajes organizacionales |
+| Auditoría manipulada           | sin insert/update/delete cliente                                                                   | Exportación y acceso `audit.read`    |
 
 ## Funciones privilegiadas
 

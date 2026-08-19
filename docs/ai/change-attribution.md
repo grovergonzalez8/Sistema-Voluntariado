@@ -63,8 +63,8 @@ Hallazgos materiales corregidos durante revisión: cleanup de Edge aun si falla 
 - Plan: `docs/exec-plans/0003-volunteer-registry-v1.md`.
 - Revisión inicial de solo lectura: `architect`, `domain_modeler` y `database_security_reviewer`; la revisión final usa `architect`, `database_security_reviewer`, `qa_reviewer` y `docs_governor`.
 - Integración y escritura: exclusivamente el agente principal.
-- Commit técnico: `01c127d`, más el cierre documental.
-- Validación: `pnpm verify`, frozen lockfile, 21 Edge Function, DB reset/lint, 176 pgTAP y 7 E2E aprobados; cuatro revisiones especializadas en GO.
+- Commits técnicos: `01c127d`, `bfaccd9` y `19df8fe`, más el cierre documental.
+- Validación: `pnpm verify`, frozen lockfile, 146 unitarias web, 2 de integración, 21 Edge Function, 13 de orquestación, DB reset/lint, 212 pgTAP y 7 E2E aprobados; los correctivos pre-merge se sometieron nuevamente a revisión especializada.
 - Estado: implementación y validación local completadas; sin push, PR, merge ni despliegue.
 
 Decisiones materiales: agregado y tabla sin relación con Auth/cuentas/perfil; RBAC por cinco permisos exclusivos; tabla RLS default-deny expuesta solo mediante RPC; duplicados como advertencia confirmable bajo lock; importación seleccionada all-or-nothing; Excel efímero con límites técnicos; auditoría sin PII duplicada.

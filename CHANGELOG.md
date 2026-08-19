@@ -6,6 +6,8 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 
 ### Fixed
 
+- Las RPC del padrón rechazan parámetros estructurales requeridos `NULL` y payloads incompletos; solo un booleano `true` explícito confirma duplicados durante importación.
+- La lectura `.xlsx` inspecciona el ZIP antes del parser, limita expansión/dimensiones, rechaza hojas adicionales y preconfigura `Celular` como texto en la plantilla.
 - GitHub Actions y la suite local asignan un único propietario explícito a Edge Functions; el runtime automático de Supabase queda deshabilitado y Playwright gestiona únicamente Vite.
 - La readiness E2E valida el contrato tipado de `manage-account-invitation` y limpia PID, logs y contenedor aun cuando el arranque o Playwright fallen.
 - El refresh de sesión, la recuperación de foco y el refetch de autoridad ya no convierten estados transitorios de una cuenta activa en `/account-blocked`.
@@ -25,6 +27,6 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 - Onboarding por invitación, definición de contraseña en Auth y activación atómica con rol inicial protegido.
 - Panel bilingüe de invitaciones, cuentas, roles, estados e historial/auditoría autorizada.
 - Matriz explícita de concesión de roles y protección concurrente del último administrador activo.
-- Pruebas de Edge Function, 176 comprobaciones pgTAP y recorridos E2E reales con Mailpit local.
+- Pruebas de Edge Function, 212 comprobaciones pgTAP y recorridos E2E reales con Mailpit local.
 - Padrón administrativo independiente de Auth/cuentas con alta, detalle, edición, búsqueda y orden paginados, advertencias de duplicados y auditoría sin snapshots de PII.
 - Preview e importación atómica `.xlsx`, plantilla y exportación del conjunto filtrado, protegidas por permisos exclusivos de administrator y límites de 5 MiB/1.000 filas.
