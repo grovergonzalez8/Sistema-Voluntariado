@@ -174,7 +174,7 @@ const sharedEnglish = {
       processing: 'Processing workbook…',
       ready: 'Ready',
       requirements:
-        'Required headers: Nombre completo, Correo, Celular. Maximum 1,000 data rows and 5 MiB. Mobile phones must be text cells.',
+        'Required headers: Nombre completo, Correo, Celular. Use exactly one sheet. Maximum 1,000 data rows and 5 MiB. The template preformats mobile phones as text.',
       row: 'Row {{row}}',
       select: 'Select workbook',
       template: 'Download template',
@@ -386,7 +386,7 @@ const sharedSpanish = {
       processing: 'Procesando libro…',
       ready: 'Lista',
       requirements:
-        'Encabezados requeridos: Nombre completo, Correo, Celular. Máximo 1.000 filas y 5 MiB. Los celulares deben ser celdas de texto.',
+        'Encabezados requeridos: Nombre completo, Correo, Celular. Usa exactamente una hoja. Máximo 1.000 filas y 5 MiB. La plantilla preconfigura los celulares como texto.',
       row: 'Fila {{row}}',
       select: 'Seleccionar libro',
       template: 'Descargar plantilla',

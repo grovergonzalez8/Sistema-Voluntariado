@@ -8,6 +8,7 @@ import writeXlsxFile, { type SheetData } from 'write-excel-file/universal';
 
 import type { VolunteerWorkbookGateway } from '../application/volunteer-workbook-gateway';
 import type { RegisteredVolunteer } from '../domain/registered-volunteer';
+import { preflightXlsxArchive } from './xlsx-archive-preflight';
 
 const headers = ['Nombre completo', 'Correo', 'Celular'];
 
@@ -23,10 +24,12 @@ async function toArrayBuffer(sheetData: SheetData): Promise<ArrayBuffer> {
   return blob.arrayBuffer();
 }
 
-function workbookFailure<T>(): Result<T> {
+function workbookFailure<T>(
+  message = 'No fue posible leer o generar el archivo Excel.',
+): Result<T> {
   return failure({
     code: 'validation',
-    message: 'No fue posible leer o generar el archivo Excel.',
+    message,
   });
 }
 
@@ -37,6 +40,8 @@ export class XlsxVolunteerWorkbookGateway implements VolunteerWorkbookGateway {
     Result<readonly (readonly (boolean | Date | number | string | null)[])[]>
   > {
     try {
+      const preflight = preflightXlsxArchive(buffer);
+      if (!preflight.ok) return workbookFailure(preflight.message);
       const sheet = await readSheet(buffer);
       const rows: (boolean | Date | number | string | null)[][] = [];
       for (const row of sheet) {
@@ -64,9 +69,15 @@ export class XlsxVolunteerWorkbookGateway implements VolunteerWorkbookGateway {
 
   public async createTemplate(): Promise<Result<ArrayBuffer>> {
     try {
+      const blankTextPhoneRows: SheetData = Array.from({ length: 1000 }, () => [
+        null,
+        null,
+        { format: '@', type: String, value: '' },
+      ]);
       return success(
         await toArrayBuffer([
           headers.map((value) => ({ type: String, value })),
+          ...blankTextPhoneRows,
         ]),
       );
     } catch {

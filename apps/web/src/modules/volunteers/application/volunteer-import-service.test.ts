@@ -48,6 +48,53 @@ function workbook(
 }
 
 describe('volunteer Excel import service', () => {
+  it('enforces the compressed file boundary before parsing', async () => {
+    const parse = vi
+      .fn<VolunteerWorkbookGateway['parse']>()
+      .mockResolvedValue(success([['Nombre completo', 'Correo', 'Celular']]));
+    const service = new VolunteerRegistryService(
+      authorization,
+      gateway(),
+      workbook([], { parse }),
+    );
+
+    await expect(
+      service.previewImport(new ArrayBuffer(5 * 1024 * 1024)),
+    ).resolves.toMatchObject({ ok: true });
+    expect(parse).toHaveBeenCalledTimes(1);
+
+    await expect(
+      service.previewImport(new ArrayBuffer(5 * 1024 * 1024 + 1)),
+    ).resolves.toMatchObject({ error: { code: 'validation' }, ok: false });
+    expect(parse).toHaveBeenCalledTimes(1);
+  });
+
+  it('accepts 1,000 data rows and rejects 1,001', async () => {
+    const header = ['Nombre completo', 'Correo', 'Celular'] as const;
+    const rows = Array.from({ length: 1001 }, (_, index) => [
+      `Persona ${String(index)}`,
+      null,
+      null,
+    ]);
+    const accepted = new VolunteerRegistryService(
+      authorization,
+      gateway(),
+      workbook([header, ...rows.slice(0, 1000)]),
+    );
+    const rejected = new VolunteerRegistryService(
+      authorization,
+      gateway(),
+      workbook([header, ...rows]),
+    );
+
+    await expect(
+      accepted.previewImport(new ArrayBuffer(16)),
+    ).resolves.toMatchObject({ ok: true, value: { totalDetected: 1000 } });
+    await expect(
+      rejected.previewImport(new ArrayBuffer(16)),
+    ).resolves.toMatchObject({ error: { code: 'validation' }, ok: false });
+  });
+
   it('accepts a valid workbook, ignores empty rows and reports invalid rows', async () => {
     const service = new VolunteerRegistryService(
       authorization,
