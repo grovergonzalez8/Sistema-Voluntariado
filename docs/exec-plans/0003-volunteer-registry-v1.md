@@ -68,7 +68,7 @@ Implementar un módulo administrativo `volunteers` que mantenga voluntarios actu
 | 5. Excel                   | plantilla, preview, importación y exportación | tests Excel/UI, lockfile reproducible        | completada |
 | 6. E2E y documentación     | flujo crítico y decisiones documentadas       | E2E específico y revisión de docs            | completada |
 | 7. Cierre                  | baseline ejecutada y revisiones incorporadas  | `pnpm verify`, DB, E2E, concurrencia y scans | completada |
-| 8. Correctivo XLSX         | ZIP/XML inequívoco y límites incrementales    | tests focalizados, baseline y revisiones     | en curso   |
+| 8. Correctivo XLSX         | ZIP/XML inequívoco y límites incrementales    | tests focalizados, baseline y revisiones     | completada |
 
 ## Criterios de aceptación
 
@@ -96,6 +96,9 @@ Implementar un módulo administrativo `volunteers` que mantenga voluntarios actu
 - 2026-08-19: cierre del correctivo aprobado: `pnpm verify`; 146 unitarias web, 2 integración, 21 Edge Function, 13 orquestación y build; DB reset limpio/lint y 212 pgTAP; 7 E2E incluyendo concurrencia; lockfile congelado y scans de patrones prohibidos.
 - 2026-08-19: `pnpm audit --prod --audit-level high` reportó tres avisos actuales en `react-router@7.18.1` y `brace-expansion@5.0.7`. Ambas versiones ya existen idénticas en `main@c6f7392`; las dependencias Excel no aparecen en las rutas. No se actualizaron por la prohibición de mezclar deuda no relacionada.
 - 2026-08-20: iniciado el correctivo XLSX desde `d0d2ebc`, con rama y worktree limpios y `main@c6f7392` intacta. La inspección de `fflate@0.8.3` confirmó que sus APIs separan la vista del directorio central de la vista streaming de headers locales y que `unzipSync` colapsa resultados por nombre; no ofrecen una correlación inequívoca lista para reutilizar.
+- 2026-08-20: el preflight productivo migró a `@zip.js/zip.js@2.8.53` con lectura estricta, validación secuencial de bytes emitidos y retención exclusiva de workbook, relationships y worksheet. `DOMParser` sustituyó regex semánticos y resuelve namespaces por URI/local name.
+- 2026-08-20: la revisión QA detectó una diferencia entre namespaces aceptados por el preflight y los que interpreta `read-excel-file`; se cerró rechazando elementos semánticos XLSX con namespace ajeno. También se hicieron canónicos los targets de worksheet y se añadió evidencia directa de límites sobre bytes emitidos independiente de metadata.
+- 2026-08-20: cierre aprobado con 27 tests focalizados XLSX, frozen install, `pnpm verify`, 158 unitarias web, 2 integración, 21 Edge Function, 13 orquestación, build/typecheck, reset DB oficial, DB lint, 212 pgTAP y 7 E2E. Arquitectura emitió PASS; documentación y trazabilidad incorporaron sus observaciones.
 
 ## Descubrimientos
 
@@ -112,9 +115,12 @@ Implementar un módulo administrativo `volunteers` que mantenga voluntarios actu
 - 2026-08-16: las filas inválidas nunca llaman a la previsualización PostgreSQL; cuando no queda ninguna fila canónica, el resumen local se devuelve sin enviar un lote vacío a la RPC.
 - 2026-08-16: la auditoría por fila registra solo nombres de campos en alta/edición; la importación suprime esos eventos y registra un único `volunteer.imported` con conteos enteros allowlist, sin PII.
 - 2026-08-20: se conservará `fflate@0.8.3` para los fixtures ZIP pequeños de tests y se usará `@zip.js/zip.js` en el preflight productivo. El XML se procesará con `DOMParser`, disponible en navegador y jsdom, para consultar namespace URI/local name sin añadir otra dependencia.
+- 2026-08-20: la decisión inicial 7 queda sustituida únicamente en su mecanismo ZIP: `@zip.js/zip.js` aporta entradas estructuradas y correlación estricta, mientras los límites propios cuentan bytes realmente emitidos durante la extracción secuencial. Se conserva el contrato funcional de límites, una sola hoja, memoria efímera y texto seguro.
 
 ## Resultado final
 
-La V1 quedó implementada en `feat/volunteer-registry-v1` sin tocar las migraciones históricas, sin merge ni push. Commits técnicos: `01c127d`, `bfaccd9` y `19df8fe`; el cierre documental se registra en un commit posterior.
+La V1 y su correctivo XLSX quedaron implementados en `feat/volunteer-registry-v1` sin tocar las migraciones históricas, sin merge ni push. Commits técnicos: `01c127d`, `bfaccd9`, `19df8fe` y `351ac17`; el cierre documental se registra en un commit posterior.
 
-Todos los gates funcionales, de arquitectura, PostgreSQL/RLS, build, E2E, concurrencia y scans de secretos/patrones prohibidos están verdes. La comparación no detecta regresiones introducidas por esta rama. El estado global se clasifica AMARILLO únicamente por los tres avisos de dependencia descubiertos al consultar el audit actual: son reproducibles desde las versiones ya fijadas en `main`, no provienen de Excel ni de este diff. Actualizarlos requiere un slice separado con su propia validación.
+Todos los gates focalizados y de baseline están verdes: 27 tests XLSX, 158 unitarias web, 2 integración, 21 Edge Function, 13 orquestación, build/typecheck, reset DB oficial, DB lint, 212 pgTAP y 7 E2E. Las entradas críticas se resuelven sin ambigüedad, los límites se aplican a bytes emitidos, la V1 rechaza cualquier segunda hoja o relationship worksheet adicional y el XML se interpreta por namespace. Las revisiones finales de arquitectura, QA y documentación cerraron sus hallazgos; no se detectaron regresiones introducidas por el correctivo.
+
+Permanece deuda no bloqueante preexistente: tres avisos de dependencia en las versiones ya fijadas de `react-router`/`brace-expansion`, ajenos a Excel y fuera del alcance de esta iteración. Su actualización requiere un slice separado con validación propia.
