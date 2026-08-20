@@ -68,6 +68,7 @@ Implementar un módulo administrativo `volunteers` que mantenga voluntarios actu
 | 5. Excel                   | plantilla, preview, importación y exportación | tests Excel/UI, lockfile reproducible        | completada |
 | 6. E2E y documentación     | flujo crítico y decisiones documentadas       | E2E específico y revisión de docs            | completada |
 | 7. Cierre                  | baseline ejecutada y revisiones incorporadas  | `pnpm verify`, DB, E2E, concurrencia y scans | completada |
+| 8. Correctivo XLSX         | ZIP/XML inequívoco y límites incrementales    | tests focalizados, baseline y revisiones     | en curso   |
 
 ## Criterios de aceptación
 
@@ -94,6 +95,7 @@ Implementar un módulo administrativo `volunteers` que mantenga voluntarios actu
 - 2026-08-16: revisión final detectó y corrigió un bypass por booleano `NULL`, exposición de `phone_match_key`, búsqueda telefónica no alineada y afirmaciones imprecisas sobre fórmulas. Las cuatro revisiones especializadas emitieron GO después de los fixes.
 - 2026-08-19: cierre del correctivo aprobado: `pnpm verify`; 146 unitarias web, 2 integración, 21 Edge Function, 13 orquestación y build; DB reset limpio/lint y 212 pgTAP; 7 E2E incluyendo concurrencia; lockfile congelado y scans de patrones prohibidos.
 - 2026-08-19: `pnpm audit --prod --audit-level high` reportó tres avisos actuales en `react-router@7.18.1` y `brace-expansion@5.0.7`. Ambas versiones ya existen idénticas en `main@c6f7392`; las dependencias Excel no aparecen en las rutas. No se actualizaron por la prohibición de mezclar deuda no relacionada.
+- 2026-08-20: iniciado el correctivo XLSX desde `d0d2ebc`, con rama y worktree limpios y `main@c6f7392` intacta. La inspección de `fflate@0.8.3` confirmó que sus APIs separan la vista del directorio central de la vista streaming de headers locales y que `unzipSync` colapsa resultados por nombre; no ofrecen una correlación inequívoca lista para reutilizar.
 
 ## Descubrimientos
 
@@ -101,6 +103,7 @@ Implementar un módulo administrativo `volunteers` que mantenga voluntarios actu
 - `supabase status` escribe telemetría bajo el directorio personal, por lo que requiere el permiso local ya concedido aunque solo consulte el stack.
 - `created_at` representa fecha de registro digital, no fecha de incorporación histórica.
 - La documentación vigente aún presenta la entidad institucional como pregunta abierta; este slice debe actualizar mapa de contextos, modelo/diccionario y catálogo de permisos sin dibujar un vínculo con Auth.
+- `@zip.js/zip.js` ofrece lectura en navegador, lista estructurada de entries, modo estricto para correlacionar header local/directorio central y escritura incremental de datos. Permite retirar el parsing ZIP manual del preflight manteniendo límites propios sobre bytes emitidos.
 
 ## Decisiones durante la ejecución
 
@@ -108,6 +111,7 @@ Implementar un módulo administrativo `volunteers` que mantenga voluntarios actu
 - 2026-08-16: la clave de coincidencia telefónica elimina caracteres no numéricos solo para comparar; el valor almacenado nunca se reescribe con esa clave.
 - 2026-08-16: las filas inválidas nunca llaman a la previsualización PostgreSQL; cuando no queda ninguna fila canónica, el resumen local se devuelve sin enviar un lote vacío a la RPC.
 - 2026-08-16: la auditoría por fila registra solo nombres de campos en alta/edición; la importación suprime esos eventos y registra un único `volunteer.imported` con conteos enteros allowlist, sin PII.
+- 2026-08-20: se conservará `fflate@0.8.3` para los fixtures ZIP pequeños de tests y se usará `@zip.js/zip.js` en el preflight productivo. El XML se procesará con `DOMParser`, disponible en navegador y jsdom, para consultar namespace URI/local name sin añadir otra dependencia.
 
 ## Resultado final
 

@@ -1,6 +1,34 @@
-import { strFromU8, Unzip, UnzipInflate, unzipSync } from 'fflate';
+import {
+  type Entry,
+  type FileEntry,
+  Uint8ArrayReader,
+  ZipReader,
+} from '@zip.js/zip.js';
 
-export const xlsxArchiveLimits = {
+const spreadsheetNamespace =
+  'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+const officeRelationshipNamespace =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+const packageRelationshipNamespace =
+  'http://schemas.openxmlformats.org/package/2006/relationships';
+const worksheetRelationshipType = `${officeRelationshipNamespace}/worksheet`;
+const workbookPath = 'xl/workbook.xml';
+const workbookRelationshipsPath = 'xl/_rels/workbook.xml.rels';
+
+export interface XlsxArchiveLimits {
+  readonly maxArchiveCompressedBytes: number;
+  readonly maxCompressionRatio: number;
+  readonly maxEntries: number;
+  readonly maxEntryUncompressedBytes: number;
+  readonly maxSpreadsheetColumn: number;
+  readonly maxSpreadsheetRow: number;
+  readonly maxTotalUncompressedBytes: number;
+  readonly maxWorkbookUncompressedBytes: number;
+  readonly maxWorksheetUncompressedBytes: number;
+}
+
+export const xlsxArchiveLimits: XlsxArchiveLimits = {
+  maxArchiveCompressedBytes: 5 * 1024 * 1024,
   maxCompressionRatio: 250,
   maxEntries: 100,
   maxEntryUncompressedBytes: 10 * 1024 * 1024,
@@ -9,7 +37,7 @@ export const xlsxArchiveLimits = {
   maxTotalUncompressedBytes: 20 * 1024 * 1024,
   maxWorkbookUncompressedBytes: 1024 * 1024,
   maxWorksheetUncompressedBytes: 5 * 1024 * 1024,
-} as const;
+};
 
 interface XlsxArchivePreflightSuccess {
   readonly ok: true;
@@ -25,56 +53,177 @@ export type XlsxArchivePreflightResult =
 
 class XlsxArchiveViolation extends Error {}
 
-function actualEntryLimit(name: string): number {
-  if (/^xl\/worksheets\/[^/]+\.xml$/i.test(name)) {
-    return xlsxArchiveLimits.maxWorksheetUncompressedBytes;
-  }
-  if (
-    name.toLowerCase() === 'xl/workbook.xml' ||
-    name.toLowerCase() === 'xl/_rels/workbook.xml.rels'
-  ) {
-    return xlsxArchiveLimits.maxWorkbookUncompressedBytes;
-  }
-  return xlsxArchiveLimits.maxEntryUncompressedBytes;
+interface ExpansionState {
+  totalBytes: number;
 }
 
-function assertActualArchiveExpansion(bytes: Uint8Array): void {
-  let actualEntryCount = 0;
-  let totalUncompressedBytes = 0;
-  const unzipper = new Unzip((file) => {
-    actualEntryCount += 1;
-    if (
-      actualEntryCount > xlsxArchiveLimits.maxEntries ||
-      !isSafeEntryName(file.name) ||
-      (file.compression !== 0 && file.compression !== 8)
-    ) {
-      throw new XlsxArchiveViolation(
-        'El archivo Excel contiene una estructura no admitida.',
-      );
-    }
-    let entryUncompressedBytes = 0;
-    const entryLimit = actualEntryLimit(file.name);
-    file.ondata = (error, data) => {
-      if (error) throw error;
-      entryUncompressedBytes += data.byteLength;
-      totalUncompressedBytes += data.byteLength;
-      if (
-        entryUncompressedBytes > entryLimit ||
-        totalUncompressedBytes > xlsxArchiveLimits.maxTotalUncompressedBytes
-      ) {
-        throw new XlsxArchiveViolation(
-          'El archivo Excel supera los límites seguros de descompresión.',
-        );
-      }
-    };
-    file.start();
-  });
-  unzipper.register(UnzipInflate);
+function structureViolation(): never {
+  throw new XlsxArchiveViolation(
+    'El archivo Excel contiene una estructura no admitida.',
+  );
+}
 
-  const chunkSize = 4 * 1024;
-  for (let offset = 0; offset < bytes.byteLength; offset += chunkSize) {
-    const end = Math.min(offset + chunkSize, bytes.byteLength);
-    unzipper.push(bytes.subarray(offset, end), end === bytes.byteLength);
+function multiSheetViolation(): never {
+  throw new XlsxArchiveViolation(
+    'La importación admite archivos Excel con una sola hoja.',
+  );
+}
+
+function expansionViolation(): never {
+  throw new XlsxArchiveViolation(
+    'El archivo Excel supera los límites seguros de descompresión.',
+  );
+}
+
+function worksheetBoundsViolation(): never {
+  throw new XlsxArchiveViolation(
+    'El archivo excede las dimensiones admitidas para la plantilla.',
+  );
+}
+
+function isSafeEntryName(name: string): boolean {
+  const segments = name.split('/');
+  return (
+    name.length > 0 &&
+    name.length <= 200 &&
+    !name.startsWith('/') &&
+    !name.includes('\\') &&
+    segments.every(
+      (segment, index) =>
+        segment !== '.' &&
+        segment !== '..' &&
+        (segment.length > 0 || index === segments.length - 1),
+    )
+  );
+}
+
+function isWorksheetAlias(name: string): boolean {
+  return /^xl\/worksheets\/[^/]+\.xml$/i.test(name);
+}
+
+function isCanonicalWorksheetPath(name: string): boolean {
+  return /^xl\/worksheets\/[A-Za-z0-9_-]+\.xml$/.test(name);
+}
+
+function entryLimit(name: string, limits: XlsxArchiveLimits): number {
+  if (isWorksheetAlias(name)) return limits.maxWorksheetUncompressedBytes;
+  if (
+    name === workbookPath ||
+    name === workbookRelationshipsPath ||
+    name.toLowerCase() === workbookPath ||
+    name.toLowerCase() === workbookRelationshipsPath
+  ) {
+    return limits.maxWorkbookUncompressedBytes;
+  }
+  return limits.maxEntryUncompressedBytes;
+}
+
+function assertEntryMetadata(entry: Entry, limits: XlsxArchiveLimits): void {
+  if (
+    !isSafeEntryName(entry.filename) ||
+    entry.directory ||
+    entry.symlink ||
+    entry.encrypted ||
+    entry.zip64 ||
+    (entry.compressionMethod !== 0 && entry.compressionMethod !== 8) ||
+    !Number.isSafeInteger(entry.compressedSize) ||
+    !Number.isSafeInteger(entry.uncompressedSize) ||
+    entry.compressedSize < 0 ||
+    entry.uncompressedSize < 0
+  ) {
+    structureViolation();
+  }
+  if (
+    entry.uncompressedSize > entryLimit(entry.filename, limits) ||
+    (entry.uncompressedSize >= 64 * 1024 &&
+      entry.uncompressedSize / Math.max(entry.compressedSize, 1) >
+        limits.maxCompressionRatio)
+  ) {
+    expansionViolation();
+  }
+}
+
+async function readEntry(
+  entry: FileEntry,
+  retain: boolean,
+  limits: XlsxArchiveLimits,
+  expansion: ExpansionState,
+): Promise<Uint8Array | undefined> {
+  let entryBytes = 0;
+  const chunks: Uint8Array[] = [];
+  const limit = entryLimit(entry.filename, limits);
+  const sink = new WritableStream<Uint8Array>({
+    write(chunk) {
+      entryBytes += chunk.byteLength;
+      expansion.totalBytes += chunk.byteLength;
+      if (
+        entryBytes > limit ||
+        expansion.totalBytes > limits.maxTotalUncompressedBytes
+      ) {
+        expansionViolation();
+      }
+      if (retain && chunk.byteLength > 0) chunks.push(chunk.slice());
+    },
+  });
+
+  await entry.getData(sink, {
+    checkCrc32: true,
+    checkOverlappingEntry: true,
+    strictness: 'strict',
+    useCompressionStream: false,
+    useWebWorkers: false,
+  });
+
+  if (entryBytes !== entry.uncompressedSize) structureViolation();
+  if (!retain) return undefined;
+  const result = new Uint8Array(entryBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return result;
+}
+
+function decodeXml(bytes: Uint8Array): string {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    structureViolation();
+  }
+}
+
+function parseXml(
+  bytes: Uint8Array,
+  rootNamespace: string,
+  rootLocalName: string,
+): XMLDocument {
+  const document = new DOMParser().parseFromString(
+    decodeXml(bytes),
+    'application/xml',
+  );
+  if (
+    document.getElementsByTagName('parsererror').length > 0 ||
+    document.documentElement.namespaceURI !== rootNamespace ||
+    document.documentElement.localName !== rootLocalName
+  ) {
+    structureViolation();
+  }
+  return document;
+}
+
+function assertSemanticElementNamespaces(
+  document: XMLDocument,
+  namespace: string,
+  localNames: ReadonlySet<string>,
+): void {
+  for (const element of document.getElementsByTagName('*')) {
+    if (
+      localNames.has(element.localName) &&
+      element.namespaceURI !== namespace
+    ) {
+      structureViolation();
+    }
   }
 }
 
@@ -86,31 +235,10 @@ function columnNumber(reference: string): number {
   return value;
 }
 
-function isSafeEntryName(name: string): boolean {
-  return (
-    name.length > 0 &&
-    name.length <= 200 &&
-    !name.startsWith('/') &&
-    !name.includes('\\') &&
-    !name.split('/').includes('..')
-  );
-}
-
-function readXmlAttribute(markup: string, name: string): string | null {
-  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const match = new RegExp(
-    `\\b${escapedName}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`,
-  ).exec(markup);
-  return match?.[1] ?? match?.[2] ?? null;
-}
-
-function worksheetBoundsViolation(): never {
-  throw new XlsxArchiveViolation(
-    'El archivo excede las dimensiones admitidas para la plantilla.',
-  );
-}
-
-function assertCellReference(reference: string): void {
+function assertCellReference(
+  reference: string,
+  limits: XlsxArchiveLimits,
+): void {
   const terminalReference = reference.split(':').at(-1);
   const match = terminalReference
     ? /^\$?([A-Z]+)\$?([0-9]+)$/i.exec(terminalReference)
@@ -120,216 +248,220 @@ function assertCellReference(reference: string): void {
   if (
     !column ||
     !row ||
-    columnNumber(column) > xlsxArchiveLimits.maxSpreadsheetColumn ||
-    Number(row) > xlsxArchiveLimits.maxSpreadsheetRow
+    columnNumber(column) > limits.maxSpreadsheetColumn ||
+    Number(row) > limits.maxSpreadsheetRow
   ) {
     worksheetBoundsViolation();
   }
 }
 
-function assertWorksheetBounds(xml: string): void {
-  for (const match of xml.matchAll(
-    /<(?:[^\s<>/:]+:)?(dimension|c)\b([^>]*)/gi,
-  )) {
-    const tagName = match[1]?.toLowerCase();
-    const markup = match[2];
-    if (!tagName || markup === undefined) worksheetBoundsViolation();
-    const reference = readXmlAttribute(
-      markup,
-      tagName === 'dimension' ? 'ref' : 'r',
-    );
-    if (reference !== null) assertCellReference(reference);
+function assertWorksheetBounds(
+  worksheet: XMLDocument,
+  limits: XlsxArchiveLimits,
+): void {
+  assertSemanticElementNamespaces(
+    worksheet,
+    spreadsheetNamespace,
+    new Set(['c', 'dimension', 'row']),
+  );
+  const dimensions = worksheet.getElementsByTagNameNS(
+    spreadsheetNamespace,
+    'dimension',
+  );
+  for (const dimension of dimensions) {
+    const reference = dimension.getAttribute('ref');
+    if (reference !== null) assertCellReference(reference, limits);
   }
+
+  const cells = worksheet.getElementsByTagNameNS(spreadsheetNamespace, 'c');
+  for (const cell of cells) {
+    const reference = cell.getAttribute('r');
+    if (reference !== null) assertCellReference(reference, limits);
+  }
+
   let effectiveRow = 0;
-  for (const match of xml.matchAll(/<(?:[^\s<>/:]+:)?row\b([^>]*)/gi)) {
-    const markup = match[1];
-    if (markup === undefined) worksheetBoundsViolation();
-    const row = readXmlAttribute(markup, 'r');
+  const rows = worksheet.getElementsByTagNameNS(spreadsheetNamespace, 'row');
+  for (const rowElement of rows) {
+    const row = rowElement.getAttribute('r');
     if (row !== null && !/^[1-9][0-9]*$/.test(row)) {
       worksheetBoundsViolation();
     }
     effectiveRow = row === null ? effectiveRow + 1 : Number(row);
-    if (effectiveRow > xlsxArchiveLimits.maxSpreadsheetRow) {
-      worksheetBoundsViolation();
-    }
+    if (effectiveRow > limits.maxSpreadsheetRow) worksheetBoundsViolation();
   }
 }
 
 function resolveWorkbookTarget(target: string): string | null {
-  if (target.includes('\\') || target.includes('?') || target.includes('#')) {
-    return null;
-  }
-  const segments = (target.startsWith('/') ? target.slice(1) : `xl/${target}`)
-    .split('/')
-    .filter((segment) => segment !== '' && segment !== '.');
-  const resolved: string[] = [];
-  for (const segment of segments) {
-    if (segment === '..') {
-      if (resolved.length === 0) return null;
-      resolved.pop();
-    } else {
-      resolved.push(segment);
-    }
-  }
-  return resolved.join('/');
+  return /^worksheets\/[A-Za-z0-9_-]+\.xml$/.test(target)
+    ? `xl/${target}`
+    : null;
 }
 
-export function preflightXlsxArchive(
+function assertWorkbookStructure(
+  workbookBytes: Uint8Array,
+  relationshipBytes: Uint8Array,
+  worksheetPath: string,
+): void {
+  const workbook = parseXml(workbookBytes, spreadsheetNamespace, 'workbook');
+  assertSemanticElementNamespaces(
+    workbook,
+    spreadsheetNamespace,
+    new Set(['sheet']),
+  );
+  const sheets = workbook.getElementsByTagNameNS(spreadsheetNamespace, 'sheet');
+  if (sheets.length !== 1) multiSheetViolation();
+  const relationshipId = sheets[0]?.getAttributeNS(
+    officeRelationshipNamespace,
+    'id',
+  );
+  if (!relationshipId) structureViolation();
+
+  const relationshipsDocument = parseXml(
+    relationshipBytes,
+    packageRelationshipNamespace,
+    'Relationships',
+  );
+  assertSemanticElementNamespaces(
+    relationshipsDocument,
+    packageRelationshipNamespace,
+    new Set(['Relationship']),
+  );
+  const relationships = relationshipsDocument.getElementsByTagNameNS(
+    packageRelationshipNamespace,
+    'Relationship',
+  );
+  const worksheetRelationships = [...relationships].filter(
+    (relationship) =>
+      relationship.getAttribute('Type') === worksheetRelationshipType,
+  );
+  if (worksheetRelationships.length !== 1) multiSheetViolation();
+
+  const relationship = worksheetRelationships[0];
+  if (!relationship) structureViolation();
+  const targetMode = relationship.getAttribute('TargetMode');
+  const target = relationship.getAttribute('Target');
+  if (
+    relationship.getAttribute('Id') !== relationshipId ||
+    (targetMode !== null && targetMode !== 'Internal') ||
+    target === null ||
+    resolveWorkbookTarget(target) !== worksheetPath
+  ) {
+    throw new XlsxArchiveViolation(
+      'La relación de la hoja Excel no coincide con su contenido validado.',
+    );
+  }
+}
+
+function criticalEntries(entries: readonly Entry[]): {
+  workbook: FileEntry;
+  relationships: FileEntry;
+  worksheet: FileEntry;
+} {
+  const workbookAliases = entries.filter(
+    (entry) => entry.filename.toLowerCase() === workbookPath,
+  );
+  const relationshipAliases = entries.filter(
+    (entry) => entry.filename.toLowerCase() === workbookRelationshipsPath,
+  );
+  const worksheetAliases = entries.filter((entry) =>
+    isWorksheetAlias(entry.filename),
+  );
+  if (workbookAliases.length !== 1 || relationshipAliases.length !== 1) {
+    structureViolation();
+  }
+  if (worksheetAliases.length !== 1) multiSheetViolation();
+  const workbook = workbookAliases[0];
+  const relationships = relationshipAliases[0];
+  const worksheet = worksheetAliases[0];
+  if (
+    !workbook ||
+    !relationships ||
+    !worksheet ||
+    workbook.directory ||
+    relationships.directory ||
+    worksheet.directory ||
+    workbook.filename !== workbookPath ||
+    relationships.filename !== workbookRelationshipsPath ||
+    !isCanonicalWorksheetPath(worksheet.filename)
+  ) {
+    structureViolation();
+  }
+  return { relationships, workbook, worksheet };
+}
+
+export async function preflightXlsxArchive(
   buffer: ArrayBuffer,
-): XlsxArchivePreflightResult {
-  const bytes = new Uint8Array(buffer);
-  const workbookNames: string[] = [];
-  const workbookRelationshipNames: string[] = [];
-  const worksheetNames: string[] = [];
-  let entryCount = 0;
-  let totalUncompressedBytes = 0;
+  limits: XlsxArchiveLimits = xlsxArchiveLimits,
+  metadataLimits: XlsxArchiveLimits = limits,
+): Promise<XlsxArchivePreflightResult> {
+  if (
+    buffer.byteLength === 0 ||
+    buffer.byteLength > limits.maxArchiveCompressedBytes
+  ) {
+    return {
+      message: 'El archivo debe ser .xlsx y no superar 5 MiB.',
+      ok: false,
+    };
+  }
 
+  const reader = new ZipReader(new Uint8ArrayReader(new Uint8Array(buffer)), {
+    filenameValidation: 'strict',
+    strictness: 'strict',
+    useCompressionStream: false,
+    useWebWorkers: false,
+  });
   try {
-    unzipSync(bytes, {
-      filter: (entry) => {
-        entryCount += 1;
-        if (
-          entryCount > xlsxArchiveLimits.maxEntries ||
-          !isSafeEntryName(entry.name) ||
-          (entry.compression !== 0 && entry.compression !== 8)
-        ) {
-          throw new XlsxArchiveViolation(
-            'El archivo Excel contiene una estructura no admitida.',
-          );
-        }
-        totalUncompressedBytes += entry.originalSize;
-        if (
-          entry.originalSize > xlsxArchiveLimits.maxEntryUncompressedBytes ||
-          totalUncompressedBytes >
-            xlsxArchiveLimits.maxTotalUncompressedBytes ||
-          (entry.originalSize >= 64 * 1024 &&
-            entry.originalSize / Math.max(entry.size, 1) >
-              xlsxArchiveLimits.maxCompressionRatio)
-        ) {
-          throw new XlsxArchiveViolation(
-            'El archivo Excel supera los límites seguros de descompresión.',
-          );
-        }
-        if (/^xl\/worksheets\/[^/]+\.xml$/i.test(entry.name)) {
-          if (
-            entry.originalSize > xlsxArchiveLimits.maxWorksheetUncompressedBytes
-          ) {
-            throw new XlsxArchiveViolation(
-              'La hoja Excel supera el tamaño estructural admitido.',
-            );
-          }
-          worksheetNames.push(entry.name);
-        }
-        if (entry.name.toLowerCase() === 'xl/workbook.xml') {
-          if (
-            entry.originalSize > xlsxArchiveLimits.maxWorkbookUncompressedBytes
-          ) {
-            throw new XlsxArchiveViolation(
-              'La estructura del libro Excel supera el tamaño admitido.',
-            );
-          }
-          workbookNames.push(entry.name);
-        }
-        if (entry.name.toLowerCase() === 'xl/_rels/workbook.xml.rels') {
-          if (
-            entry.originalSize > xlsxArchiveLimits.maxWorkbookUncompressedBytes
-          ) {
-            throw new XlsxArchiveViolation(
-              'La estructura del libro Excel supera el tamaño admitido.',
-            );
-          }
-          workbookRelationshipNames.push(entry.name);
-        }
-        return false;
-      },
-    });
-
-    if (
-      worksheetNames.length !== 1 ||
-      workbookNames.length !== 1 ||
-      workbookRelationshipNames.length !== 1
-    ) {
-      return {
-        message:
-          'El archivo debe contener exactamente una hoja. Usa únicamente la hoja de la plantilla.',
-        ok: false,
-      };
+    const entries = await reader.getEntries();
+    if (entries.length === 0 || entries.length > limits.maxEntries) {
+      structureViolation();
     }
 
-    // ZIP sizes are attacker-controlled metadata. Count bytes emitted by the
-    // streaming inflater before any normal workbook parsing trusts the archive.
-    assertActualArchiveExpansion(bytes);
+    let declaredTotal = 0;
+    for (const entry of entries) {
+      assertEntryMetadata(entry, metadataLimits);
+      declaredTotal += entry.uncompressedSize;
+      if (declaredTotal > metadataLimits.maxTotalUncompressedBytes) {
+        expansionViolation();
+      }
+    }
 
-    const worksheetName = worksheetNames[0];
-    const workbookName = workbookNames[0];
-    const workbookRelationshipName = workbookRelationshipNames[0];
-    const extracted = unzipSync(bytes, {
-      filter: (entry) =>
-        entry.name === worksheetName ||
-        entry.name === workbookName ||
-        entry.name === workbookRelationshipName,
-    });
-    const worksheet = worksheetName ? extracted[worksheetName] : undefined;
-    const workbook = workbookName ? extracted[workbookName] : undefined;
-    const workbookRelationships = workbookRelationshipName
-      ? extracted[workbookRelationshipName]
-      : undefined;
-    if (!worksheet || !workbook || !workbookRelationships) {
-      throw new XlsxArchiveViolation(
-        'No fue posible localizar la hoja del archivo Excel.',
-      );
+    const critical = criticalEntries(entries);
+    const retained = new Map<string, Uint8Array>();
+    const expansion: ExpansionState = { totalBytes: 0 };
+    for (const entry of entries) {
+      if (entry.directory) continue;
+      const retain =
+        entry === critical.workbook ||
+        entry === critical.relationships ||
+        entry === critical.worksheet;
+      const data = await readEntry(entry, retain, limits, expansion);
+      if (data) retained.set(entry.filename, data);
     }
-    const workbookXml = strFromU8(workbook);
-    const sheetTags = [
-      ...workbookXml.matchAll(/<(?:[^\s<>/:]+:)?sheet\b([^>]*)/gi),
-    ];
-    if (sheetTags.length !== 1) {
-      return {
-        message:
-          'El archivo debe contener exactamente una hoja. Usa únicamente la hoja de la plantilla.',
-        ok: false,
-      };
+    const workbookBytes = retained.get(workbookPath);
+    const relationshipBytes = retained.get(workbookRelationshipsPath);
+    const worksheetBytes = retained.get(critical.worksheet.filename);
+    if (!workbookBytes || !relationshipBytes || !worksheetBytes) {
+      structureViolation();
     }
-    const sheetMarkup = sheetTags[0]?.[1];
-    const relationshipId = sheetMarkup
-      ? readXmlAttribute(sheetMarkup, 'r:id')
-      : null;
-    const relationshipTags = [
-      ...strFromU8(workbookRelationships).matchAll(
-        /<(?:[^\s<>/:]+:)?Relationship\b([^>]*)/gi,
-      ),
-    ];
-    const worksheetRelationships = relationshipTags.filter((match) => {
-      const markup = match[1];
-      return (
-        markup !== undefined &&
-        readXmlAttribute(markup, 'Id') === relationshipId &&
-        readXmlAttribute(markup, 'Type')?.endsWith('/worksheet') === true &&
-        readXmlAttribute(markup, 'TargetMode') !== 'External'
-      );
-    });
-    const relationshipMarkup = worksheetRelationships[0]?.[1];
-    const relationshipTarget = relationshipMarkup
-      ? readXmlAttribute(relationshipMarkup, 'Target')
-      : null;
-    if (
-      worksheetRelationships.length !== 1 ||
-      relationshipTarget === null ||
-      resolveWorkbookTarget(relationshipTarget) !== worksheetName
-    ) {
-      throw new XlsxArchiveViolation(
-        'La relación de la hoja Excel no coincide con su contenido validado.',
-      );
-    }
-    assertWorksheetBounds(strFromU8(worksheet));
+    assertWorkbookStructure(
+      workbookBytes,
+      relationshipBytes,
+      critical.worksheet.filename,
+    );
+    assertWorksheetBounds(
+      parseXml(worksheetBytes, spreadsheetNamespace, 'worksheet'),
+      limits,
+    );
     return { ok: true };
   } catch (error: unknown) {
     return {
       message:
         error instanceof XlsxArchiveViolation
           ? error.message
-          : 'No fue posible leer o generar el archivo Excel.',
+          : 'El archivo Excel contiene una estructura no admitida.',
       ok: false,
     };
+  } finally {
+    await reader.close();
   }
 }

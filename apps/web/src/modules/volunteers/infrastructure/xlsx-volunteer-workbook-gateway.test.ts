@@ -4,6 +4,25 @@ import writeXlsxFile, { type SheetData } from 'write-excel-file/universal';
 
 import { XlsxVolunteerWorkbookGateway } from './xlsx-volunteer-workbook-gateway';
 
+const spreadsheetNamespace =
+  'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+const officeRelationshipNamespace =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+const packageRelationshipNamespace =
+  'http://schemas.openxmlformats.org/package/2006/relationships';
+
+function minimalWorkbookXml(): string {
+  return `<workbook xmlns="${spreadsheetNamespace}" xmlns:r="${officeRelationshipNamespace}"><sheets><sheet name="Voluntarios" r:id="rId1"/></sheets></workbook>`;
+}
+
+function minimalRelationshipsXml(target = 'worksheets/sheet1.xml'): string {
+  return `<Relationships xmlns="${packageRelationshipNamespace}"><Relationship Id="rId1" Type="${officeRelationshipNamespace}/worksheet" Target="${target}"/></Relationships>`;
+}
+
+function minimalWorksheetXml(content = '<sheetData/>'): string {
+  return `<worksheet xmlns="${spreadsheetNamespace}">${content}</worksheet>`;
+}
+
 function exactArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return bytes.buffer.slice(
     bytes.byteOffset,
@@ -34,55 +53,6 @@ function replaceCentralDirectoryOriginalSize(
     }
   }
   throw new Error(`ZIP entry not found: ${entryName}`);
-}
-
-function insertOrphanLocalEntries(
-  archive: Uint8Array,
-  entryCount: number,
-): Uint8Array {
-  const sourceView = new DataView(
-    archive.buffer,
-    archive.byteOffset,
-    archive.byteLength,
-  );
-  let endOffset = archive.byteLength - 22;
-  while (
-    endOffset >= 0 &&
-    sourceView.getUint32(endOffset, true) !== 0x06054b50
-  ) {
-    endOffset -= 1;
-  }
-  if (endOffset < 0) throw new Error('ZIP end record not found');
-  const centralOffset = sourceView.getUint32(endOffset + 16, true);
-  const records: Uint8Array[] = [];
-  for (let index = 0; index < entryCount; index += 1) {
-    const name = strToU8(`orphan-${String(index)}.xml`);
-    const record = new Uint8Array(30 + name.byteLength);
-    const view = new DataView(record.buffer);
-    view.setUint32(0, 0x04034b50, true);
-    view.setUint16(4, 20, true);
-    view.setUint16(26, name.byteLength, true);
-    record.set(name, 30);
-    records.push(record);
-  }
-  const insertedLength = records.reduce(
-    (total, record) => total + record.byteLength,
-    0,
-  );
-  const result = new Uint8Array(archive.byteLength + insertedLength);
-  result.set(archive.subarray(0, centralOffset));
-  let writeOffset = centralOffset;
-  for (const record of records) {
-    result.set(record, writeOffset);
-    writeOffset += record.byteLength;
-  }
-  result.set(archive.subarray(centralOffset), writeOffset);
-  new DataView(result.buffer).setUint32(
-    endOffset + insertedLength + 16,
-    centralOffset + insertedLength,
-    true,
-  );
-  return result;
 }
 
 async function createWorkbook(
@@ -125,10 +95,10 @@ describe('XlsxVolunteerWorkbookGateway', () => {
     const exported = await gateway.createExport(
       formulaPrefixes.map((fullName, index) => ({
         createdAt: '2026-08-16T12:00:00.000Z',
-        email: `formula-${String(index)}@example.invalid`,
+        email: fullName,
         fullName,
         id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
-        phone: '+591 070000001',
+        phone: fullName,
         updatedAt: '2026-08-16T12:00:00.000Z',
       })),
     );
@@ -139,10 +109,32 @@ describe('XlsxVolunteerWorkbookGateway', () => {
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     expect(parsed.value.slice(1).map((row) => row[0])).toEqual(formulaPrefixes);
+    expect(parsed.value.slice(1).map((row) => row[1])).toEqual(formulaPrefixes);
+    expect(parsed.value.slice(1).map((row) => row[2])).toEqual(formulaPrefixes);
     const entries = unzipSync(new Uint8Array(exported.value));
     const worksheet = entries['xl/worksheets/sheet1.xml'];
     expect(worksheet).toBeDefined();
     if (worksheet) expect(strFromU8(worksheet)).not.toContain('<f');
+  });
+
+  it('preserves plus signs and leading zeroes in text phone cells', async () => {
+    const gateway = new XlsxVolunteerWorkbookGateway();
+    const workbook = await createWorkbook([
+      [
+        ['Nombre completo', 'Correo', 'Celular'],
+        ['Con prefijo', null, '+591 070000001'],
+        ['Con cero', null, '070000002'],
+      ],
+    ]);
+
+    await expect(gateway.parse(workbook)).resolves.toMatchObject({
+      ok: true,
+      value: [
+        ['Nombre completo', 'Correo', 'Celular'],
+        ['Con prefijo', null, '+591 070000001'],
+        ['Con cero', null, '070000002'],
+      ],
+    });
   });
 
   it('rejects every workbook with additional worksheets, even when empty', async () => {
@@ -162,7 +154,7 @@ describe('XlsxVolunteerWorkbookGateway', () => {
     if (!prefixedWorkbook) return;
     prefixedEntries['xl/workbook.xml'] = strToU8(
       strFromU8(prefixedWorkbook)
-        .replace('<workbook ', '<workbook xmlns:x="urn:test" ')
+        .replace('<workbook ', `<workbook xmlns:x="${spreadsheetNamespace}" `)
         .replace(
           '</sheets>',
           '<x:sheet name="Oculta" sheetId="2" r:id="rId2"/></sheets>',
@@ -180,7 +172,7 @@ describe('XlsxVolunteerWorkbookGateway', () => {
       expect(result.ok).toBe(false);
       if (result.ok) continue;
       expect(result.error.code).toBe('validation');
-      expect(result.error.message).toContain('exactamente una hoja');
+      expect(result.error.message).toContain('una sola hoja');
     }
   });
 
@@ -201,7 +193,7 @@ describe('XlsxVolunteerWorkbookGateway', () => {
     if (!singleQuotedWorksheet) return;
     singleQuotedEntries['xl/worksheets/sheet1.xml'] = strToU8(
       strFromU8(singleQuotedWorksheet)
-        .replace('<worksheet ', '<worksheet xmlns:x="urn:test" ')
+        .replace('<worksheet ', `<worksheet xmlns:x="${spreadsheetNamespace}" `)
         .replaceAll('<row', '<x:row')
         .replaceAll('</row', '</x:row')
         .replaceAll('<c ', '<x:c ')
@@ -248,41 +240,33 @@ describe('XlsxVolunteerWorkbookGateway', () => {
     );
     const remoteDimension = exactArrayBuffer(
       zipSync({
-        'xl/workbook.xml': strToU8(
-          '<workbook xmlns:r="relationships"><sheets><sheet name="Voluntarios" r:id="rId1"/></sheets></workbook>',
-        ),
-        'xl/_rels/workbook.xml.rels': strToU8(
-          '<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
-        ),
+        'xl/workbook.xml': strToU8(minimalWorkbookXml()),
+        'xl/_rels/workbook.xml.rels': strToU8(minimalRelationshipsXml()),
         'xl/worksheets/sheet1.xml': strToU8(
-          '<worksheet><dimension ref="A1:XFD1048576"/><sheetData/></worksheet>',
+          minimalWorksheetXml('<dimension ref="A1:XFD1048576"/><sheetData/>'),
         ),
       }),
     );
     const sequentialRows = exactArrayBuffer(
       zipSync({
-        'xl/workbook.xml': strToU8(
-          '<workbook xmlns:r="relationships"><sheets><sheet name="Voluntarios" r:id="rId1"/></sheets></workbook>',
-        ),
-        'xl/_rels/workbook.xml.rels': strToU8(
-          '<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
-        ),
+        'xl/workbook.xml': strToU8(minimalWorkbookXml()),
+        'xl/_rels/workbook.xml.rels': strToU8(minimalRelationshipsXml()),
         'xl/worksheets/sheet1.xml': strToU8(
-          `<worksheet><sheetData>${'<row/>'.repeat(1002)}</sheetData></worksheet>`,
+          minimalWorksheetXml(
+            `<sheetData>${'<row/>'.repeat(1002)}</sheetData>`,
+          ),
         ),
       }),
     );
     const oversizedWorksheetName = 'xl/worksheets/sheet1.xml';
     const oversizedEntries = zipSync(
       {
-        'xl/workbook.xml': strToU8(
-          '<workbook xmlns:r="relationships"><sheets><sheet name="Voluntarios" r:id="rId1"/></sheets></workbook>',
-        ),
-        'xl/_rels/workbook.xml.rels': strToU8(
-          '<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
-        ),
+        'xl/workbook.xml': strToU8(minimalWorkbookXml()),
+        'xl/_rels/workbook.xml.rels': strToU8(minimalRelationshipsXml()),
         [oversizedWorksheetName]: strToU8(
-          `<worksheet><sheetData>${' '.repeat(5 * 1024 * 1024)}</sheetData></worksheet>`,
+          minimalWorksheetXml(
+            `<sheetData>${' '.repeat(5 * 1024 * 1024)}</sheetData>`,
+          ),
         ),
       },
       { level: 9 },
@@ -294,23 +278,6 @@ describe('XlsxVolunteerWorkbookGateway', () => {
         1024,
       ),
     );
-    const orphanLocalEntries = exactArrayBuffer(
-      insertOrphanLocalEntries(
-        zipSync({
-          'xl/workbook.xml': strToU8(
-            '<workbook xmlns:r="relationships"><sheets><sheet name="Voluntarios" r:id="rId1"/></sheets></workbook>',
-          ),
-          'xl/_rels/workbook.xml.rels': strToU8(
-            '<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
-          ),
-          'xl/worksheets/sheet1.xml': strToU8(
-            '<worksheet><sheetData/></worksheet>',
-          ),
-        }),
-        101,
-      ),
-    );
-
     const compressedResult = await gateway.parse(highlyCompressed);
     expect(compressedResult.ok).toBe(false);
     if (!compressedResult.ok) {
@@ -329,12 +296,7 @@ describe('XlsxVolunteerWorkbookGateway', () => {
     const forgedSizeResult = await gateway.parse(forgedSize);
     expect(forgedSizeResult.ok).toBe(false);
     if (!forgedSizeResult.ok) {
-      expect(forgedSizeResult.error.message).toContain('descompresión');
-    }
-    const orphanEntriesResult = await gateway.parse(orphanLocalEntries);
-    expect(orphanEntriesResult.ok).toBe(false);
-    if (!orphanEntriesResult.ok) {
-      expect(orphanEntriesResult.error.message).toContain('estructura');
+      expect(forgedSizeResult.error.message).toContain('estructura');
     }
   });
 

@@ -40,7 +40,7 @@ export class XlsxVolunteerWorkbookGateway implements VolunteerWorkbookGateway {
     Result<readonly (readonly (boolean | Date | number | string | null)[])[]>
   > {
     try {
-      const preflight = preflightXlsxArchive(buffer);
+      const preflight = await preflightXlsxArchive(buffer);
       if (!preflight.ok) return workbookFailure(preflight.message);
       const sheet = await readSheet(buffer);
       const rows: (boolean | Date | number | string | null)[][] = [];
