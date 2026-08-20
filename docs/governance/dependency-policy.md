@@ -9,3 +9,11 @@
 7. Retirar dependencias sin consumidores.
 
 No se usan Yarn, Bun, npm install ni paquetes globales para construir el proyecto.
+
+## Registro Excel del hito 0003
+
+- `read-excel-file` se usa únicamente en el adaptador de infraestructura para leer `.xlsx` en navegador como filas tipadas.
+- `write-excel-file` se usa únicamente en ese adaptador para plantilla y exportación `.xlsx`.
+- `@zip.js/zip.js` se usa en el preflight para lectura ZIP estructurada y streaming en navegador. Su modo estricto correlaciona el directorio central con cada header local, conserva entries individuales para detectar ambigüedad y permite contar bytes emitidos sin extraer al filesystem.
+- `fflate` queda como dependencia de desarrollo para construir e inspeccionar fixtures ZIP mínimos en pruebas; ya no interpreta archivos de usuario en producción.
+- Se eligieron paquetes enfocados, con licencias permisivas, sin scripts de instalación y con soporte de navegador, en lugar de incorporar una suite de hojas de cálculo más amplia. El lockfile fija las versiones resueltas y `pnpm install --frozen-lockfile` verifica reproducibilidad.

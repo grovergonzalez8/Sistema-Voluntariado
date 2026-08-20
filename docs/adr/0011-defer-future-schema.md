@@ -9,7 +9,9 @@ Las entidades futuras están enumeradas, pero faltan estados, cardinalidades, al
 
 ## Decisión
 
-Migrar solo identidad/autorización, perfil y auditoría inicial; documentar lo restante.
+En el hito fundacional, migrar solo identidad/autorización, perfil y auditoría inicial; documentar lo restante. Cada contexto posterior exige reglas suficientes, una migración convencional y un ExecPlan propio, sin anticipar su modelo.
+
+El hito 0003 aplicó esta regla al padrón administrativo: incorporó únicamente `volunteers` y sus operaciones V1 después de definir separación de cuentas, datos mínimos, duplicados, acceso y auditoría. Documento, participación, estado/archivo y demás contextos continúan diferidos.
 
 ## Alternativas
 

@@ -113,3 +113,22 @@ sequenceDiagram
 ```
 
 No existe transacción distribuida. La idempotencia, el lease exclusivo con actor/correlación por intento, el snapshot bilateral de `auth_user_id`, constraints diferidos y la reconciliación por correo exacto + identificador de invitación en metadata emitida por el servidor limitan divergencias. Los casos ambiguos o una identidad ya confirmada quedan fallidos para intervención; nunca se enlazan ni eliminan usuarios automáticamente.
+
+## Padrón administrativo de voluntarios
+
+```mermaid
+sequenceDiagram
+  participant A as Administrator
+  participant UI as Volunteer Registry UI
+  participant UC as VolunteerRegistryService
+  participant DB as PostgreSQL RPC
+  A->>UI: buscar, crear o editar
+  UI->>UC: operación validada
+  UC->>UC: permiso efectivo mediante puerto
+  UC->>DB: RPC con JWT y sin actor recibido del formulario
+  DB->>DB: cuenta activa + permiso + lock de duplicados
+  DB->>DB: mutación y auditoría atómicas
+  DB-->>UI: proyección mínima o error seguro
+```
+
+Listado, búsqueda, orden y exportación se ejecutan paginados en PostgreSQL. En importación, el navegador acepta un `.xlsx` de hasta 5 MiB y 1.000 filas. Antes del parser principal, `zip.js` lee el ZIP en modo estricto: rechaza nombres duplicados o inseguros, diferencias entre directorio central y header local, entradas solapadas, cifrado, symlinks, directorios, ZIP64 y métodos distintos de STORE/DEFLATE. La V1 admite como máximo 100 entries del directorio central, 20 MiB expandidos en total, 10 MiB por entry, 5 MiB para la worksheet y ratio 250:1 para entries de al menos 64 KiB. Cada entry se descomprime secuencialmente hacia un stream que cuenta bytes realmente emitidos y aborta al superar los límites; solo conserva `workbook.xml`, `xl/_rels/workbook.xml.rels` y la única worksheet, con 1 MiB para workbook/relationships. `DOMParser` valida XML por namespace URI y nombre local, exige una hoja lógica, una sola relationship interna de tipo worksheet y una única worksheet correspondiente dentro de `xl/worksheets`; luego limita las coordenadas a 16 columnas y a la fila efectiva 1.001. Tras el parser principal, aplicación limita el conjunto a 1.000 filas de datos. Estructuras ambiguas o variantes no soportadas se rechazan antes de `read-excel-file`. Finalmente la UI muestra errores y coincidencias y envía solo las filas elegidas. La RPC vuelve a validar datos y duplicados bajo un advisory lock; todo el lote se confirma o revierte. El archivo no se persiste y ninguna operación toca Supabase Auth, `accounts`, invitaciones o perfiles.

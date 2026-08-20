@@ -41,6 +41,11 @@ export function AppShell() {
               {t('navigation.accounts')}
             </NavLink>
           ) : null}
+          {identity.account?.permissions.includes('volunteer_registry.read') ? (
+            <NavLink to="/app/admin/volunteers">
+              {t('navigation.volunteers')}
+            </NavLink>
+          ) : null}
         </nav>
         <main className="app-content">
           <Outlet />

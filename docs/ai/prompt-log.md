@@ -1,11 +1,13 @@
 # Registro de prompts
 
-| ID   | Fecha      | Objetivo                                        | Herramienta | Resultado                           | Commits                                             |
-| ---- | ---------- | ----------------------------------------------- | ----------- | ----------------------------------- | --------------------------------------------------- |
-| 0001 | 2026-07-23 | Construir fundación y un slice de perfil propio | Codex       | Completado; gates locales aprobados | `5dc9178`–`4d9aec9` y cierre documental             |
-| 0002 | 2026-07-24 | Implementar invitaciones y ciclo de cuentas     | Codex       | Completado; gates locales aprobados | `245b09b`–`ed54f64` y cierre documental             |
-| 0003 | 2026-07-25 | Corregir autoridad al recuperar foco            | Codex       | Completado; gates locales aprobados | `c61ab59`, `df19362`, `dd9b6e6` y cierre documental |
-| 0004 | 2026-07-26 | Corregir propiedad de procesos E2E/CI           | Codex       | Completado; gates locales aprobados | `bb59d3c`, `d7531c4` y cierre documental            |
+| ID   | Fecha      | Objetivo                                         | Herramienta | Resultado                           | Commits                                             |
+| ---- | ---------- | ------------------------------------------------ | ----------- | ----------------------------------- | --------------------------------------------------- |
+| 0001 | 2026-07-23 | Construir fundación y un slice de perfil propio  | Codex       | Completado; gates locales aprobados | `5dc9178`–`4d9aec9` y cierre documental             |
+| 0002 | 2026-07-24 | Implementar invitaciones y ciclo de cuentas      | Codex       | Completado; gates locales aprobados | `245b09b`–`ed54f64` y cierre documental             |
+| 0003 | 2026-07-25 | Corregir autoridad al recuperar foco             | Codex       | Completado; gates locales aprobados | `c61ab59`, `df19362`, `dd9b6e6` y cierre documental |
+| 0004 | 2026-07-26 | Corregir propiedad de procesos E2E/CI            | Codex       | Completado; gates locales aprobados | `bb59d3c`, `d7531c4` y cierre documental            |
+| 0005 | 2026-08-16 | Implementar padrón administrativo de voluntarios | Codex       | Completado; gates locales aprobados | `01c127d`, `bfaccd9`, `19df8fe` y cierre documental |
+| 0006 | 2026-08-20 | Endurecer validación estructural XLSX            | Codex       | Completado; gates locales aprobados | `351ac17` y cierre documental                       |
 
 Detalle: `docs/ai/prompts/0001-bootstrap-foundation.md`.
 
@@ -20,3 +22,9 @@ Corrección de CI 0004: `docs/ai/prompts/0004-ci-edge-function-orchestration.md`
 El cierre 0004 aprobó `pnpm verify`, `CI=true pnpm test:e2e` y `pnpm account-lifecycle:test`: 13 pruebas de orquestación, 102 unitarias web, 2 de integración, 21 de Edge Function, 119 pgTAP y 5 E2E. Architect, database_security_reviewer, qa_reviewer y docs_governor emitieron GO tras integrar sus hallazgos. La ejecución remota del PR queda pendiente como confirmación definitiva de GitHub Actions.
 
 No se registran claves locales generadas por Supabase ni otra salida sensible.
+
+Registro de voluntarios 0005: `docs/ai/prompts/0005-volunteer-registry-v1.md`. El diseño, decisiones, validaciones incrementales y evidencia final se conservan en `docs/exec-plans/0003-volunteer-registry-v1.md`.
+
+El cierre correctivo 0005 aprobó `pnpm verify`, 146 pruebas unitarias web, 2 de integración, 21 de Edge Function, 13 de orquestación, DB reset/lint, 212 pgTAP y 7 E2E. Los correctivos pre-merge se sometieron nuevamente a revisión especializada. El audit externo registró tres avisos altos en versiones preexistentes de `react-router`/`brace-expansion`; no se ocultaron ni se mezcló su actualización con este hito.
+
+Corrección XLSX 0006: `docs/ai/prompts/0006-xlsx-validation-correction.md`. El correctivo sustituyó la interpretación ZIP binaria propia por `@zip.js/zip.js`, mantuvo `fflate` únicamente para fixtures unitarios seguros y adoptó XML estructurado con resolución por namespace URI y local name. El cierre aprobó los 27 tests focalizados XLSX, `pnpm verify`, 158 unitarias web, 2 de integración, 21 de Edge Function, 13 de orquestación, DB reset/lint, 212 pgTAP y 7 E2E. Las revisiones de arquitectura, QA y documentación fueron de solo lectura; no se reabrió SQL/RLS.

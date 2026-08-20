@@ -4,7 +4,9 @@ Sistema-Voluntariado será la fuente operacional para personas voluntarias y res
 
 ## Resultado de esta entrega
 
-Las personas entran exclusivamente por invitación, completan el perfil mínimo y acceden según el estado y los permisos efectivos de su cuenta. Una cuenta activa puede consultar y actualizar únicamente su propio `display_name` y `preferred_locale`; responsables autorizados pueden gestionar invitaciones, roles y estados de cuenta con historial y auditoría. Correo y credenciales pertenecen a Supabase Auth. No se capturan documentos, información médica, datos financieros ni contactos de emergencia.
+Las personas usuarias entran exclusivamente por invitación, completan el perfil mínimo y acceden según el estado y los permisos efectivos de su cuenta. Una cuenta activa puede consultar y actualizar únicamente su propio `display_name` y `preferred_locale`; responsables autorizados pueden gestionar invitaciones, roles y estados de cuenta con historial y auditoría. Correo y credenciales de las cuentas pertenecen a Supabase Auth.
+
+De forma separada, administrator dispone de un padrón institucional de voluntarios actuales e históricos con nombre, correo opcional y celular opcional. Un registro del padrón no es una cuenta, no crea Auth ni invitaciones y puede pertenecer a alguien que nunca use la aplicación. El padrón permite consulta paginada, alta, edición e importación/exportación Excel. No se capturan documentos, información médica, datos financieros ni contactos de emergencia.
 
 ## Evolución futura
 

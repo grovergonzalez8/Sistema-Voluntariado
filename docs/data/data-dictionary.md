@@ -1,5 +1,19 @@
 # Diccionario de datos
 
+## `volunteers`
+
+| Columna           | Tipo          | Regla                                                                 |
+| ----------------- | ------------- | --------------------------------------------------------------------- |
+| `id`              | `uuid`        | PK generada por PostgreSQL; sin relación con Auth                     |
+| `full_name`       | `text`        | obligatorio; espacios normalizados; 1–100 caracteres                  |
+| `email`           | `text null`   | vacío a `null`; minúsculas; 3–254; formato conservador                |
+| `phone`           | `text null`   | vacío a `null`; 3–40; texto visible con al menos un dígito            |
+| `phone_match_key` | `text null`   | generada con solo dígitos para advertencias; nunca expuesta como dato |
+| `created_at`      | `timestamptz` | fecha de registro en el sistema, inmutable                            |
+| `updated_at`      | `timestamptz` | trigger de servidor                                                   |
+
+No existen `account_id`, `auth_user_id`, estado ni eliminación cliente. Email y teléfono no son únicos: una coincidencia exige confirmación explícita para preservar históricos legítimos.
+
 ## `profiles`
 
 | Columna            | Tipo               | Regla                               |
@@ -97,27 +111,28 @@ Las concesiones son relaciones inmutables: se insertan o revocan, no se editan; 
 
 ## `audit_logs`
 
-| Columna                    | Regla                                              |
-| -------------------------- | -------------------------------------------------- |
-| `id`                       | UUID generado por PostgreSQL                       |
-| `actor_user_id`            | actor autenticado; anulable por retención futura   |
-| `action`                   | código técnico estable                             |
-| `entity_type`, `entity_id` | objetivo sin snapshot                              |
-| `changed_fields`           | nombres de columnas, nunca valores                 |
-| `target_user_id`           | identidad objetivo; anulable por retención         |
-| `correlation_id`           | correlación técnica entre pasos                    |
-| `previous_state`           | estado técnico anterior, sin snapshot de PII       |
-| `new_state`                | estado técnico nuevo, sin snapshot de PII          |
-| `metadata`                 | solo `reason_code`/`provider_error_code` allowlist |
-| `created_at`               | hora del servidor                                  |
+| Columna                    | Regla                                            |
+| -------------------------- | ------------------------------------------------ |
+| `id`                       | UUID generado por PostgreSQL                     |
+| `actor_user_id`            | actor autenticado; anulable por retención futura |
+| `action`                   | código técnico estable                           |
+| `entity_type`, `entity_id` | objetivo sin snapshot                            |
+| `changed_fields`           | nombres de columnas, nunca valores               |
+| `target_user_id`           | identidad objetivo; anulable por retención       |
+| `correlation_id`           | correlación técnica entre pasos                  |
+| `previous_state`           | estado técnico anterior, sin snapshot de PII     |
+| `new_state`                | estado técnico nuevo, sin snapshot de PII        |
+| `metadata`                 | códigos seguros o conteos de lote allowlist      |
+| `created_at`               | hora del servidor                                |
 
-No se guardan tokens, correo, nombre, contraseña, valores personales anteriores/nuevos ni cuerpos de solicitudes.
+No se guardan tokens, correo, teléfono, nombre, contraseña, valores personales anteriores/nuevos ni cuerpos de solicitudes. Además de `reason_code` y `provider_error_code`, `metadata` admite únicamente `requested_count`, `inserted_count` y `duplicate_count` como enteros entre 0 y 1.000 para `volunteer.imported`.
 
 ## API PostgreSQL del hito
 
 - Contexto/onboarding: `get_my_account_context`, `accept_current_account_invitation`, `complete_current_account_profile`.
 - Invitaciones: `list_account_invitations`, `prepare_account_invitation`, `prepare_account_invitation_action`, `finalize_account_invitation_delivery`, `expire_open_invitations`.
 - Administración: `list_accounts`, `get_account_detail`, `change_account_status`, `manage_account_role`.
+- Padrón: `list_volunteers`, `get_volunteer_detail`, `find_volunteer_duplicates`, `create_volunteer`, `update_volunteer`, `preview_volunteer_import_duplicates`, `import_volunteers`, `export_volunteers`.
 - Reglas internas: `user_has_permission`, `user_has_active_role`, `can_user_grant_role`, `is_account_transition_allowed` y guards de consistencia/auditoría.
 
 Las funciones expuestas a `authenticated` derivan el actor del JWT. `finalize_account_invitation_delivery` es la única de este grupo concedida a `service_role`; las tablas nuevas no conceden acceso directo a `anon` o `authenticated`.

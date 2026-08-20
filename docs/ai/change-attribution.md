@@ -53,3 +53,33 @@ Hallazgos materiales corregidos durante la revisión: epoch Auth para bootstrap/
 - Estado: corrección completada en la rama autorizada, sin push, rebase, amend, despliegue ni modificación de `main`; confirmación remota del PR pendiente.
 
 Hallazgos materiales corregidos durante revisión: cleanup de Edge aun si falla `db:reset`; preservación conjunta de fallos funcionales y de teardown; cleanup independiente de Playwright/Vite y Functions ante señales; salud GoTrue obligatoria; y adquisición de un contenedor solamente con cardinalidad no ambigua.
+
+## Volunteer Registry 0005
+
+- Objetivo: padrón administrativo independiente con CRUD, consultas server-side e importación/exportación Excel.
+- Herramienta: agente principal de Codex, GPT-5.6 Sol con reasoning medium.
+- Rama: `feat/volunteer-registry-v1` desde `main@c6f7392`.
+- Prompt: `docs/ai/prompts/0005-volunteer-registry-v1.md`.
+- Plan: `docs/exec-plans/0003-volunteer-registry-v1.md`.
+- Revisión inicial de solo lectura: `architect`, `domain_modeler` y `database_security_reviewer`; la revisión final usa `architect`, `database_security_reviewer`, `qa_reviewer` y `docs_governor`.
+- Integración y escritura: exclusivamente el agente principal.
+- Commits técnicos: `01c127d`, `bfaccd9` y `19df8fe`, más el cierre documental.
+- Validación: `pnpm verify`, frozen lockfile, 146 unitarias web, 2 de integración, 21 Edge Function, 13 de orquestación, DB reset/lint, 212 pgTAP y 7 E2E aprobados; los correctivos pre-merge se sometieron nuevamente a revisión especializada.
+- Estado: implementación y validación local completadas; sin push, PR, merge ni despliegue.
+
+Decisiones materiales: agregado y tabla sin relación con Auth/cuentas/perfil; RBAC por cinco permisos exclusivos; tabla RLS default-deny expuesta solo mediante RPC; duplicados como advertencia confirmable bajo lock; importación seleccionada all-or-nothing; Excel efímero con límites técnicos; auditoría sin PII duplicada.
+
+## Corrección de validación XLSX 0006
+
+- Objetivo: cerrar exclusivamente los defectos pendientes de robustez, validación estructural y procesamiento defensivo de archivos XLSX.
+- Herramienta: agente principal de Codex, GPT-5.6 Sol con reasoning medium.
+- Rama: `feat/volunteer-registry-v1`; HEAD inicial `d0d2ebc`; base `main@c6f7392` intacta.
+- Prompt: `docs/ai/prompts/0006-xlsx-validation-correction.md`.
+- Plan: fase 8 de `docs/exec-plans/0003-volunteer-registry-v1.md`.
+- Integración y escritura: exclusivamente el agente principal.
+- Revisión independiente de solo lectura: `architect`, `qa_reviewer` y `docs_governor`; no se repitió revisión SQL/RLS por estar expresamente fuera del alcance.
+- Commit técnico: `351ac17`, más el cierre documental.
+- Validación: frozen install; 27 tests focalizados XLSX; `pnpm verify` con 158 unitarias web, 2 de integración, 21 Edge Function y 13 de orquestación; reset DB oficial, DB lint, 212 pgTAP y 7 E2E aprobados; typecheck y build aprobados.
+- Estado: corrección completada en la rama autorizada, sin push, PR, merge, rebase, amend, despliegue ni modificación de `main`.
+
+Hallazgos materiales corregidos durante la revisión: diferencia de interpretación de namespaces entre preflight y parser principal; normalización permisiva de targets no canónicos; evidencia insuficiente del contador de bytes emitidos; afirmación documental imprecisa sobre filas físicas; y trazabilidad incompleta de la iteración 0006.
