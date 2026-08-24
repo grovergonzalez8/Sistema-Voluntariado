@@ -1,6 +1,6 @@
 # Sistema-Voluntariado
 
-Monolito modular para gestionar progresivamente la operación de voluntariado. El alcance actual incluye autenticación, perfil propio, invitaciones, onboarding, ciclo de vida de cuentas, administración segura de roles y un padrón administrativo independiente con importación/exportación Excel.
+Monolito modular para gestionar progresivamente la operación de voluntariado. El alcance actual incluye autenticación, perfil propio, invitaciones, onboarding, ciclo de vida de cuentas, administración segura de roles, un padrón administrativo independiente con importación/exportación Excel y proyectos administrativos con participación histórica de voluntarios.
 
 ## Estado
 
@@ -54,6 +54,6 @@ corepack pnpm test:e2e
 corepack pnpm account-lifecycle:test
 ```
 
-`verify` no exige Docker; las pruebas de funciones, PostgreSQL, Auth, Mailpit y E2E sí requieren Supabase local. Consulte `docs/deployment/local-development.md` para el recorrido completo. Alojamiento, proyectos, actividades, finanzas y los demás contextos operativos siguen fuera de alcance.
+`verify` no exige Docker; las pruebas de funciones, PostgreSQL, Auth, Mailpit y E2E sí requieren Supabase local. Consulte `docs/deployment/local-development.md` para el recorrido completo. Alojamiento, actividades, tareas, finanzas y los demás contextos operativos siguen fuera de alcance. Projects V1 no habilita `project_manager`, scopes, capacidad, calendario, actividades ni portal del voluntario.
 
 La propiedad de procesos y el comando Linux equivalente al job `Quality` se documentan en `docs/deployment/continuous-integration.md`.

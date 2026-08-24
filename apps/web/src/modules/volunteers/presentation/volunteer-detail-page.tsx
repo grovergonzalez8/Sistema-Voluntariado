@@ -38,9 +38,14 @@ export function VolunteerDetailPage({
           <h1>{volunteer.fullName}</h1>
           <p className="muted">{t('volunteers.detailDescription')}</p>
         </div>
-        <Link className="button" to={`/app/admin/volunteers/${id}/edit`}>
-          {t('volunteers.editAction')}
-        </Link>
+        <div className="button-row">
+          <Link className="button" to={`/app/admin/volunteers/${id}/projects`}>
+            {t('volunteers.projectsAction')}
+          </Link>
+          <Link className="button" to={`/app/admin/volunteers/${id}/edit`}>
+            {t('volunteers.editAction')}
+          </Link>
+        </div>
       </header>
       <dl className="panel volunteer-detail">
         <div>

@@ -28,7 +28,7 @@ test.describe.serial('administrative volunteer registry', () => {
       .click();
     await page.getByLabel('Nombre completo').fill(originalName);
     await page.getByLabel('Correo electrónico').fill(email);
-    await page.getByLabel('Número de celular').fill('+591 070000004');
+    await page.getByLabel('Número de celular').fill(`+591 ${suffix.slice(-8)}`);
     await page.getByRole('button', { name: 'Guardar voluntario' }).click();
 
     await expect(page).toHaveURL(/\/app\/admin\/volunteers\/[0-9a-f-]+$/u);

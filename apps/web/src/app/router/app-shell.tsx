@@ -46,6 +46,11 @@ export function AppShell() {
               {t('navigation.volunteers')}
             </NavLink>
           ) : null}
+          {identity.account?.permissions.includes('project.manage') ? (
+            <NavLink to="/app/admin/projects">
+              {t('navigation.projects')}
+            </NavLink>
+          ) : null}
         </nav>
         <main className="app-content">
           <Outlet />

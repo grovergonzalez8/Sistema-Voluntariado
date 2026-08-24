@@ -20,6 +20,13 @@ import {
 } from '../../modules/identity';
 import type { ApplicationServices } from '../composition/application-services';
 import {
+  ProjectCreatePage,
+  ProjectDetailPage,
+  ProjectEditPage,
+  ProjectsPage,
+  VolunteerProjectsPage,
+} from '../../modules/projects';
+import {
   VolunteerCreatePage,
   VolunteerDetailPage,
   VolunteerEditPage,
@@ -161,6 +168,41 @@ export function createAppRouter(
                       element: (
                         <PermissionRoute permission="volunteer_registry.import" />
                       ),
+                    },
+                    {
+                      children: [
+                        {
+                          element: <ProjectsPage service={services.projects} />,
+                          path: 'admin/projects',
+                        },
+                        {
+                          element: (
+                            <ProjectCreatePage service={services.projects} />
+                          ),
+                          path: 'admin/projects/new',
+                        },
+                        {
+                          element: (
+                            <ProjectDetailPage service={services.projects} />
+                          ),
+                          path: 'admin/projects/:id',
+                        },
+                        {
+                          element: (
+                            <ProjectEditPage service={services.projects} />
+                          ),
+                          path: 'admin/projects/:id/edit',
+                        },
+                        {
+                          element: (
+                            <VolunteerProjectsPage
+                              service={services.projects}
+                            />
+                          ),
+                          path: 'admin/volunteers/:id/projects',
+                        },
+                      ],
+                      element: <PermissionRoute permission="project.manage" />,
                     },
                     { element: <Navigate replace to="profile" />, index: true },
                   ],

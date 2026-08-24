@@ -18,6 +18,11 @@ import {
   type CurrentActorPort,
 } from '../../modules/volunteer-profile';
 import {
+  ProjectManagementService,
+  SupabaseProjectManagementGateway,
+  type ProjectAuthorizationPort,
+} from '../../modules/projects';
+import {
   SupabaseVolunteerRegistryGateway,
   VolunteerRegistryService,
   XlsxVolunteerWorkbookGateway,
@@ -33,6 +38,7 @@ export interface ApplicationServices {
   readonly invitations: InvitationAdministrationService;
   readonly onboarding: OnboardingService;
   readonly profile: ProfileService;
+  readonly projects: ProjectManagementService;
   readonly volunteers: VolunteerRegistryService;
 }
 
@@ -88,6 +94,20 @@ export function createApplicationServices(
     new SupabaseVolunteerRegistryGateway(supabase),
     new XlsxVolunteerWorkbookGateway(),
   );
+  const projectAuthorization: ProjectAuthorizationPort = {
+    hasPermission: async (permission) => {
+      const context = await accountContext.getCurrentAccountContext();
+      if (!context.ok) return context;
+      return success(
+        context.value?.status === 'active' &&
+          context.value.permissions.includes(permission),
+      );
+    },
+  };
+  const projects = new ProjectManagementService(
+    projectAuthorization,
+    new SupabaseProjectManagementGateway(supabase),
+  );
 
   return {
     accountAdministration,
@@ -96,6 +116,7 @@ export function createApplicationServices(
     invitations,
     onboarding,
     profile,
+    projects,
     volunteers,
   };
 }

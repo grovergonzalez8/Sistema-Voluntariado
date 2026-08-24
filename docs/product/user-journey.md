@@ -26,6 +26,12 @@ Administrator puede abrir Voluntarios, buscar y ordenar todo el padrón mediante
 
 Para Excel, administrator descarga una plantilla, selecciona un `.xlsx`, revisa válidas, inválidas y posibles duplicadas, elige expresamente cuáles duplicadas históricas incluir y confirma. Las inválidas siempre quedan fuera y el conjunto elegido se inserta completo o no se inserta. La exportación produce el conjunto lógico de la búsqueda y orden actuales, no solo la página visible. Ninguno de estos pasos crea cuenta, Auth, invitación ni onboarding.
 
+## Proyectos administrativos
+
+Administrator crea un proyecto activo con nombre y descripción opcional, busca una persona del padrón y la asigna directamente. Un mismo voluntario puede participar simultáneamente en varios proyectos, pero no puede tener dos participaciones activas en el mismo. Al finalizar, el timestamp de servidor cierra esa ocurrencia sin borrarla y permite una participación futura nueva.
+
+Un proyecto con participaciones activas no puede cerrarse: la interfaz explica que deben finalizarse primero. El proyecto cerrado sigue visible con todo su histórico y no admite nuevas asignaciones. No existe aprobación, capacidad, calendario, autoinscripción ni acceso para project_manager, coordinator o voluntarios.
+
 ## Estados observables
 
 - Invitaciones y cuentas: carga, vacío, error seguro, envío y confirmación.
@@ -33,5 +39,6 @@ Para Excel, administrator descarga una plantilla, selecciona un `.xlsx`, revisa 
 - Cambio de identidad, estado o versión de autoridad: limpia toda caché sensible y vuelve a resolver el contexto.
 - Cierre de sesión: limpia estado/caché y vuelve a `/login`.
 - Padrón: carga, vacío orientado a alta/importación, sin resultados, error, éxito, paginación y preview/importación en proceso.
+- Proyectos: carga, vacío, sin resultados, error, éxito, participantes activos/históricos, búsqueda de candidatos, confirmación de finalización y cierre bloqueado con participaciones activas.
 
 La interfaz nunca promete alta pública ni módulos futuros.

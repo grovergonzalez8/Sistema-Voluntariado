@@ -13,6 +13,8 @@ En el hito fundacional, migrar solo identidad/autorización, perfil y auditoría
 
 El hito 0003 aplicó esta regla al padrón administrativo: incorporó únicamente `volunteers` y sus operaciones V1 después de definir separación de cuentas, datos mínimos, duplicados, acceso y auditoría. Documento, participación, estado/archivo y demás contextos continúan diferidos.
 
+El hito 0004 aplica la misma regla a Projects: incorpora solo `projects` y `project_volunteer_assignments` después de definir sujeto institucional, lifecycle mínimo, acceso exclusivo, histórico, cierre y concurrencia. Scopes, project_manager, capacidad, calendario, aprobación, actividades y demás entidades de proyecto continúan diferidos.
+
 ## Alternativas
 
 Crear tablas vacías o anticipar reglas.

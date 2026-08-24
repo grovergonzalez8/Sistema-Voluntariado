@@ -13,6 +13,14 @@
 - Se necesita una entidad `volunteers` separada del perfil universal para representar personas actuales e históricas sin crear Auth, cuenta, invitación ni onboarding.
 - Email y teléfono son señales de posible duplicado, no claves únicas; el administrador puede confirmar históricos legítimos.
 
+## Resueltas en el hito 0004
+
+- La asignación de proyecto referencia exclusivamente el padrón `volunteers`, no Auth, cuentas o perfiles.
+- Projects V1 es solo para administrator mediante `project.manage`; no introduce scopes ni activa project_manager/coordinator.
+- El proyecto mínimo usa nombre, descripción opcional y estado `active|closed`; no hay capacidad ni calendario.
+- La participación es directa, activa por `ended_at is null`, histórica al finalizar y sin aprobación o eliminación.
+- Cerrar falla mientras existan participaciones activas y nunca las finaliza automáticamente.
+
 ## Pendientes
 
 1. ¿Se separarán nombre legal, preferido y de presentación?

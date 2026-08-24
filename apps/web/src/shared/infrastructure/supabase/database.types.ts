@@ -31,6 +31,27 @@ interface VolunteerTableRow extends VolunteerProjectionRow {
   phone_match_key: string | null;
 }
 
+interface ProjectProjectionRow {
+  [key: string]: unknown;
+  created_at: string;
+  description: string | null;
+  id: string;
+  name: string;
+  status: 'active' | 'closed';
+  updated_at: string;
+}
+
+interface ProjectAssignmentProjectionRow {
+  assignment_id: string;
+  created_at: string;
+  ended_at: string | null;
+  project_id: string;
+  started_at: string;
+  updated_at: string;
+  volunteer_id: string;
+  volunteer_name: string;
+}
+
 export interface Database {
   public: {
     CompositeTypes: Record<string, never>;
@@ -51,12 +72,34 @@ export interface Database {
         };
         Returns: AccountRow[];
       };
+      assign_volunteer_to_project: {
+        Args: {
+          requested_project_id: string;
+          requested_volunteer_id: string;
+        };
+        Returns: ProjectAssignmentProjectionRow[];
+      };
+      close_project: {
+        Args: { requested_project_id: string };
+        Returns: ProjectProjectionRow[];
+      };
       complete_current_account_profile: {
         Args: {
           requested_display_name: string;
           requested_locale: string;
         };
         Returns: { account_id: string; account_status: 'active' }[];
+      };
+      create_project: {
+        Args: {
+          requested_description: string | null;
+          requested_name: string;
+        };
+        Returns: ProjectProjectionRow[];
+      };
+      finish_project_volunteer_assignment: {
+        Args: { requested_assignment_id: string };
+        Returns: ProjectAssignmentProjectionRow[];
       };
       get_account_detail: {
         Args: { requested_account_id: string };
@@ -99,6 +142,10 @@ export interface Database {
           permissions: string[];
         }[];
       };
+      get_project_detail: {
+        Args: { requested_project_id: string };
+        Returns: ProjectProjectionRow[];
+      };
       has_permission: {
         Args: { requested_permission: string };
         Returns: boolean;
@@ -134,6 +181,37 @@ export interface Database {
           roles: string[];
           updated_at: string;
           user_id: string | null;
+        }[];
+      };
+      list_project_assignments: {
+        Args: { requested_project_id: string };
+        Returns: ProjectAssignmentProjectionRow[];
+      };
+      list_projects: {
+        Args: {
+          requested_limit?: number;
+          requested_offset?: number;
+          requested_search?: string;
+        };
+        Returns: {
+          created_at: string;
+          description: string | null;
+          name: string;
+          project_id: string;
+          status: 'active' | 'closed';
+          total_count: number;
+          updated_at: string;
+        }[];
+      };
+      list_volunteer_projects: {
+        Args: { requested_volunteer_id: string };
+        Returns: {
+          assignment_id: string;
+          ended_at: string | null;
+          project_id: string;
+          project_name: string;
+          project_status: 'active' | 'closed';
+          started_at: string;
         }[];
       };
       create_volunteer: {
@@ -207,6 +285,14 @@ export interface Database {
           volunteer_id: string;
         }[];
       };
+      search_project_volunteer_candidates: {
+        Args: {
+          requested_limit?: number;
+          requested_project_id: string;
+          requested_search?: string;
+        };
+        Returns: { full_name: string; volunteer_id: string }[];
+      };
       manage_account_role: {
         Args: {
           requested_account_id: string;
@@ -225,8 +311,66 @@ export interface Database {
         };
         Returns: VolunteerProjectionRow[];
       };
+      update_project: {
+        Args: {
+          requested_description: string | null;
+          requested_name: string;
+          requested_project_id: string;
+        };
+        Returns: ProjectProjectionRow[];
+      };
     };
     Tables: {
+      project_volunteer_assignments: {
+        Insert: {
+          created_at?: string;
+          ended_at?: string | null;
+          id?: string;
+          project_id: string;
+          started_at?: string;
+          updated_at?: string;
+          volunteer_id: string;
+        };
+        Relationships: [];
+        Row: {
+          created_at: string;
+          ended_at: string | null;
+          id: string;
+          project_id: string;
+          started_at: string;
+          updated_at: string;
+          volunteer_id: string;
+        };
+        Update: {
+          created_at?: string;
+          ended_at?: string | null;
+          id?: string;
+          project_id?: string;
+          started_at?: string;
+          updated_at?: string;
+          volunteer_id?: string;
+        };
+      };
+      projects: {
+        Insert: {
+          created_at?: string;
+          description?: string | null;
+          id?: string;
+          name: string;
+          status?: 'active' | 'closed';
+          updated_at?: string;
+        };
+        Relationships: [];
+        Row: ProjectProjectionRow;
+        Update: {
+          created_at?: string;
+          description?: string | null;
+          id?: string;
+          name?: string;
+          status?: 'active' | 'closed';
+          updated_at?: string;
+        };
+      };
       profiles: {
         Insert: {
           archived_at?: string | null;
