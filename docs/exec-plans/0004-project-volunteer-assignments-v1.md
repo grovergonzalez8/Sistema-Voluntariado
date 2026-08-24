@@ -1,6 +1,6 @@
 # ExecPlan 0004 — Proyectos y asignaciones de voluntarios V1
 
-- Estado: en progreso
+- Estado: completado
 - Fecha: 2026-08-24
 - Rama: `feat/project-volunteer-assignments-v1`
 - Base: `main@89d4c97`
@@ -67,15 +67,15 @@ Implementar el recorrido administrativo mínimo: administrator crea un proyecto,
 
 ## Fases y validaciones
 
-| Fase                  | Resultado                                     | Validación incremental                    | Estado     |
-| --------------------- | --------------------------------------------- | ----------------------------------------- | ---------- |
-| 0. Precheck/plan      | rama, prompt y plan revisados                 | Git/runtime/baseline/revisiones iniciales | completada |
-| 1. Dominio/aplicación | invariantes, puertos y casos de uso           | unitarias focalizadas, typecheck          | pendiente  |
-| 2. PostgreSQL         | tablas, índices, guards, RPC, auditoría y RLS | reset, DB lint, pgTAP focalizado          | pendiente  |
-| 3. Infra/composición  | gateway tipado y servicio conectado           | gateway tests, boundaries, typecheck      | pendiente  |
-| 4. UI                 | CRUD/cierre/asignar/finalizar/histórico       | tests de componentes focalizados          | pendiente  |
-| 5. E2E/docs           | recorrido crítico y trazabilidad coherente    | E2E específico, revisión documental       | pendiente  |
-| 6. Cierre             | baseline completa y revisiones resueltas      | release-readiness y scans                 | pendiente  |
+| Fase                  | Resultado                                     | Validación incremental                      | Estado     |
+| --------------------- | --------------------------------------------- | ------------------------------------------- | ---------- |
+| 0. Precheck/plan      | rama, prompt y plan revisados                 | Git/runtime/baseline/revisiones iniciales   | completada |
+| 1. Dominio/aplicación | invariantes, puertos y casos de uso           | 7 pruebas focalizadas, typecheck            | completada |
+| 2. PostgreSQL         | tablas, índices, guards, RPC, auditoría y RLS | reset, DB lint, 51 pgTAP nuevos             | completada |
+| 3. Infra/composición  | gateway tipado y servicio conectado           | 3 pruebas de gateway, boundaries, typecheck | completada |
+| 4. UI                 | CRUD/cierre/asignar/finalizar/histórico       | 4 pruebas de componentes                    | completada |
+| 5. E2E/docs           | recorrido crítico y trazabilidad coherente    | 3 E2E nuevos y revisión documental          | completada |
+| 6. Cierre             | baseline completa y revisiones resueltas      | release-readiness y scans                   | completada |
 
 ## Criterios de aceptación
 
@@ -93,11 +93,16 @@ Implementar el recorrido administrativo mínimo: administrator crea un proyecto,
 - 2026-08-24: precheck Git limpio, `main` alineado con `origin/main` y rama creada desde `89d4c97`.
 - 2026-08-24: baseline web/frozen install aprobada sobre la base.
 - 2026-08-24: revisiones iniciales de arquitectura, dominio y PostgreSQL/RLS emitieron GO sin bloqueos; se adoptaron ownership en Projects, timestamps server-side, `project.manage`, RLS default-deny, índice parcial y serialización por fila de proyecto.
+- 2026-08-24: se implementó el vertical completo en dominio, aplicación, infraestructura, composición, UI y PostgreSQL; las validaciones focalizadas aprobaron 14 pruebas Projects, 51 pgTAP nuevas y 3 E2E nuevos.
+- 2026-08-24: architecture-check y database-migration-review emitieron GO. QA emitió GO sin bloqueantes y documentation governance confirmó coherencia funcional; su observación de trazabilidad abierta se resolvió en este cierre.
+- 2026-08-24: la baseline oficial con Node 22.18.0 y pnpm 11.9.0 aprobó frozen install, `pnpm verify` y `pnpm account-lifecycle:test`: 13 pruebas de orquestación, 172 unitarias, 2 de integración, 21 de Functions, DB reset/lint, 263 pgTAP, build y 10 E2E sin omisiones.
+- 2026-08-24: scans del slice no encontraron `any`, `@ts-ignore`, supresiones lint, TODO/FIXME ni `service_role`; `git diff --check` aprobó.
 
 ## Descubrimientos
 
 - Los cuatro permisos `project.*` ya están registrados, pero únicamente `project.manage` es necesario para esta administración directa V1 y solo administrator lo recibe.
 - El padrón `volunteers` ya ofrece identidad institucional independiente adecuada como sujeto de asignación; no necesita nuevas columnas ni vínculo con Auth.
+- Las proyecciones RPC no son idénticas a las filas de tabla: `list_projects` devuelve `project_id`, que el adaptador traduce explícitamente a `id`. Un E2E real detectó y permitió corregir esa frontera.
 
 ## Decisiones durante la ejecución
 
@@ -106,4 +111,4 @@ Implementar el recorrido administrativo mínimo: administrator crea un proyecto,
 
 ## Resultado final
 
-Pendiente. Se completará solo con evidencia fresca de implementación, revisiones y gates.
+Incremento completado en `feat/project-volunteer-assignments-v1` desde `main@89d4c97`, sin merge, push ni despliegue. Commits: `625708b` (plan/prompt), `64affd8` (implementación vertical) y cierre documental posterior. El administrador puede crear y mantener proyectos, asignar registros del padrón, finalizar participaciones, consultar el histórico en ambos sentidos y cerrar proyectos solo después de finalizar sus asignaciones activas. La concurrencia, autorización, RLS, auditoría y ausencia de efectos sobre Auth/cuentas/perfiles quedaron probadas en PostgreSQL real y E2E.

@@ -8,7 +8,7 @@
 | 0004 | 2026-07-26 | Corregir propiedad de procesos E2E/CI            | Codex       | Completado; gates locales aprobados | `bb59d3c`, `d7531c4` y cierre documental            |
 | 0005 | 2026-08-16 | Implementar padrón administrativo de voluntarios | Codex       | Completado; gates locales aprobados | `01c127d`, `bfaccd9`, `19df8fe` y cierre documental |
 | 0006 | 2026-08-20 | Endurecer validación estructural XLSX            | Codex       | Completado; gates locales aprobados | `351ac17` y cierre documental                       |
-| 0007 | 2026-08-24 | Implementar proyectos y asignaciones V1          | Codex       | En progreso                         | Pendiente                                           |
+| 0007 | 2026-08-24 | Implementar proyectos y asignaciones V1          | Codex       | Completado; gates locales aprobados | `625708b`, `64affd8` y cierre documental            |
 
 Detalle: `docs/ai/prompts/0001-bootstrap-foundation.md`.
 

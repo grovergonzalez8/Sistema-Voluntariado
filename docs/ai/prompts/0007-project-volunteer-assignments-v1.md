@@ -39,4 +39,4 @@ Tests incrementales de dominio, aplicación, PostgreSQL/RLS/concurrencia, infrae
 
 ## Resultado
 
-En progreso. El diseño y la evidencia se mantienen en `docs/exec-plans/0004-project-volunteer-assignments-v1.md`.
+Completado en `feat/project-volunteer-assignments-v1`. El diseño, decisiones, revisiones y evidencia final se mantienen en `docs/exec-plans/0004-project-volunteer-assignments-v1.md`. La baseline oficial aprobó `pnpm verify` y `pnpm account-lifecycle:test` con Node 22.18.0: 172 unitarias, 2 de integración, 21 de Functions, 263 pgTAP y 10 E2E sin omisiones.

@@ -83,3 +83,20 @@ Decisiones materiales: agregado y tabla sin relación con Auth/cuentas/perfil; R
 - Estado: corrección completada en la rama autorizada, sin push, PR, merge, rebase, amend, despliegue ni modificación de `main`.
 
 Hallazgos materiales corregidos durante la revisión: diferencia de interpretación de namespaces entre preflight y parser principal; normalización permisiva de targets no canónicos; evidencia insuficiente del contador de bytes emitidos; afirmación documental imprecisa sobre filas físicas; y trazabilidad incompleta de la iteración 0006.
+
+## Proyectos y asignaciones 0007
+
+- Objetivo: proyectos administrativos mínimos y participaciones históricas de registros `volunteers`.
+- Herramienta: agente principal de Codex; revisiones especializadas de solo lectura.
+- Rama: `feat/project-volunteer-assignments-v1` desde `main@89d4c97`.
+- Prompt: `docs/ai/prompts/0007-project-volunteer-assignments-v1.md`.
+- Plan: `docs/exec-plans/0004-project-volunteer-assignments-v1.md`.
+- Integración y escritura: exclusivamente el agente principal.
+- Revisión inicial: architect, domain_modeler y database_security_reviewer.
+- Revisión final de solo lectura: architect, database_security_reviewer y qa_reviewer emitieron GO; docs_governor confirmó coherencia funcional y su observación de trazabilidad abierta quedó resuelta en el cierre.
+- Commits técnicos: `625708b` y `64affd8`, más el cierre documental.
+- Validación con Node 22.18.0 y pnpm 11.9.0: frozen install; `pnpm verify` con 13 pruebas de orquestación, 172 unitarias, 2 de integración, límites/probes/typecheck/build; `pnpm account-lifecycle:test` con 21 de Functions, reset/lint DB, 263 pgTAP y 10 E2E sin omisiones.
+- Scans del slice: sin `any`, `@ts-ignore`, supresiones lint, TODO/FIXME ni `service_role`; `git diff --check` aprobado.
+- Estado: implementación y validación local completadas; sin push, PR, merge, rebase, amend, despliegue ni modificación de `main`.
+
+Decisiones materiales: ownership de la relación en Projects; sujeto exclusivo del padrón sin Auth/cuentas/perfiles; `project.manage` solo administrator; timestamps server-side; sin aprobación/capacidad/scopes; índice único parcial y lock de proyecto para concurrencia; RLS default-deny y auditoría sin PII.
