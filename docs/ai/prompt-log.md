@@ -8,6 +8,7 @@
 | 0004 | 2026-07-26 | Corregir propiedad de procesos E2E/CI            | Codex       | Completado; gates locales aprobados | `bb59d3c`, `d7531c4` y cierre documental            |
 | 0005 | 2026-08-16 | Implementar padrón administrativo de voluntarios | Codex       | Completado; gates locales aprobados | `01c127d`, `bfaccd9`, `19df8fe` y cierre documental |
 | 0006 | 2026-08-20 | Endurecer validación estructural XLSX            | Codex       | Completado; gates locales aprobados | `351ac17` y cierre documental                       |
+| 0007 | 2026-08-24 | Implementar proyectos y asignaciones V1          | Codex       | En progreso                         | Pendiente                                           |
 
 Detalle: `docs/ai/prompts/0001-bootstrap-foundation.md`.
 
@@ -28,3 +29,5 @@ Registro de voluntarios 0005: `docs/ai/prompts/0005-volunteer-registry-v1.md`. E
 El cierre correctivo 0005 aprobó `pnpm verify`, 146 pruebas unitarias web, 2 de integración, 21 de Edge Function, 13 de orquestación, DB reset/lint, 212 pgTAP y 7 E2E. Los correctivos pre-merge se sometieron nuevamente a revisión especializada. El audit externo registró tres avisos altos en versiones preexistentes de `react-router`/`brace-expansion`; no se ocultaron ni se mezcló su actualización con este hito.
 
 Corrección XLSX 0006: `docs/ai/prompts/0006-xlsx-validation-correction.md`. El correctivo sustituyó la interpretación ZIP binaria propia por `@zip.js/zip.js`, mantuvo `fflate` únicamente para fixtures unitarios seguros y adoptó XML estructurado con resolución por namespace URI y local name. El cierre aprobó los 27 tests focalizados XLSX, `pnpm verify`, 158 unitarias web, 2 de integración, 21 de Edge Function, 13 de orquestación, DB reset/lint, 212 pgTAP y 7 E2E. Las revisiones de arquitectura, QA y documentación fueron de solo lectura; no se reabrió SQL/RLS.
+
+Proyectos y asignaciones 0007: `docs/ai/prompts/0007-project-volunteer-assignments-v1.md`. El alcance autorizado, decisiones, progreso y evidencia se mantienen en `docs/exec-plans/0004-project-volunteer-assignments-v1.md`.
