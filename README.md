@@ -49,11 +49,12 @@ Mailpit está disponible en `http://127.0.0.1:54324`. Use solamente destinatario
 corepack pnpm verify
 corepack pnpm test:functions
 corepack pnpm db:test
+corepack pnpm projects:test:concurrency
 corepack pnpm --filter @sistema-voluntariado/web exec playwright install chromium
 corepack pnpm test:e2e
 corepack pnpm account-lifecycle:test
 ```
 
-`verify` no exige Docker; las pruebas de funciones, PostgreSQL, Auth, Mailpit y E2E sí requieren Supabase local. Consulte `docs/deployment/local-development.md` para el recorrido completo. Alojamiento, actividades, tareas, finanzas y los demás contextos operativos siguen fuera de alcance. Projects V1 no habilita `project_manager`, scopes, capacidad, calendario, actividades ni portal del voluntario.
+`verify` no exige Docker; las pruebas de funciones, PostgreSQL, concurrencia, Auth, Mailpit y E2E sí requieren Supabase local. `projects:test:concurrency` presupone `db:start` y `db:reset`, usa dos conexiones PostgreSQL reales y limpia sus fixtures. Consulte `docs/deployment/local-development.md` para el recorrido completo. Alojamiento, actividades, tareas, finanzas y los demás contextos operativos siguen fuera de alcance. Projects V1 no habilita `project_manager`, scopes, capacidad, calendario, actividades ni portal del voluntario.
 
 La propiedad de procesos y el comando Linux equivalente al job `Quality` se documentan en `docs/deployment/continuous-integration.md`.

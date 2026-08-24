@@ -100,3 +100,18 @@ Hallazgos materiales corregidos durante la revisión: diferencia de interpretaci
 - Estado: implementación y validación local completadas; sin push, PR, merge, rebase, amend, despliegue ni modificación de `main`.
 
 Decisiones materiales: ownership de la relación en Projects; sujeto exclusivo del padrón sin Auth/cuentas/perfiles; `project.manage` solo administrator; timestamps server-side; sin aprobación/capacidad/scopes; índice único parcial y lock de proyecto para concurrencia; RLS default-deny y auditoría sin PII.
+
+## Correctivo de concurrencia Projects 0008
+
+- Objetivo: versionar una regresión determinista de assign/close y corregir la justificación obsoleta de TD-008.
+- Herramienta: agente principal de Codex; revisiones de database security, QA y documentación en modo de solo lectura.
+- Rama y base: `feat/project-volunteer-assignments-v1@6d05dc2`, con `main@89d4c97` intacta.
+- Prompt: `docs/ai/prompts/0008-project-concurrency-regression.md`.
+- Plan: fase 7 de `docs/exec-plans/0004-project-volunteer-assignments-v1.md`.
+- Integración y escritura: exclusivamente el agente principal.
+- Commit técnico: `98a615f`, más el cierre documental.
+- Validación: `pnpm install --frozen-lockfile`, `pnpm verify` y `pnpm account-lifecycle:test` aprobados; cinco repeticiones de concurrencia 2/2; mutación temporal FAIL y restauración PASS; 21 pruebas de Functions, DB reset/lint, 263 pgTAP, 172 unitarias, 2 de integración, 13 de orquestación, typecheck, build y 10 E2E.
+- Revisión independiente: `database_security_reviewer`, `qa_reviewer` y `docs_governor`, todos con veredicto GO final y sin modificar archivos.
+- Estado: correctivo completado en la rama autorizada, sin cambios productivos, push, PR, merge, rebase, amend, despliegue, acceso Supabase remoto ni modificación de `main`.
+
+Decisiones materiales: dos sesiones `psql` dentro del contenedor Supabase local, espera demostrada con `pg_blocking_pids`, fixtures autocontenidos y cleanup en `finally`; sin nuevas dependencias ni cambios productivos.

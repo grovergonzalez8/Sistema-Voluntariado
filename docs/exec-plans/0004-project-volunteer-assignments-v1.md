@@ -55,27 +55,28 @@ Implementar el recorrido administrativo mínimo: administrator crea un proyecto,
 
 ## Riesgos y mitigaciones
 
-| Riesgo                                 | Mitigación                                                                                    |
-| -------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Duplicado activo bajo concurrencia     | índice único parcial y error estable probado en PostgreSQL real                               |
-| Carrera asignar vs. cerrar             | lock de fila del proyecto en ambos caminos y guardas DB                                       |
-| Acceso de roles futuros ya registrados | autorización exclusiva por `project.manage`, matriz negativa de RLS/RPC y grants explícitos   |
-| Confundir padrón con identidad         | FK exclusiva a `volunteers`; tests prueban ausencia de efectos Auth/accounts/profiles         |
-| Pérdida de histórico                   | sin DELETE, FKs `ON DELETE RESTRICT`, finalización monotónica y consultas activas/finalizadas |
-| Exposición de PII                      | proyecciones mínimas y auditoría con IDs/campos técnicos sin snapshots                        |
-| Acoplamiento entre módulos             | read models propios, APIs públicas y composición en `app/composition`/router                  |
+| Riesgo                                 | Mitigación                                                                                     |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Duplicado activo bajo concurrencia     | índice único parcial y error estable probado en PostgreSQL real                                |
+| Carrera asignar vs. cerrar             | lock compartido y regresión versionada con ambos órdenes, estado/auditoría e invariante global |
+| Acceso de roles futuros ya registrados | autorización exclusiva por `project.manage`, matriz negativa de RLS/RPC y grants explícitos    |
+| Confundir padrón con identidad         | FK exclusiva a `volunteers`; tests prueban ausencia de efectos Auth/accounts/profiles          |
+| Pérdida de histórico                   | sin DELETE, FKs `ON DELETE RESTRICT`, finalización monotónica y consultas activas/finalizadas  |
+| Exposición de PII                      | proyecciones mínimas y auditoría con IDs/campos técnicos sin snapshots                         |
+| Acoplamiento entre módulos             | read models propios, APIs públicas y composición en `app/composition`/router                   |
 
 ## Fases y validaciones
 
-| Fase                  | Resultado                                     | Validación incremental                      | Estado     |
-| --------------------- | --------------------------------------------- | ------------------------------------------- | ---------- |
-| 0. Precheck/plan      | rama, prompt y plan revisados                 | Git/runtime/baseline/revisiones iniciales   | completada |
-| 1. Dominio/aplicación | invariantes, puertos y casos de uso           | 7 pruebas focalizadas, typecheck            | completada |
-| 2. PostgreSQL         | tablas, índices, guards, RPC, auditoría y RLS | reset, DB lint, 51 pgTAP nuevos             | completada |
-| 3. Infra/composición  | gateway tipado y servicio conectado           | 3 pruebas de gateway, boundaries, typecheck | completada |
-| 4. UI                 | CRUD/cierre/asignar/finalizar/histórico       | 4 pruebas de componentes                    | completada |
-| 5. E2E/docs           | recorrido crítico y trazabilidad coherente    | 3 E2E nuevos y revisión documental          | completada |
-| 6. Cierre             | baseline completa y revisiones resueltas      | release-readiness y scans                   | completada |
+| Fase                    | Resultado                                     | Validación incremental                         | Estado     |
+| ----------------------- | --------------------------------------------- | ---------------------------------------------- | ---------- |
+| 0. Precheck/plan        | rama, prompt y plan revisados                 | Git/runtime/baseline/revisiones iniciales      | completada |
+| 1. Dominio/aplicación   | invariantes, puertos y casos de uso           | 7 pruebas focalizadas, typecheck               | completada |
+| 2. PostgreSQL           | tablas, índices, guards, RPC, auditoría y RLS | reset, DB lint, 51 pgTAP nuevos                | completada |
+| 3. Infra/composición    | gateway tipado y servicio conectado           | 3 pruebas de gateway, boundaries, typecheck    | completada |
+| 4. UI                   | CRUD/cierre/asignar/finalizar/histórico       | 4 pruebas de componentes                       | completada |
+| 5. E2E/docs             | recorrido crítico y trazabilidad coherente    | 3 E2E nuevos y revisión documental             | completada |
+| 6. Cierre               | baseline completa y revisiones resueltas      | release-readiness y scans                      | completada |
+| 7. Correctivo pre-merge | regresión determinista assign/close y TD-008  | mutación temporal, 5 repeticiones y revisiones | completada |
 
 ## Criterios de aceptación
 
@@ -97,6 +98,11 @@ Implementar el recorrido administrativo mínimo: administrator crea un proyecto,
 - 2026-08-24: architecture-check y database-migration-review emitieron GO. QA emitió GO sin bloqueantes y documentation governance confirmó coherencia funcional; su observación de trazabilidad abierta se resolvió en este cierre.
 - 2026-08-24: la baseline oficial con Node 22.18.0 y pnpm 11.9.0 aprobó frozen install, `pnpm verify` y `pnpm account-lifecycle:test`: 13 pruebas de orquestación, 172 unitarias, 2 de integración, 21 de Functions, DB reset/lint, 263 pgTAP, build y 10 E2E sin omisiones.
 - 2026-08-24: scans del slice no encontraron `any`, `@ts-ignore`, supresiones lint, TODO/FIXME ni `service_role`; `git diff --check` aprobó.
+- 2026-08-24: la revisión pre-merge confirmó la implementación de locks, pero detectó que la suite versionada solo cubría assign/assign; se abrió un correctivo acotado sin cambios productivos.
+- 2026-08-24: se añadió una regresión con dos sesiones PostgreSQL reales que demuestra mediante `pg_blocking_pids` los órdenes assign-first y close-first, comprueba SQLSTATE/errores, estado final, auditoría e invariante global, y limpia fixtures/sesiones/locks.
+- 2026-08-24: cinco ejecuciones consecutivas aprobaron. Al retirar temporalmente ambos locks del camino de asignación, close-first devolvió éxito (`SQLSTATE 00000`) y la prueba falló; tras restaurar la migración sin diff, volvió a aprobar.
+- 2026-08-24: el correctivo técnico quedó versionado en `98a615f`; `pnpm install --frozen-lockfile`, `pnpm verify` y `pnpm account-lifecycle:test` aprobaron con 21 pruebas de Functions, DB reset/lint, 263 pgTAP, concurrencia 2/2, 172 unitarias, 2 de integración, 13 de orquestación, typecheck, build y 10 E2E.
+- 2026-08-24: database security, QA y documentation governance revisaron el correctivo en modo de solo lectura y emitieron GO; no quedaron sesiones, locks ni fixtures del harness.
 
 ## Descubrimientos
 
@@ -111,4 +117,4 @@ Implementar el recorrido administrativo mínimo: administrator crea un proyecto,
 
 ## Resultado final
 
-Incremento completado en `feat/project-volunteer-assignments-v1` desde `main@89d4c97`, sin merge, push ni despliegue. Commits: `625708b` (plan/prompt), `64affd8` (implementación vertical) y cierre documental posterior. El administrador puede crear y mantener proyectos, asignar registros del padrón, finalizar participaciones, consultar el histórico en ambos sentidos y cerrar proyectos solo después de finalizar sus asignaciones activas. La concurrencia, autorización, RLS, auditoría y ausencia de efectos sobre Auth/cuentas/perfiles quedaron probadas en PostgreSQL real y E2E.
+Incremento completado en `feat/project-volunteer-assignments-v1` desde `main@89d4c97`, sin merge, push ni despliegue. Commits iniciales: `625708b` (plan/prompt), `64affd8` (implementación vertical) y `6d05dc2` (cierre documental); el correctivo técnico pre-merge quedó en `98a615f`. El administrador puede crear y mantener proyectos, asignar registros del padrón, finalizar participaciones, consultar el histórico en ambos sentidos y cerrar proyectos solo después de finalizar sus asignaciones activas. La concurrencia assign/close queda protegida por una regresión automatizada y versionada sobre PostgreSQL real; autorización, RLS, auditoría y ausencia de efectos sobre Auth/cuentas/perfiles conservan su cobertura.
