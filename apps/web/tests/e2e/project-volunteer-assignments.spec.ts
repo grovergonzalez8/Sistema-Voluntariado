@@ -50,8 +50,12 @@ test.describe.serial('project volunteer assignments v1', () => {
       page.getByRole('heading', { name: projectName }),
     ).toBeVisible();
 
-    await page.getByLabel('Buscar voluntario por nombre').fill(volunteerName);
-    await page.getByRole('button', { name: 'Buscar' }).click();
+    const volunteerSearch = page.getByLabel('Buscar voluntario por nombre');
+    await volunteerSearch.fill(volunteerName);
+    await volunteerSearch
+      .locator('xpath=ancestor::form')
+      .getByRole('button', { name: 'Buscar' })
+      .click();
     await expect(page.getByText(volunteerName)).toBeVisible();
     await page.getByRole('button', { name: 'Asignar' }).click();
     await expect(page.getByText('Voluntario asignado.')).toBeVisible();
@@ -81,6 +85,88 @@ test.describe.serial('project volunteer assignments v1', () => {
     await expect(
       page.getByRole('heading', { name: 'Acceso denegado' }),
     ).toBeVisible();
+  });
+
+  test('administrator scopes a manager, closed history remains available, and ending scope revokes access', async ({
+    page,
+  }) => {
+    const suffix = String(Date.now());
+    const projectName = `Proyecto Manager E2E ${suffix}`;
+    const closedName = `${projectName} Cerrado`;
+    await signIn(page, 'administrator@example.invalid');
+    await page.getByRole('link', { exact: true, name: 'Proyectos' }).click();
+    await page.getByRole('link', { name: 'Crear proyecto' }).click();
+    await page.locator('input[name="projectName"]').fill(projectName);
+    await page.getByRole('button', { name: 'Guardar proyecto' }).click();
+    await expect(page).toHaveURL(/\/app\/admin\/projects\/[0-9a-f-]+$/u);
+    const projectUrl = page.url();
+
+    const managerSearch = page.getByLabel(
+      'Buscar responsable de proyecto por nombre',
+    );
+    await managerSearch.fill('Project Manager Fixture');
+    await managerSearch
+      .locator('xpath=ancestor::form')
+      .getByRole('button', { name: 'Buscar' })
+      .click();
+    await page.getByRole('button', { name: 'Asignar responsable' }).click();
+    await expect(
+      page.getByText('Responsable de proyecto asignado.'),
+    ).toBeVisible();
+
+    await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+    await signIn(page, 'project-manager@example.invalid');
+    await page.getByRole('link', { exact: true, name: 'Proyectos' }).click();
+    await expect(page.getByRole('cell', { name: projectName })).toBeVisible();
+    await page.getByRole('link', { name: 'Ver detalle' }).click();
+    await expect(
+      page.getByRole('button', { name: 'Cerrar proyecto' }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole('heading', { name: 'Responsables del proyecto' }),
+    ).toHaveCount(0);
+    await page.getByRole('link', { name: 'Editar' }).click();
+    await page.locator('input[name="projectName"]').fill(closedName);
+    await page.getByRole('button', { name: 'Guardar proyecto' }).click();
+    await expect(page.getByRole('heading', { name: closedName })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+    await signIn(page, 'administrator@example.invalid');
+    await page.goto(projectUrl);
+    page.once('dialog', (dialog) => void dialog.accept());
+    await page.getByRole('button', { name: 'Cerrar proyecto' }).click();
+    await expect(page.getByText('Proyecto cerrado.')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+    await signIn(page, 'project-manager@example.invalid');
+    await page.goto(projectUrl);
+    await expect(page.getByRole('heading', { name: closedName })).toBeVisible();
+    await expect(page.getByText('Cerrado', { exact: true })).toBeVisible();
+    await page.getByRole('link', { name: 'Editar' }).click();
+    await expect(page.locator('input[name="projectName"]')).toHaveValue(
+      closedName,
+    );
+
+    await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+    await signIn(page, 'administrator@example.invalid');
+    await page.goto(projectUrl);
+    page.once('dialog', (dialog) => void dialog.accept());
+    await page.getByRole('button', { name: 'Finalizar responsable' }).click();
+    await expect(
+      page.getByText('Asignación del responsable finalizada.'),
+    ).toBeVisible();
+
+    await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+    await signIn(page, 'project-manager@example.invalid');
+    await page.goto(projectUrl);
+    await expect(
+      page.getByText(
+        'No tienes permiso para realizar esta operación de proyectos.',
+      ),
+    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: closedName })).toHaveCount(
+      0,
+    );
   });
 
   test('concurrent RPC calls preserve one active assignment', async () => {
