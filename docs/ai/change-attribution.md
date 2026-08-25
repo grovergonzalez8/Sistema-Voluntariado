@@ -115,3 +115,16 @@ Decisiones materiales: ownership de la relación en Projects; sujeto exclusivo d
 - Estado: correctivo completado en la rama autorizada, sin cambios productivos, push, PR, merge, rebase, amend, despliegue, acceso Supabase remoto ni modificación de `main`.
 
 Decisiones materiales: dos sesiones `psql` dentro del contenedor Supabase local, espera demostrada con `pg_blocking_pids`, fixtures autocontenidos y cleanup en `finally`; sin nuevas dependencias ni cambios productivos.
+
+## Project Manager Contextual Scope V1 0009
+
+- Objetivo: diseñar el scope contextual explícito entre cuentas `project_manager` y Projects V1 antes de escribir la migración.
+- Herramienta: agente principal de Codex; revisiones iniciales de arquitectura y PostgreSQL/RBAC en solo lectura.
+- Rama y base: `feat/project-manager-contextual-scope-v1` desde `main@3b4f778`.
+- Prompt: `docs/ai/prompts/0009-project-manager-contextual-scope-v1.md`.
+- Plan: `docs/exec-plans/0005-project-manager-contextual-scope-v1.md`.
+- Integración y escritura: exclusivamente el agente principal.
+- Validación inicial: Node 22.18.0, pnpm 11.9.0, frozen install y `pnpm verify` aprobados con 13 pruebas de orquestación, 172 unitarias, 2 de integración, typecheck y build.
+- Estado: diseño propuesto; migración bloqueada hasta decidir si se admiten altas nuevas de managers sobre proyectos cerrados. Sin push, PR, merge, rebase, amend, despliegue ni modificación de `main`.
+
+Decisiones materiales: ownership en Projects, sujeto `accounts.id`, relación histórica, permisos contextuales explícitos, autorización dinámica y locks cuenta–scope–proyecto; sin framework genérico ni PII adicional.
