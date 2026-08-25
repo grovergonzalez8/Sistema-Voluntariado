@@ -107,4 +107,61 @@ describe('SupabaseProjectManagementGateway', () => {
       ],
     });
   });
+
+  it('projects manager candidates without account or Auth metadata', async () => {
+    const rpc = vi.fn(() =>
+      Promise.resolve({
+        data: [
+          {
+            display_name: 'Responsable Uno',
+            manager_account_id: '30000000-0000-4000-8000-000000000001',
+          },
+        ],
+        error: null,
+      }),
+    );
+    const gateway = new SupabaseProjectManagementGateway({
+      rpc,
+    } as unknown as SupabaseClient<Database>);
+
+    expect(await gateway.searchManagerCandidates(projectRow.id, 'Uno')).toEqual(
+      {
+        ok: true,
+        value: [
+          {
+            displayName: 'Responsable Uno',
+            managerAccountId: '30000000-0000-4000-8000-000000000001',
+          },
+        ],
+      },
+    );
+    expect(rpc).toHaveBeenCalledWith('search_project_manager_candidates', {
+      requested_limit: 20,
+      requested_project_id: projectRow.id,
+      requested_search: 'Uno',
+    });
+  });
+
+  it('maps manager eligibility conflicts without exposing database details', async () => {
+    const gateway = new SupabaseProjectManagementGateway({
+      rpc: () =>
+        Promise.resolve({
+          data: null,
+          error: { message: 'project_manager_not_eligible' },
+        }),
+    } as unknown as SupabaseClient<Database>);
+
+    expect(
+      await gateway.assignManager(
+        projectRow.id,
+        '30000000-0000-4000-8000-000000000001',
+      ),
+    ).toEqual({
+      error: {
+        code: 'conflict',
+        message: 'La cuenta ya no es elegible como responsable de proyecto.',
+      },
+      ok: false,
+    });
+  });
 });

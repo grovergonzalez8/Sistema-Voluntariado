@@ -21,8 +21,19 @@ export function ProjectsPage({
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [canCreate, setCanCreate] = useState(false);
   const requestGeneration = useRef(0);
   const { t } = useTranslation();
+
+  useEffect(() => {
+    let active = true;
+    void service.getCapabilities().then((result) => {
+      if (active && result.ok) setCanCreate(result.value.manage);
+    });
+    return () => {
+      active = false;
+    };
+  }, [service]);
 
   useEffect(() => {
     const generation = ++requestGeneration.current;
@@ -59,9 +70,11 @@ export function ProjectsPage({
           <h1>{t('projects.title')}</h1>
           <p className="muted">{t('projects.description')}</p>
         </div>
-        <Link className="button button--primary" to="/app/admin/projects/new">
-          {t('projects.createAction')}
-        </Link>
+        {canCreate ? (
+          <Link className="button button--primary" to="/app/admin/projects/new">
+            {t('projects.createAction')}
+          </Link>
+        ) : null}
       </header>
       <form className="search-row search-row--single" onSubmit={submitSearch}>
         <Field

@@ -1,5 +1,12 @@
-export { projectManagementPermission } from './application/project-authorization-port';
-export type { ProjectAuthorizationPort } from './application/project-authorization-port';
+export {
+  projectManagementPermission,
+  projectPermissions,
+} from './application/project-authorization-port';
+export type {
+  ProjectAuthorizationPort,
+  ProjectCapabilities,
+  ProjectPermission,
+} from './application/project-authorization-port';
 export type {
   ProjectListQuery,
   ProjectManagementGateway,
@@ -7,6 +14,8 @@ export type {
 } from './application/project-management-gateway';
 export { ProjectManagementService } from './application/project-management-service';
 export type {
+  ProjectManagerAssignment,
+  ProjectManagerCandidate,
   ProjectVolunteerAssignment,
   ProjectVolunteerCandidate,
   VolunteerProjectAssignment,

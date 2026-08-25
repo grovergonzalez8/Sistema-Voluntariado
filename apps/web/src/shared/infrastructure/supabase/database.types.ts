@@ -52,6 +52,17 @@ interface ProjectAssignmentProjectionRow {
   volunteer_name: string;
 }
 
+interface ProjectManagerAssignmentProjectionRow {
+  assignment_id: string;
+  created_at: string;
+  ended_at: string | null;
+  manager_account_id: string;
+  manager_display_name: string;
+  project_id: string;
+  started_at: string;
+  updated_at: string;
+}
+
 export interface Database {
   public: {
     CompositeTypes: Record<string, never>;
@@ -71,6 +82,13 @@ export interface Database {
           requested_status: string;
         };
         Returns: AccountRow[];
+      };
+      assign_project_manager: {
+        Args: {
+          requested_manager_account_id: string;
+          requested_project_id: string;
+        };
+        Returns: ProjectManagerAssignmentProjectionRow[];
       };
       assign_volunteer_to_project: {
         Args: {
@@ -100,6 +118,10 @@ export interface Database {
       finish_project_volunteer_assignment: {
         Args: { requested_assignment_id: string };
         Returns: ProjectAssignmentProjectionRow[];
+      };
+      finish_project_manager_assignment: {
+        Args: { requested_assignment_id: string };
+        Returns: ProjectManagerAssignmentProjectionRow[];
       };
       get_account_detail: {
         Args: { requested_account_id: string };
@@ -187,6 +209,10 @@ export interface Database {
         Args: { requested_project_id: string };
         Returns: ProjectAssignmentProjectionRow[];
       };
+      list_project_manager_assignments: {
+        Args: { requested_project_id: string };
+        Returns: ProjectManagerAssignmentProjectionRow[];
+      };
       list_projects: {
         Args: {
           requested_limit?: number;
@@ -212,6 +238,17 @@ export interface Database {
           project_name: string;
           project_status: 'active' | 'closed';
           started_at: string;
+        }[];
+      };
+      search_project_manager_candidates: {
+        Args: {
+          requested_limit?: number;
+          requested_project_id: string;
+          requested_search?: string;
+        };
+        Returns: {
+          display_name: string;
+          manager_account_id: string;
         }[];
       };
       create_volunteer: {
@@ -321,6 +358,36 @@ export interface Database {
       };
     };
     Tables: {
+      project_manager_assignments: {
+        Insert: {
+          created_at?: string;
+          ended_at?: string | null;
+          id?: string;
+          manager_account_id: string;
+          project_id: string;
+          started_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+        Row: {
+          created_at: string;
+          ended_at: string | null;
+          id: string;
+          manager_account_id: string;
+          project_id: string;
+          started_at: string;
+          updated_at: string;
+        };
+        Update: {
+          created_at?: string;
+          ended_at?: string | null;
+          id?: string;
+          manager_account_id?: string;
+          project_id?: string;
+          started_at?: string;
+          updated_at?: string;
+        };
+      };
       project_volunteer_assignments: {
         Insert: {
           created_at?: string;

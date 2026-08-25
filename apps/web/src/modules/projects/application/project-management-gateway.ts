@@ -1,6 +1,8 @@
 import type { Result } from '@sistema-voluntariado/shared-kernel';
 
 import type {
+  ProjectManagerAssignment,
+  ProjectManagerCandidate,
   ProjectVolunteerAssignment,
   ProjectVolunteerCandidate,
   VolunteerProjectAssignment,
@@ -25,6 +27,10 @@ export interface ProjectUpdateCommand extends CanonicalProjectInput {
 }
 
 export interface ProjectManagementGateway {
+  assignManager(
+    projectId: string,
+    managerAccountId: string,
+  ): Promise<Result<ProjectManagerAssignment>>;
   assignVolunteer(
     projectId: string,
     volunteerId: string,
@@ -32,10 +38,14 @@ export interface ProjectManagementGateway {
   closeProject(id: string): Promise<Result<Project>>;
   createProject(input: CanonicalProjectInput): Promise<Result<Project>>;
   endAssignment(id: string): Promise<Result<ProjectVolunteerAssignment>>;
+  endManagerAssignment(id: string): Promise<Result<ProjectManagerAssignment>>;
   getProject(id: string): Promise<Result<Project>>;
   listProjectAssignments(
     projectId: string,
   ): Promise<Result<readonly ProjectVolunteerAssignment[]>>;
+  listProjectManagerAssignments(
+    projectId: string,
+  ): Promise<Result<readonly ProjectManagerAssignment[]>>;
   listProjects(query: ProjectListQuery): Promise<Result<ProjectPage>>;
   listVolunteerProjects(
     volunteerId: string,
@@ -44,5 +54,9 @@ export interface ProjectManagementGateway {
     projectId: string,
     search: string,
   ): Promise<Result<readonly ProjectVolunteerCandidate[]>>;
+  searchManagerCandidates(
+    projectId: string,
+    search: string,
+  ): Promise<Result<readonly ProjectManagerCandidate[]>>;
   updateProject(command: ProjectUpdateCommand): Promise<Result<Project>>;
 }
