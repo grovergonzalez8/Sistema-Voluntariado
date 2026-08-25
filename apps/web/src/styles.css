@@ -25,14 +25,16 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
 button,
 a,
 input,
-select {
+select,
+textarea {
   outline-offset: 3px;
 }
 
@@ -103,7 +105,8 @@ h1 {
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   background: #fbfcfa;
   border: 1px solid #b9c5bb;
   border-radius: 0.65rem;
@@ -113,7 +116,8 @@ h1 {
 }
 
 .field input:focus,
-.field select:focus {
+.field select:focus,
+.field textarea:focus {
   border-color: #2d7450;
   box-shadow: 0 0 0 3px rgb(45 116 80 / 15%);
 }
@@ -261,6 +265,10 @@ h1 {
   padding: 1.5rem;
 }
 
+.search-row--single {
+  grid-template-columns: minmax(16rem, 32rem) auto;
+}
+
 .search-row {
   grid-template-columns: minmax(16rem, 32rem) minmax(12rem, 18rem) auto;
 }
@@ -269,6 +277,18 @@ h1 {
   display: grid;
   gap: 1rem;
   max-width: 42rem;
+}
+
+.project-assignment-panel {
+  display: grid;
+  gap: 1rem;
+  max-width: none;
+}
+
+.candidate-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .empty-state {

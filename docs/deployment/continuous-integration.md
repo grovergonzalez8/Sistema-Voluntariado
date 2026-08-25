@@ -4,12 +4,13 @@ El job `Quality` usa los mismos scripts raíz que el desarrollo local. La difere
 
 ## Propiedad y orden
 
-| Servicio                                | Propietario                                                         | Momento                                | Puerto/URL                      | Teardown                                                       |
-| --------------------------------------- | ------------------------------------------------------------------- | -------------------------------------- | ------------------------------- | -------------------------------------------------------------- |
-| Supabase DB, Auth, Kong, REST y Mailpit | workflow mediante `pnpm db:start`                                   | una vez antes de reset/DB/E2E          | 54321, 54322 y 54324            | paso `if: always()` con `pnpm db:stop`                         |
-| `manage-account-invitation`             | `scripts/e2e-service-orchestrator.mjs` invocado por `pnpm test:e2e` | después de reset y antes de Playwright | ruta Functions sobre Kong 54321 | PID/grupo y solo el contenedor adquirido, en `finally`/señales |
-| Vite                                    | Playwright, servidor `Frontend`                                     | después de readiness de Functions      | localhost:5173                  | Playwright                                                     |
-| Playwright                              | workflow mediante `pnpm test:e2e`                                   | último gate funcional                  | proceso Node                    | propio                                                         |
+| Servicio                                | Propietario                                                         | Momento                                | Puerto/URL                      | Teardown                                                            |
+| --------------------------------------- | ------------------------------------------------------------------- | -------------------------------------- | ------------------------------- | ------------------------------------------------------------------- |
+| Supabase DB, Auth, Kong, REST y Mailpit | workflow mediante `pnpm db:start`                                   | una vez antes de reset/DB/E2E          | 54321, 54322 y 54324            | paso `if: always()` con `pnpm db:stop`                              |
+| Concurrencia Projects                   | `scripts/project-volunteer-assignments-concurrency.test.mjs`        | después de pgTAP y antes de E2E        | dos sesiones `psql` en DB local | rollback, cierre de sesiones y eliminación de fixtures en `finally` |
+| `manage-account-invitation`             | `scripts/e2e-service-orchestrator.mjs` invocado por `pnpm test:e2e` | después de reset y antes de Playwright | ruta Functions sobre Kong 54321 | PID/grupo y solo el contenedor adquirido, en `finally`/señales      |
+| Vite                                    | Playwright, servidor `Frontend`                                     | después de readiness de Functions      | localhost:5173                  | Playwright                                                          |
+| Playwright                              | workflow mediante `pnpm test:e2e`                                   | último gate funcional                  | proceso Node                    | propio                                                              |
 
 `supabase/config.toml` mantiene Edge Runtime automático deshabilitado. `db:start` lo excluye y `db:reset` elimina cualquier contenedor que la versión local de Supabase CLI intente recrear durante su fase `Restarting containers`. Playwright no declara Functions como `webServer` y no usa `reuseExistingServer` para ella. Vite conserva `reuseExistingServer: !CI` para permitir un servidor local deliberado; en CI cualquier ocupante previo de 5173 falla.
 
@@ -40,6 +41,7 @@ trap 'pnpm db:stop || true' EXIT
 pnpm db:reset
 pnpm exec supabase db lint --local --level warning
 pnpm db:test
+pnpm projects:test:concurrency
 pnpm --filter @sistema-voluntariado/web exec playwright install --with-deps chromium
 status="$(pnpm exec supabase status -o env)"
 export VITE_SUPABASE_URL="$(sed -n 's/^API_URL="\(.*\)"$/\1/p' <<< "$status")"

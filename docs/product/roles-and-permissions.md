@@ -21,7 +21,7 @@ Una cuenta solo obtiene permisos efectivos cuando `accounts.status = 'active'`. 
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | Perfil                     | `volunteer.read_self`, `volunteer.update_self`, `volunteer.read_basic_others`                                                                 |
 | Alojamiento futuro         | `accommodation.read_self`, `accommodation.propose_assignment`, `accommodation.approve_assignment`, `accommodation.manage`                     |
-| Proyectos futuros          | `project.read_assigned`, `project.manage`, `project.propose_assignment`, `project.approve_assignment`                                         |
+| Proyectos                  | `project.read_assigned`, `project.manage`, `project.propose_assignment`, `project.approve_assignment`                                         |
 | Actividades/tareas futuras | `activity.create`, `activity.join`, `task.assign`, `task.complete`                                                                            |
 | Finanzas futuras           | `payment.read_self`, `payment.manage`                                                                                                         |
 | Invitaciones               | `invitation.read`, `invitation.create`, `invitation.revoke`, `invitation.resend`                                                              |
@@ -46,3 +46,5 @@ Las RPC niegan autoasignación/autorretiro, cambios sobre cuentas no activas, es
 `volunteer.read_basic_others` se registra pero no se expone sobre `profiles`: RLS filtra filas, no columnas. Una futura vista o RPC deberá proyectar solo campos aprobados.
 
 Los cinco permisos `volunteer_registry.*` se conceden exclusivamente a `administrator`. Coordinator y los demás roles no reciben acceso al padrón; la autoridad se decide por capacidades efectivas, no por una comprobación de nombre de rol paralela.
+
+Projects V1 reutiliza exclusivamente `project.manage`, concedido solo a `administrator`, para proyectos y asignaciones directas del padrón. `project.read_assigned`, `project.propose_assignment` y `project.approve_assignment` permanecen registrados pero no se usan en esta V1. `project_manager`, coordinator y voluntarios no reciben visibilidad ni mutaciones hasta definir scopes y flujos posteriores.

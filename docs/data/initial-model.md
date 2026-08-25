@@ -14,6 +14,8 @@ erDiagram
   ROLES ||--o{ ROLE_GRANT_POLICIES : actor
   ROLES ||--o{ ROLE_GRANT_POLICIES : target
   AUTH_USERS ||--o{ AUDIT_LOGS : acts
+  PROJECTS ||--o{ PROJECT_VOLUNTEER_ASSIGNMENTS : contains
+  VOLUNTEERS ||--o{ PROJECT_VOLUNTEER_ASSIGNMENTS : participates
 
   ACCOUNTS {
     uuid id PK
@@ -48,11 +50,30 @@ erDiagram
     timestamptz created_at
     timestamptz updated_at
   }
+  PROJECTS {
+    uuid id PK
+    text name
+    text description
+    text status
+    timestamptz created_at
+    timestamptz updated_at
+  }
+  PROJECT_VOLUNTEER_ASSIGNMENTS {
+    uuid id PK
+    uuid project_id FK
+    uuid volunteer_id FK
+    timestamptz started_at
+    timestamptz ended_at
+    timestamptz created_at
+    timestamptz updated_at
+  }
 ```
 
 `profiles.id` coincide con `auth.users.id`; la cuenta no duplica correo. Una cuenta `invited` puede preceder a Auth y por eso `accounts.auth_user_id` es inicialmente anulable. La invitación conserva correo canónico y un snapshot inmutable del enlace Auth; constraints diferidos exigen consistencia bilateral al commit.
 
 `volunteers` es un padrón institucional independiente: no tiene FK ni trigger de integración con `auth.users`, `accounts` o `profiles`. Sus únicos triggers mantienen `updated_at` y escriben auditoría. `created_at` significa fecha de registro en el sistema, no fecha histórica de incorporación.
+
+`project_volunteer_assignments` referencia exclusivamente `projects` y `volunteers` con borrado restringido. No enlaza Auth, cuentas o perfiles. Inicio y finalización se fijan por PostgreSQL; `ended_at is null` es la única definición de participación activa.
 
 ## Ciclo de vida
 
@@ -81,6 +102,8 @@ No se admite otra transición. `authority_version` aumenta cuando cambia estado 
 - Auditoría guarda actor/target, acción, entidad, correlación, estados técnicos y nombres de campos; metadata solo admite códigos seguros.
 - Un voluntario exige nombre; correo y celular son opcionales. Correo se almacena canónico en minúsculas y celular como texto visible, preservando `+`, ceros y separadores.
 - Correo exacto canónico o teléfono comparado solo por dígitos producen una advertencia, nunca unicidad. Nombre por sí solo no implica duplicado.
+- Un proyecto nace `active`, solo puede pasar a `closed` y no se reabre. El cierre falla mientras exista una participación activa.
+- Un voluntario puede participar en varios proyectos, pero un índice único parcial impide dos participaciones activas del mismo par. Una finalizada permite una nueva ocurrencia histórica.
 
 ## Invariantes de invitación
 
@@ -94,7 +117,7 @@ No se admite otra transición. `authority_version` aumenta cuando cambia estado 
 
 ## Entidades futuras no implementadas
 
-`volunteer_groups`, `group_members`, `houses`, `rooms`, `host_families`, `accommodation_rates`, `accommodation_assignments`, `projects`, `project_schedules`, `project_assignments`, `events`, `event_participants`, `tasks`, `task_assignments`, `assignment_requests`, `assignment_approvals`, `notifications`, `incidents`, `charges` y `payments`.
+`volunteer_groups`, `group_members`, `houses`, `rooms`, `host_families`, `accommodation_rates`, `accommodation_assignments`, `project_schedules`, `events`, `event_participants`, `tasks`, `task_assignments`, `assignment_requests`, `assignment_approvals`, `notifications`, `incidents`, `charges` y `payments`.
 
 No se fijan todavía sus columnas, cardinalidades ni estados.
 
@@ -104,6 +127,7 @@ No se fijan todavía sus columnas, cardinalidades ni estados.
 - Administración de roles/estados: advisory lock común y locks de fila protegen el último administrador activo.
 - Invitaciones: advisory lock por correo, índices parciales, fingerprint y lease serializan duplicados/reintentos.
 - Padrón: alta, edición e importación comparten un advisory lock y recalculan coincidencias dentro de la transacción; la importación es atómica.
+- Proyectos: asignar y cerrar bloquean la misma fila de proyecto; un índice único parcial protege el duplicado activo y la finalización es monotónica.
 - Alojamiento futuro: usar rangos temporales, restricciones de exclusión y bloqueo transaccional para evitar solapamientos.
 - Capacidades futuras: serializar asignación relevante y validar capacidad dentro de la misma transacción.
 - Aprobaciones futuras: transiciones condicionales por versión/estado para impedir doble confirmación.

@@ -17,6 +17,8 @@ Un módulo exporta una API explícita desde `index.ts`. Ningún consumidor impor
 
 `volunteers` posee el agregado `RegisteredVolunteer`, sus consultas paginadas y los casos de uso de alta, edición e importación/exportación. Su capa de aplicación recibe autorización mediante un puerto propio y no importa `identity`; composición adapta el contexto de cuenta. Excel se representa como bytes y filas en un puerto, de modo que dominio y aplicación no conocen `File`, navegador ni la biblioteca XLSX. El padrón no depende de `volunteer-profile`, Auth ni `accounts`.
 
+`projects` posee `Project` y `ProjectVolunteerAssignment`, incluyendo consultas en ambos sentidos. Dominio y aplicación representan voluntarios únicamente mediante IDs y read models mínimos; infraestructura resuelve la FK/proyección desde `volunteers`. El módulo no importa internos de `volunteers` ni `identity`. Composición adapta `project.manage`; el router compone la página de historial de proyectos bajo la ruta administrativa del voluntario.
+
 ## Evolución
 
-No existen directorios de código para alojamiento, proyectos, grupos, actividades, tareas, finanzas o incidencias. Cada contexto futuro requiere reglas, recorrido vertical y ExecPlan propios.
+No existen directorios de código para alojamiento, grupos, actividades, tareas, finanzas o incidencias. Cada contexto futuro requiere reglas, recorrido vertical y ExecPlan propios. Evoluciones de Projects para scopes, project_manager, capacidad, calendario, aprobación, actividades o portal del voluntario también requieren reglas nuevas.

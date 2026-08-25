@@ -63,6 +63,10 @@ jobs:
           pnpm exec supabase db lint --local --level warning
           pnpm db:test
 
+      - name: Test project assignment concurrency
+        timeout-minutes: 2
+        run: pnpm projects:test:concurrency
+
       - name: Install Chromium
         run: pnpm --filter @sistema-voluntariado/web exec playwright install --with-deps chromium
 

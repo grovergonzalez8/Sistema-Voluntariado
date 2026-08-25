@@ -265,16 +265,34 @@ test('keeps process ownership aligned across scripts, Playwright, and Actions', 
     rootPackage.scripts['test:e2e'],
     'node scripts/e2e-service-orchestrator.mjs',
   );
+  assert.equal(
+    rootPackage.scripts['projects:test:concurrency'],
+    'node --test scripts/project-volunteer-assignments-concurrency.test.mjs',
+  );
+  assert.match(
+    rootPackage.scripts['account-lifecycle:test'],
+    /db:test.*projects:test:concurrency.*test:e2e/u,
+  );
   assert.equal(webPackage.scripts['test:e2e:playwright'], 'playwright test');
   assert.equal((playwright.match(/command: 'vite/gu) ?? []).length, 1);
   assert.match(playwright, /name: 'Frontend'/u);
   assert.doesNotMatch(playwright, /functions:serve/u);
   assert.match(supabaseConfig, /\[edge_runtime\][\s\S]*?enabled = false/u);
   assert.match(workflow, /pnpm db:start/u);
+  assert.match(workflow, /pnpm projects:test:concurrency/u);
   assert.match(workflow, /pnpm test:e2e/u);
   assert.doesNotMatch(workflow, /functions:serve/u);
   assert.ok(
-    workflow.indexOf('pnpm db:start') < workflow.indexOf('pnpm test:e2e'),
+    workflow.indexOf('pnpm db:start') <
+      workflow.indexOf('pnpm projects:test:concurrency'),
+  );
+  assert.ok(
+    workflow.indexOf('pnpm db:test') <
+      workflow.indexOf('pnpm projects:test:concurrency'),
+  );
+  assert.ok(
+    workflow.indexOf('pnpm projects:test:concurrency') <
+      workflow.indexOf('pnpm test:e2e'),
   );
   assert.ok(
     workflow.indexOf('pnpm test:e2e') < workflow.indexOf('pnpm db:stop'),

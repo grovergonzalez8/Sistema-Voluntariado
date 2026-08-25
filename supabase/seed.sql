@@ -25,7 +25,7 @@ values
   ('accommodation.approve_assignment', 'Aprobar asignación de alojamiento'),
   ('accommodation.manage', 'Administrar alojamiento'),
   ('project.read_assigned', 'Consultar proyectos asignados'),
-  ('project.manage', 'Administrar proyectos'),
+  ('project.manage', 'Administrar proyectos y asignaciones de voluntarios'),
   ('project.propose_assignment', 'Proponer asignación de proyecto'),
   ('project.approve_assignment', 'Aprobar asignación de proyecto'),
   ('activity.create', 'Crear actividades'),

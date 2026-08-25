@@ -7,7 +7,7 @@ Estas personas describen necesidades, no inventan identidades ni políticas orga
 | Voluntario               | Acceder y mantener su perfil permitido           | Ver o modificar información ajena         |
 | Coordinador              | Coordinar personas y revisar solicitudes futuras | Recibir acceso más amplio de lo necesario |
 | Encargado de alojamiento | Gestionar alojamiento futuro                     | Exponer ubicación o datos sensibles       |
-| Responsable de proyecto  | Gestionar proyectos futuros                      | Confundir coordinación con aprobación     |
+| Responsable de proyecto  | Gestionar proyectos en una evolución futura      | Confundir coordinación con aprobación     |
 | Finanzas                 | Gestionar pagos en una fase posterior            | Exposición de datos financieros           |
 | Administrador            | Operar controles autorizados                     | Escalamiento o abuso de privilegios       |
 

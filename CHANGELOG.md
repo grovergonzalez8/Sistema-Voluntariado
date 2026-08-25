@@ -6,6 +6,7 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 
 ### Fixed
 
+- La carrera asignar/cerrar proyecto queda protegida por una regresión PostgreSQL determinista que comprueba ambos órdenes de locks, estados finales, auditoría e invariante histórica.
 - Las RPC del padrón rechazan parámetros estructurales requeridos `NULL` y payloads incompletos; solo un booleano `true` explícito confirma duplicados durante importación.
 - La lectura `.xlsx` inspecciona el ZIP antes del parser, limita expansión/dimensiones, rechaza hojas adicionales y preconfigura `Celular` como texto en la plantilla.
 - GitHub Actions y la suite local asignan un único propietario explícito a Edge Functions; el runtime automático de Supabase queda deshabilitado y Playwright gestiona únicamente Vite.
@@ -30,3 +31,5 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 - Pruebas de Edge Function, 212 comprobaciones pgTAP y recorridos E2E reales con Mailpit local.
 - Padrón administrativo independiente de Auth/cuentas con alta, detalle, edición, búsqueda y orden paginados, advertencias de duplicados y auditoría sin snapshots de PII.
 - Preview e importación atómica `.xlsx`, plantilla y exportación del conjunto filtrado, protegidas por permisos exclusivos de administrator y límites de 5 MiB/1.000 filas.
+- Proyectos administrativos mínimos con alta, listado/búsqueda, detalle, edición y cierre histórico sin eliminación física.
+- Asignaciones directas entre proyectos y el padrón `volunteers`, con consulta en ambos sentidos, finalización histórica, auditoría sin PII y protección concurrente contra duplicados activos.

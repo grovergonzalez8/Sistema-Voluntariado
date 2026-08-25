@@ -14,6 +14,33 @@
 
 No existen `account_id`, `auth_user_id`, estado ni eliminación cliente. Email y teléfono no son únicos: una coincidencia exige confirmación explícita para preservar históricos legítimos.
 
+## `projects`
+
+| Columna       | Tipo          | Regla                                                  |
+| ------------- | ------------- | ------------------------------------------------------ |
+| `id`          | `uuid`        | PK de servidor; no se reutiliza como scope o identidad |
+| `name`        | `text`        | obligatorio; espacios normalizados; 1–120 caracteres   |
+| `description` | `text null`   | vacío a `null`; espacios normalizados; máximo 1.000    |
+| `status`      | `text`        | `active` o `closed`; no existe reapertura V1           |
+| `created_at`  | `timestamptz` | servidor, inmutable                                    |
+| `updated_at`  | `timestamptz` | trigger de servidor                                    |
+
+No hay ubicación, organización, región, capacidad, fechas, presupuesto, tarifas, responsables ni borrado cliente. Un proyecto cerrado permanece visible, admite correcciones descriptivas y no recibe nuevas asignaciones.
+
+## `project_volunteer_assignments`
+
+| Columna        | Tipo               | Regla                                                               |
+| -------------- | ------------------ | ------------------------------------------------------------------- |
+| `id`           | `uuid`             | PK estable para distinguir ocurrencias históricas                   |
+| `project_id`   | `uuid`             | FK a `projects`, `ON DELETE RESTRICT`                               |
+| `volunteer_id` | `uuid`             | FK a `volunteers`, `ON DELETE RESTRICT`; nunca Auth/account/profile |
+| `started_at`   | `timestamptz`      | hora de servidor al asignar, inmutable                              |
+| `ended_at`     | `timestamptz null` | `null` significa activa; hora de servidor al finalizar              |
+| `created_at`   | `timestamptz`      | servidor, inmutable                                                 |
+| `updated_at`   | `timestamptz`      | trigger de servidor                                                 |
+
+El índice único parcial `(project_id, volunteer_id) where ended_at is null` impide duplicados activos concurrentes. La finalización es monotónica, no borra y habilita una nueva asignación histórica futura.
+
 ## `profiles`
 
 | Columna            | Tipo               | Regla                               |
@@ -133,6 +160,7 @@ No se guardan tokens, correo, teléfono, nombre, contraseña, valores personales
 - Invitaciones: `list_account_invitations`, `prepare_account_invitation`, `prepare_account_invitation_action`, `finalize_account_invitation_delivery`, `expire_open_invitations`.
 - Administración: `list_accounts`, `get_account_detail`, `change_account_status`, `manage_account_role`.
 - Padrón: `list_volunteers`, `get_volunteer_detail`, `find_volunteer_duplicates`, `create_volunteer`, `update_volunteer`, `preview_volunteer_import_duplicates`, `import_volunteers`, `export_volunteers`.
+- Proyectos: `list_projects`, `get_project_detail`, `create_project`, `update_project`, `close_project`, `list_project_assignments`, `search_project_volunteer_candidates`, `assign_volunteer_to_project`, `finish_project_volunteer_assignment`, `list_volunteer_projects`.
 - Reglas internas: `user_has_permission`, `user_has_active_role`, `can_user_grant_role`, `is_account_transition_allowed` y guards de consistencia/auditoría.
 
 Las funciones expuestas a `authenticated` derivan el actor del JWT. `finalize_account_invitation_delivery` es la única de este grupo concedida a `service_role`; las tablas nuevas no conceden acceso directo a `anon` o `authenticated`.

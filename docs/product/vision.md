@@ -8,9 +8,11 @@ Las personas usuarias entran exclusivamente por invitación, completan el perfil
 
 De forma separada, administrator dispone de un padrón institucional de voluntarios actuales e históricos con nombre, correo opcional y celular opcional. Un registro del padrón no es una cuenta, no crea Auth ni invitaciones y puede pertenecer a alguien que nunca use la aplicación. El padrón permite consulta paginada, alta, edición e importación/exportación Excel. No se capturan documentos, información médica, datos financieros ni contactos de emergencia.
 
+Administrator también gestiona proyectos administrativos mínimos y vincula directamente registros del padrón. Un proyecto activo admite participaciones; cada participación conserva inicio y finalización de servidor. Finalizar mantiene el histórico y el proyecto solo puede cerrarse cuando no quedan participaciones activas. Esta V1 no habilita project_manager, scopes, aprobación, capacidad, calendario, actividades ni acceso del voluntario.
+
 ## Evolución futura
 
-Grupos, alojamiento, proyectos, actividades, reuniones, tareas, asignaciones, notificaciones, incidencias y finanzas se incorporarán por recorridos verticales después de acordar reglas. Ninguno existe como funcionalidad o tabla en esta entrega.
+Grupos, alojamiento, actividades, reuniones, tareas, flujos de aprobación, notificaciones, incidencias y finanzas se incorporarán por recorridos verticales después de acordar reglas. Ninguno existe como funcionalidad o tabla en esta entrega.
 
 ## Principios de producto
 
