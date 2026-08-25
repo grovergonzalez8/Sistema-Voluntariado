@@ -65,7 +65,7 @@ test.describe.serial('project volunteer assignments v1', () => {
     page.once('dialog', (dialog) => void dialog.accept());
     await page.getByRole('button', { name: 'Cerrar proyecto' }).click();
     await expect(page.getByText('Proyecto cerrado.')).toBeVisible();
-    await expect(page.getByText('Cerrado')).toBeVisible();
+    await expect(page.getByText('Cerrado', { exact: true })).toBeVisible();
 
     await page.goto(volunteerUrl);
     await page.getByRole('link', { name: 'Proyectos asociados' }).click();
