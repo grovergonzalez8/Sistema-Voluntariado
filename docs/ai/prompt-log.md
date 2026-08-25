@@ -1,16 +1,16 @@
 # Registro de prompts
 
-| ID   | Fecha      | Objetivo                                         | Herramienta | Resultado                              | Commits                                             |
-| ---- | ---------- | ------------------------------------------------ | ----------- | -------------------------------------- | --------------------------------------------------- |
-| 0001 | 2026-07-23 | Construir fundación y un slice de perfil propio  | Codex       | Completado; gates locales aprobados    | `5dc9178`–`4d9aec9` y cierre documental             |
-| 0002 | 2026-07-24 | Implementar invitaciones y ciclo de cuentas      | Codex       | Completado; gates locales aprobados    | `245b09b`–`ed54f64` y cierre documental             |
-| 0003 | 2026-07-25 | Corregir autoridad al recuperar foco             | Codex       | Completado; gates locales aprobados    | `c61ab59`, `df19362`, `dd9b6e6` y cierre documental |
-| 0004 | 2026-07-26 | Corregir propiedad de procesos E2E/CI            | Codex       | Completado; gates locales aprobados    | `bb59d3c`, `d7531c4` y cierre documental            |
-| 0005 | 2026-08-16 | Implementar padrón administrativo de voluntarios | Codex       | Completado; gates locales aprobados    | `01c127d`, `bfaccd9`, `19df8fe` y cierre documental |
-| 0006 | 2026-08-20 | Endurecer validación estructural XLSX            | Codex       | Completado; gates locales aprobados    | `351ac17` y cierre documental                       |
-| 0007 | 2026-08-24 | Implementar proyectos y asignaciones V1          | Codex       | Completado; gates locales aprobados    | `625708b`, `64affd8` y cierre documental            |
-| 0008 | 2026-08-24 | Probar concurrencia assign/close                 | Codex       | Completado; gates locales aprobados    | `98a615f` y cierre documental                       |
-| 0009 | 2026-08-25 | Scope contextual de project manager V1           | Codex       | Diseño; decisión de producto pendiente | Pendiente                                           |
+| ID   | Fecha      | Objetivo                                         | Herramienta | Resultado                                | Commits                                             |
+| ---- | ---------- | ------------------------------------------------ | ----------- | ---------------------------------------- | --------------------------------------------------- |
+| 0001 | 2026-07-23 | Construir fundación y un slice de perfil propio  | Codex       | Completado; gates locales aprobados      | `5dc9178`–`4d9aec9` y cierre documental             |
+| 0002 | 2026-07-24 | Implementar invitaciones y ciclo de cuentas      | Codex       | Completado; gates locales aprobados      | `245b09b`–`ed54f64` y cierre documental             |
+| 0003 | 2026-07-25 | Corregir autoridad al recuperar foco             | Codex       | Completado; gates locales aprobados      | `c61ab59`, `df19362`, `dd9b6e6` y cierre documental |
+| 0004 | 2026-07-26 | Corregir propiedad de procesos E2E/CI            | Codex       | Completado; gates locales aprobados      | `bb59d3c`, `d7531c4` y cierre documental            |
+| 0005 | 2026-08-16 | Implementar padrón administrativo de voluntarios | Codex       | Completado; gates locales aprobados      | `01c127d`, `bfaccd9`, `19df8fe` y cierre documental |
+| 0006 | 2026-08-20 | Endurecer validación estructural XLSX            | Codex       | Completado; gates locales aprobados      | `351ac17` y cierre documental                       |
+| 0007 | 2026-08-24 | Implementar proyectos y asignaciones V1          | Codex       | Completado; gates locales aprobados      | `625708b`, `64affd8` y cierre documental            |
+| 0008 | 2026-08-24 | Probar concurrencia assign/close                 | Codex       | Completado; gates locales aprobados      | `98a615f` y cierre documental                       |
+| 0009 | 2026-08-25 | Scope contextual de project manager V1           | Codex       | Diseño aprobado; implementación en curso | `daeedd1` y commits en curso                        |
 
 Detalle: `docs/ai/prompts/0001-bootstrap-foundation.md`.
 
@@ -38,4 +38,4 @@ Correctivo pre-merge 0008: `docs/ai/prompts/0008-project-concurrency-regression.
 
 El cierre 0008 aprobó `pnpm install --frozen-lockfile`, `pnpm verify`, `pnpm account-lifecycle:test`, cinco repeticiones de ambas intercalaciones, la mutación temporal FAIL y la restauración PASS: 21 pruebas de Functions, 263 pgTAP, 172 unitarias, 2 de integración, 13 de orquestación, 10 E2E, typecheck y build. Database security, QA y documentación emitieron GO de solo lectura.
 
-Project Manager Contextual Scope V1 0009: `docs/ai/prompts/0009-project-manager-contextual-scope-v1.md`. El diseño, riesgos, matriz de autorización y decisión pendiente sobre altas en proyectos cerrados se conservan en `docs/exec-plans/0005-project-manager-contextual-scope-v1.md`. No se creó migración antes de resolverla.
+Project Manager Contextual Scope V1 0009: `docs/ai/prompts/0009-project-manager-contextual-scope-v1.md`. El diseño, riesgos y matriz de autorización se conservan en `docs/exec-plans/0005-project-manager-contextual-scope-v1.md`. Producto confirmó altas solo en proyectos activos y scopes previos independientes del cierre; las revisiones especializadas emitieron GO antes de iniciar la migración.

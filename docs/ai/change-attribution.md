@@ -125,6 +125,6 @@ Decisiones materiales: dos sesiones `psql` dentro del contenedor Supabase local,
 - Plan: `docs/exec-plans/0005-project-manager-contextual-scope-v1.md`.
 - Integración y escritura: exclusivamente el agente principal.
 - Validación inicial: Node 22.18.0, pnpm 11.9.0, frozen install y `pnpm verify` aprobados con 13 pruebas de orquestación, 172 unitarias, 2 de integración, typecheck y build.
-- Estado: diseño propuesto; migración bloqueada hasta decidir si se admiten altas nuevas de managers sobre proyectos cerrados. Sin push, PR, merge, rebase, amend, despliegue ni modificación de `main`.
+- Estado: diseño aprobado; implementación forward-only habilitada. Sin push, PR, merge, rebase, amend, despliegue ni modificación de `main`.
 
-Decisiones materiales: ownership en Projects, sujeto `accounts.id`, relación histórica, permisos contextuales explícitos, autorización dinámica y locks cuenta–scope–proyecto; sin framework genérico ni PII adicional.
+Decisiones materiales: ownership en Projects, sujeto `accounts.id`, relación histórica, permisos contextuales explícitos, autorización dinámica y locks cuenta–scope–proyecto; altas solo en proyectos activos y conservación de scopes previos al cierre; sin framework genérico ni PII adicional.

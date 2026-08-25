@@ -16,10 +16,10 @@
 6. Suspensión, archivo, rol retirado o scope finalizado cortan acceso inmediatamente.
 7. Reutilizar `project.read_assigned`, añadir `project.manage_assigned`, auditar y probar RLS, concurrencia y revocación.
 
-## Decisión pendiente
+## Decisión confirmada
 
-Producto debe confirmar si una nueva asignación de manager puede crearse sobre un proyecto cerrado. El ExecPlan 0005 conserva ambas alternativas y bloquea la migración hasta recibir esa decisión.
+Las altas y reasignaciones de managers requieren proyecto `active`. Cerrar no finaliza scopes existentes: `closed + active manager assignment` es válido si el alta ganó antes del cierre. El manager conserva lectura histórica y edición descriptiva mientras cuenta, rol, permiso y scope sigan vigentes; las reglas de participaciones voluntarias permanecen independientes.
 
 ## Resultado
 
-Diseño propuesto en `docs/exec-plans/0005-project-manager-contextual-scope-v1.md`. No se creó migración ni código productivo.
+Diseño aprobado en `docs/exec-plans/0005-project-manager-contextual-scope-v1.md`; la implementación forward-only queda habilitada.

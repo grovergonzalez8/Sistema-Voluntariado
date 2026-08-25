@@ -1,6 +1,6 @@
 # ExecPlan 0005 — Project Manager Contextual Scope V1
 
-- Estado: diseño propuesto; migración bloqueada por una decisión de producto
+- Estado: diseño aprobado; implementación en curso
 - Fecha: 2026-08-25
 - Rama: `feat/project-manager-contextual-scope-v1`
 - Base: `main@3b4f778`
@@ -74,26 +74,24 @@ Permitir que administrator asigne cuentas con rol `project_manager` a proyectos 
 16. Doble alta se protege con lock/índice único parcial y error estable. Doble finalización falla sin reescribir `ended_at`. Una fila histórica no bloquea una asignación futura válida.
 17. Lecturas usan una única sentencia/snapshot y vuelven a comprobar cuenta, rol, permiso y scope. PostgreSQL sigue siendo la autoridad aunque React muestre controles según capacidades conocidas.
 
+### Lifecycle de proyecto y concurrencia assign-manager/close
+
+18. Una asignación nueva o una reasignación histórica solo puede crearse si el proyecto está `active`. El alta bloquea `target account → project FOR UPDATE` y relee bajo lock la elegibilidad de la cuenta, los permisos y el estado del proyecto.
+19. Cerrar un proyecto no finaliza ni modifica asignaciones de project managers. `closed + manager assignment activa` es válido cuando el scope fue concedido antes del cierre; `closed + volunteer assignment activa` continúa prohibido por la invariante independiente de participaciones.
+20. Si `close_project` gana el lock, el alta espera, relee `closed` y falla `23514/project_closed` sin fila ni auditoría. Si `assign_project_manager` gana, crea y confirma el scope; el cierre continúa y conserva el scope activo.
+21. Un manager con scope activo sobre un proyecto cerrado conserva lectura, histórico y edición de nombre/descripción mientras mantenga cuenta, rol y permisos. No puede crear participaciones nuevas ni ejecutar lifecycle o administración de managers.
+
 ### Auditoría
 
-18. Los eventos serán `project_manager_assignment.created` y `project_manager_assignment.ended`, con actor de sesión, entity type/ID técnicos, target derivado server-side si corresponde y metadata vacía. No se duplican display name, email, teléfono ni datos Auth.
+22. Los eventos serán `project_manager_assignment.created` y `project_manager_assignment.ended`, con actor de sesión, entity type/ID técnicos, target derivado server-side si corresponde y metadata vacía. No se duplican display name, email, teléfono ni datos Auth.
 
 ### Aplicación y UI
 
-19. El puerto de autorización de Projects evoluciona de una única capacidad global a una allowlist de `project.manage`, `project.read_assigned`, `project.manage_assigned` y la capacidad de padrón necesaria únicamente para decidir si se muestra un enlace; el project ID nunca se autoriza en cliente.
-20. El gateway agrega contratos tipados para managers y mantiene Supabase exclusivamente en infraestructura. Composición adapta el contexto de cuenta mediante APIs públicas; Projects no importa Identity.
-21. `/app/admin/projects` se reutiliza para ambos roles. Listado/detalle aceptan lectura contextual; edición acepta mutación contextual; alta, cierre, historial inverso del voluntario y gestión de managers permanecen administrativos.
-22. La UI oculta alta/cierre/gestión de managers y enlaces al padrón sin capacidad global; muestra edición y gestión de participaciones con capacidad contextual. La URL directa sigue protegida y PostgreSQL vuelve a autorizar cada RPC.
-23. El detalle administrativo incorpora managers activos e históricos, búsqueda por display name, asignación directa y finalización confirmada. No se expone email ni se reutiliza el gateway interno de administración de cuentas.
-
-## Decisión de producto pendiente antes de migrar
-
-Las reglas no indican si administrator puede crear una asignación nueva de manager sobre un proyecto `closed`. Esto afecta la validación de `assign_project_manager` y su UI. No se escribirá la migración hasta elegir una de estas semánticas:
-
-- permitirlo para acceso histórico explícito; o
-- limitar altas nuevas a proyectos `active`, conservando scopes ya existentes cuando el proyecto se cierre.
-
-El cierre de proyecto no finalizará scopes automáticamente en ninguna alternativa, porque esa automatización no fue aprobada.
+23. El puerto de autorización de Projects evoluciona de una única capacidad global a una allowlist de `project.manage`, `project.read_assigned`, `project.manage_assigned` y la capacidad de padrón necesaria únicamente para decidir si se muestra un enlace; el project ID nunca se autoriza en cliente.
+24. El gateway agrega contratos tipados para managers y mantiene Supabase exclusivamente en infraestructura. Composición adapta el contexto de cuenta mediante APIs públicas; Projects no importa Identity.
+25. `/app/admin/projects` se reutiliza para ambos roles. Listado/detalle aceptan lectura contextual; edición acepta mutación contextual; alta, cierre, historial inverso del voluntario y gestión de managers permanecen administrativos.
+26. La UI oculta alta/cierre/gestión de managers y enlaces al padrón sin capacidad global; muestra edición y gestión de participaciones con capacidad contextual. La URL directa sigue protegida y PostgreSQL vuelve a autorizar cada RPC.
+27. El detalle administrativo incorpora managers activos e históricos, búsqueda por display name, asignación directa y finalización confirmada. No se expone email ni se reutiliza el gateway interno de administración de cuentas.
 
 ## Riesgos y mitigaciones
 
@@ -109,15 +107,15 @@ El cierre de proyecto no finalizará scopes automáticamente en ninguna alternat
 
 ## Fases y validaciones
 
-| Fase                  | Resultado esperado                                    | Validación incremental                   | Estado      |
-| --------------------- | ----------------------------------------------------- | ---------------------------------------- | ----------- |
-| 0. Precheck/diseño    | rama, prompt, plan y decisión cerrada                 | Git, baseline y revisiones iniciales     | en progreso |
-| 1. Dominio/aplicación | tipos, capacidades y casos de uso                     | tests focalizados y typecheck            | pendiente   |
-| 2. PostgreSQL         | migración 0005, permisos, tabla, RPC, RLS y auditoría | reset, DB lint, pgTAP y concurrencia     | pendiente   |
-| 3. Infra/composición  | gateway y tipos conectados                            | tests de gateway, boundaries y typecheck | pendiente   |
-| 4. UI/rutas           | experiencia admin/manager y revocación visible        | componentes y acceso directo             | pendiente   |
-| 5. E2E/docs           | recorrido crítico y trazabilidad                      | E2E y revisión documental                | pendiente   |
-| 6. Cierre             | baseline completa y revisiones GO                     | release-readiness y scans                | pendiente   |
+| Fase                  | Resultado esperado                                    | Validación incremental                   | Estado     |
+| --------------------- | ----------------------------------------------------- | ---------------------------------------- | ---------- |
+| 0. Precheck/diseño    | rama, prompt, plan y decisión cerrada                 | Git, baseline y revisiones iniciales     | completada |
+| 1. Dominio/aplicación | tipos, capacidades y casos de uso                     | tests focalizados y typecheck            | pendiente  |
+| 2. PostgreSQL         | migración 0005, permisos, tabla, RPC, RLS y auditoría | reset, DB lint, pgTAP y concurrencia     | pendiente  |
+| 3. Infra/composición  | gateway y tipos conectados                            | tests de gateway, boundaries y typecheck | pendiente  |
+| 4. UI/rutas           | experiencia admin/manager y revocación visible        | componentes y acceso directo             | pendiente  |
+| 5. E2E/docs           | recorrido crítico y trazabilidad                      | E2E y revisión documental                | pendiente  |
+| 6. Cierre             | baseline completa y revisiones GO                     | release-readiness y scans                | pendiente  |
 
 ## Criterios de aceptación
 
@@ -127,6 +125,7 @@ El cierre de proyecto no finalizará scopes automáticamente en ninguna alternat
 - Project manager no crea, cierra, reabre, elimina ni administra managers.
 - Cuenta no activa, rol retirado, permiso ausente o scope finalizado pierde acceso inmediatamente en PostgreSQL.
 - Dos altas activas iguales son imposibles bajo concurrencia; una histórica permite alta futura.
+- Ambas intercalaciones assign-manager/close están versionadas: close-first rechaza el alta y assign-first conserva legítimamente el scope activo tras el cierre.
 - RLS permanece default-deny y no hay DML directo ni acceso anon.
 - Migraciones 0001–0004 permanecen intactas; no se añaden dependencias ni módulos futuros.
 - Tests focalizados y baseline oficial terminan verdes; revisores de arquitectura, PostgreSQL/RLS, QA y documentación emiten GO.
@@ -137,6 +136,7 @@ El cierre de proyecto no finalizará scopes automáticamente en ninguna alternat
 - 2026-08-25: frozen install y baseline `pnpm verify` aprobaron con Node 22.18.0/pnpm 11.9.0.
 - 2026-08-25: revisiones iniciales de arquitectura y PostgreSQL/RBAC confirmaron que `accounts.id`, RBAC vigente y ownership de Projects admiten el slice sin framework genérico.
 - 2026-08-25: se detectó una única decisión pendiente sobre altas nuevas de managers en proyectos cerrados; no se creó migración.
+- 2026-08-25: producto eligió limitar altas y reasignaciones a proyectos `active`; el cierre conserva scopes previos. Architect, database security, domain modeler y QA emitieron GO al diseño actualizado.
 
 ## Descubrimientos
 
@@ -146,8 +146,10 @@ El cierre de proyecto no finalizará scopes automáticamente en ninguna alternat
 
 ## Decisiones durante la ejecución
 
-- Pendiente: elegibilidad de proyectos cerrados para una nueva asignación de manager.
+- Las altas y reasignaciones de managers exigen proyecto `active` bajo el mismo lock que usa `close_project`.
+- Cerrar un proyecto no finaliza scopes. Un scope activo previo conserva acceso histórico y edición descriptiva mientras toda la autoridad dinámica siga vigente.
+- El guard de cierre continúa aplicando exclusivamente la invariante de participaciones voluntarias; no considera asignaciones de managers.
 
 ## Resultado final
 
-Pendiente. No existe migración ni implementación productiva mientras la decisión de proyecto cerrado permanezca abierta.
+Pendiente de implementación y validación. La decisión de producto quedó cerrada y habilita la migración forward-only 0005.
