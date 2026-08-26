@@ -21,7 +21,7 @@ Una cuenta solo obtiene permisos efectivos cuando `accounts.status = 'active'`. 
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | Perfil                     | `volunteer.read_self`, `volunteer.update_self`, `volunteer.read_basic_others`                                                                 |
 | Alojamiento futuro         | `accommodation.read_self`, `accommodation.propose_assignment`, `accommodation.approve_assignment`, `accommodation.manage`                     |
-| Proyectos                  | `project.read_assigned`, `project.manage`, `project.propose_assignment`, `project.approve_assignment`                                         |
+| Proyectos                  | `project.read_assigned`, `project.manage_assigned`, `project.manage`, `project.propose_assignment`, `project.approve_assignment`              |
 | Actividades/tareas futuras | `activity.create`, `activity.join`, `task.assign`, `task.complete`                                                                            |
 | Finanzas futuras           | `payment.read_self`, `payment.manage`                                                                                                         |
 | Invitaciones               | `invitation.read`, `invitation.create`, `invitation.revoke`, `invitation.resend`                                                              |
@@ -34,8 +34,9 @@ Una cuenta solo obtiene permisos efectivos cuando `accounts.status = 'active'`. 
 
 - `volunteer`: `volunteer.read_self` y `volunteer.update_self`.
 - `coordinator`: lectura/creación de invitaciones, lectura de cuentas y roles, siempre dentro de cuentas originadas por sus propias invitaciones. Solo puede invitar con rol inicial `volunteer`.
-- `administrator`: cada permiso del catálogo se concede explícitamente; no existe comodín.
-- `accommodation_manager`, `project_manager` y `finance`: no reciben administración de cuentas en este hito. Una persona puede acumular `volunteer` para usar el perfil propio.
+- `project_manager`: `project.read_assigned` y `project.manage_assigned`; ambos solo son efectivos dentro de un scope activo y junto con cuenta activa y rol vigente.
+- `administrator`: cada permiso del catálogo se concede explícitamente; no existe comodín. Projects usa `project.manage` como autoridad global.
+- `accommodation_manager` y `finance`: no reciben administración de cuentas en este hito. Una persona puede acumular `volunteer` para usar el perfil propio.
 
 ## Política de concesión
 
@@ -47,4 +48,4 @@ Las RPC niegan autoasignación/autorretiro, cambios sobre cuentas no activas, es
 
 Los cinco permisos `volunteer_registry.*` se conceden exclusivamente a `administrator`. Coordinator y los demás roles no reciben acceso al padrón; la autoridad se decide por capacidades efectivas, no por una comprobación de nombre de rol paralela.
 
-Projects V1 reutiliza exclusivamente `project.manage`, concedido solo a `administrator`, para proyectos y asignaciones directas del padrón. `project.read_assigned`, `project.propose_assignment` y `project.approve_assignment` permanecen registrados pero no se usan en esta V1. `project_manager`, coordinator y voluntarios no reciben visibilidad ni mutaciones hasta definir scopes y flujos posteriores.
+Projects conserva `project.manage` exclusivamente para `administrator`: alta/cierre, consulta inversa desde Volunteers y administración de managers siguen siendo globales. `project_manager` usa `project.read_assigned` y `project.manage_assigned` solo cuando PostgreSQL confirma cuenta activa, rol vigente y scope activo para el proyecto. `project.propose_assignment` y `project.approve_assignment` permanecen registrados pero no se usan. Coordinator y voluntarios no reciben acceso.

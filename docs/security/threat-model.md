@@ -20,7 +20,7 @@ Activos: identidades Auth, cuentas, invitaciones, perfiles mínimos, padrón adm
 | RLS incorrecta                 | denegar por defecto y pgTAP real                                                                  | Revisión en cada migración           |
 | Invitaciones abusivas          | signup off, permiso/policy, TTL e idempotencia                                                    | cuotas productivas y alertas         |
 | Replay/doble clic              | fingerprint, clave por actor, lease e índices                                                     | monitoreo productivo                 |
-| Duplicado/carrera de proyecto  | lock común asignar/cerrar, índice parcial y finalización monotónica                               | scopes/capacidad futuros             |
+| Duplicado/carrera de proyecto  | locks comunes por proyecto/scope, índices parciales y finalización monotónica                     | capacidad futura                     |
 | Token de invitación filtrado   | Auth es único custodio; no DB/UI/log/audit                                                        | plantilla/canal productivo           |
 | `service_role` expuesto        | Edge env productivo; runner E2E local solo en Node; ninguna variable `VITE_`; scans               | rotación y secret manager            |
 | Auth/DB divergentes            | reserva, estado de entrega y reconciliación exacta                                                | runbook y observabilidad             |
@@ -36,7 +36,7 @@ Toda función `security definer` fija `search_path = ''`, usa nombres cualificad
 
 El padrón sigue el mismo RBAC por permisos. La tabla `volunteers` mantiene RLS sin policies permisivas y sin grants cliente; cada RPC deriva el actor del JWT, comprueba la capacidad exacta y expone solo columnas aprobadas. Alta, edición e importación serializan la comprobación de posibles duplicados con un lock transaccional. La confirmación de coincidencia es una decisión de negocio, no evidencia de autoridad. No existen RPC de borrado.
 
-Projects V1 reutiliza `project.manage`, concedido solo a administrator. `projects` y `project_volunteer_assignments` mantienen RLS sin policies ni grants de tabla; las RPC proyectan IDs, nombre y timestamps mínimos. Asignar y cerrar serializan la fila de proyecto, el índice parcial impide duplicados activos y las FKs preservan historia. La auditoría registra IDs/estados/campos técnicos sin nombre, correo o teléfono.
+Projects mantiene `project.manage` como autoridad global exclusiva de administrator. `project_manager` recibe `project.read_assigned` y `project.manage_assigned`, pero cada RPC contextual exige además cuenta activa, rol vigente y scope activo para el proyecto. `projects`, `project_volunteer_assignments` y `project_manager_assignments` mantienen RLS sin policies ni grants de tabla; las RPC proyectan IDs, display name y timestamps mínimos. Alta de scope y cierre serializan la fila de proyecto; revocación y mutación contextual serializan cuenta/scope/proyecto en orden estable. Los índices parciales impiden duplicados activos y las FKs preservan historia. La auditoría registra IDs/estados/campos técnicos sin nombre, correo o teléfono.
 
 La Edge Function valida Origin, método, Content-Type, esquema, JWT, estado, permiso y policy antes de construir el cliente Auth Admin. Responde con IDs/estado, traduce errores a códigos seguros y registra solo correlación/operación/códigos allowlist; nunca correo completo, JWT, enlace o stack.
 

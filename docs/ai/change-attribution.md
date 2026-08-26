@@ -118,13 +118,15 @@ Decisiones materiales: dos sesiones `psql` dentro del contenedor Supabase local,
 
 ## Project Manager Contextual Scope V1 0009
 
-- Objetivo: diseñar el scope contextual explícito entre cuentas `project_manager` y Projects V1 antes de escribir la migración.
-- Herramienta: agente principal de Codex; revisiones iniciales de arquitectura y PostgreSQL/RBAC en solo lectura.
+- Objetivo: implementar el scope contextual explícito entre cuentas `project_manager` y Projects V1, con histórico, revocación dinámica y concurrencia protegida.
+- Herramienta: agente principal de Codex; revisiones iniciales y finales especializadas en solo lectura.
 - Rama y base: `feat/project-manager-contextual-scope-v1` desde `main@3b4f778`.
 - Prompt: `docs/ai/prompts/0009-project-manager-contextual-scope-v1.md`.
 - Plan: `docs/exec-plans/0005-project-manager-contextual-scope-v1.md`.
 - Integración y escritura: exclusivamente el agente principal.
-- Validación inicial: Node 22.18.0, pnpm 11.9.0, frozen install y `pnpm verify` aprobados con 13 pruebas de orquestación, 172 unitarias, 2 de integración, typecheck y build.
-- Estado: diseño aprobado; implementación forward-only habilitada. Sin push, PR, merge, rebase, amend, despliegue ni modificación de `main`.
+- Commits técnicos: `daeedd1`, `749da5e`, `3b4c282`, `0a9fe2f`, `fd2706c` y `0a10b65`, más el cierre documental.
+- Validación final con Node 22.18.0/pnpm 11.9.0: frozen install, `pnpm verify`, reset/lint DB, 309 pgTAP, 21 Functions, 176 unitarias, 2 integración, 13 orquestación, cinco repeticiones de concurrencia 7/7 y 11 E2E tanto local como con `CI=true`.
+- Revisión independiente: architect, database security, QA y docs governance emitieron GO final; sus hallazgos de cancelación React y cobertura nominal PostgreSQL quedaron integrados antes del cierre.
+- Estado: incremento completado y validado localmente. Sin push, PR, merge, rebase, amend, despliegue ni modificación de `main`.
 
 Decisiones materiales: ownership en Projects, sujeto `accounts.id`, relación histórica, permisos contextuales explícitos, autorización dinámica y locks cuenta–scope–proyecto; altas solo en proyectos activos y conservación de scopes previos al cierre; sin framework genérico ni PII adicional.

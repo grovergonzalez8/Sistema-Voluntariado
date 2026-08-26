@@ -1,6 +1,6 @@
 # ExecPlan 0005 — Project Manager Contextual Scope V1
 
-- Estado: diseño aprobado; implementación en curso
+- Estado: completado; listo para revisión
 - Fecha: 2026-08-25
 - Rama: `feat/project-manager-contextual-scope-v1`
 - Base: `main@3b4f778`
@@ -110,12 +110,12 @@ Permitir que administrator asigne cuentas con rol `project_manager` a proyectos 
 | Fase                  | Resultado esperado                                    | Validación incremental                   | Estado     |
 | --------------------- | ----------------------------------------------------- | ---------------------------------------- | ---------- |
 | 0. Precheck/diseño    | rama, prompt, plan y decisión cerrada                 | Git, baseline y revisiones iniciales     | completada |
-| 1. Dominio/aplicación | tipos, capacidades y casos de uso                     | tests focalizados y typecheck            | pendiente  |
-| 2. PostgreSQL         | migración 0005, permisos, tabla, RPC, RLS y auditoría | reset, DB lint, pgTAP y concurrencia     | pendiente  |
-| 3. Infra/composición  | gateway y tipos conectados                            | tests de gateway, boundaries y typecheck | pendiente  |
-| 4. UI/rutas           | experiencia admin/manager y revocación visible        | componentes y acceso directo             | pendiente  |
-| 5. E2E/docs           | recorrido crítico y trazabilidad                      | E2E y revisión documental                | pendiente  |
-| 6. Cierre             | baseline completa y revisiones GO                     | release-readiness y scans                | pendiente  |
+| 1. Dominio/aplicación | tipos, capacidades y casos de uso                     | tests focalizados y typecheck            | completada |
+| 2. PostgreSQL         | migración 0005, permisos, tabla, RPC, RLS y auditoría | reset, DB lint, pgTAP y concurrencia     | completada |
+| 3. Infra/composición  | gateway y tipos conectados                            | tests de gateway, boundaries y typecheck | completada |
+| 4. UI/rutas           | experiencia admin/manager y revocación visible        | componentes y acceso directo             | completada |
+| 5. E2E/docs           | recorrido crítico y trazabilidad                      | E2E y revisión documental                | completada |
+| 6. Cierre             | baseline completa y revisiones GO                     | release-readiness y scans                | completada |
 
 ## Criterios de aceptación
 
@@ -137,10 +137,18 @@ Permitir que administrator asigne cuentas con rol `project_manager` a proyectos 
 - 2026-08-25: revisiones iniciales de arquitectura y PostgreSQL/RBAC confirmaron que `accounts.id`, RBAC vigente y ownership de Projects admiten el slice sin framework genérico.
 - 2026-08-25: se detectó una única decisión pendiente sobre altas nuevas de managers en proyectos cerrados; no se creó migración.
 - 2026-08-25: producto eligió limitar altas y reasignaciones a proyectos `active`; el cierre conserva scopes previos. Architect, database security, domain modeler y QA emitieron GO al diseño actualizado.
+- 2026-08-25: la migración forward-only 0005 incorporó relación histórica, permisos contextuales, RLS default-deny, RPC, auditoría y locks cuenta–scope–proyecto sin modificar migraciones 0001–0004.
+- 2026-08-25: aplicación, gateway, composición, rutas y UI reutilizaron Projects; administrator administra scopes y project manager opera solo proyectos asignados con autoridad dinámica.
+- 2026-08-25: la regresión PostgreSQL versionada cubrió siete carreras. Cinco ejecuciones consecutivas aprobaron 7/7 y demostraron espera mediante `pg_blocking_pids`, sin sesiones, locks ni fixtures residuales.
+- 2026-08-25: la mutación temporal retiró ambos locks de proyecto del alta de manager. Close-first dejó de producir `project_closed` y la regresión falló; tras restaurar y resetear, ambas intercalaciones volvieron a aprobar. La mutación no quedó en Git.
+- 2026-08-25: el review arquitectónico detectó una carga React sin cancelación y casts innecesarios; `fd2706c` separó fetch/aplicación de estado, restauró cancelación y dejó boundaries/probes verdes.
+- 2026-08-25: el review PostgreSQL observó cobertura nominal faltante para coordinator, cuenta voluntaria y reasignación histórica activa; `0a10b65` la agregó y elevó pgTAP a 309/309.
+- 2026-08-25: baseline final con Node 22.18.0/pnpm 11.9.0 aprobó frozen install, reset/lint DB, 309 pgTAP, 21 Functions, 176 unitarias, 2 integración, 13 orquestación, typecheck, build, 11 E2E locales, 11 E2E con `CI=true`, cinco repeticiones de concurrencia y `pnpm verify`.
+- 2026-08-25: architect y database security emitieron GO final; QA y docs governance aprobaron tras integrar los hallazgos dentro del alcance.
 
 ## Descubrimientos
 
-- `project.read_assigned` existe en seed, pero todavía no concede acceso a `project_manager` ni es usado por las RPC.
+- `project.read_assigned` ya existía en el catálogo, pero requirió concesión y uso contextual en las RPC; `project.manage_assigned` fue el único permiso nuevo.
 - El modelo actual conserva roles al suspender y los elimina al revocar. La autorización dinámica permite cortar acceso sin alterar el histórico del scope.
 - `list_volunteer_projects` cruza hacia el padrón y debe permanecer global para no permitir enumeración indirecta de proyectos.
 
@@ -152,4 +160,6 @@ Permitir que administrator asigne cuentas con rol `project_manager` a proyectos 
 
 ## Resultado final
 
-Pendiente de implementación y validación. La decisión de producto quedó cerrada y habilita la migración forward-only 0005.
+El incremento entrega el scope contextual explícito y durable entre cuentas `project_manager` y Projects V1. Administrator asigna/finaliza managers; el manager ve solo sus proyectos, edita datos descriptivos y gestiona participaciones dentro del lifecycle existente. PostgreSQL revalida cuenta, rol, permiso y scope en cada operación, conserva acceso histórico sobre proyectos cerrados y corta autoridad ante cualquiera de las revocaciones aprobadas.
+
+La migración 0005 es aditiva, RLS permanece default-deny, no hay DML directo ni framework genérico. Las intercalaciones assign-manager/close y finish-scope/mutación están versionadas contra PostgreSQL real. Baseline, mutación temporal y revisiones finales aprobaron. No hubo push, merge, rebase, amend, despliegue ni modificación de `main`.
