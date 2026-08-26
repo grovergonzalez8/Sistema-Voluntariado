@@ -130,3 +130,26 @@ Decisiones materiales: dos sesiones `psql` dentro del contenedor Supabase local,
 - Estado: incremento completado y validado localmente. Sin push, PR, merge, rebase, amend, despliegue ni modificación de `main`.
 
 Decisiones materiales: ownership en Projects, sujeto `accounts.id`, relación histórica, permisos contextuales explícitos, autorización dinámica y locks cuenta–scope–proyecto; altas solo en proyectos activos y conservación de scopes previos al cierre; sin framework genérico ni PII adicional.
+
+## Project Activities V1 0010 — fase de diseño
+
+- Objetivo: diseñar Project Activities V1 y su integración segura con Projects
+  antes de cualquier implementación.
+- Herramienta: agente principal de Codex; revisiones especializadas de solo
+  lectura.
+- Rama y base: `feat/project-activities-v1` desde `main@3416aca`.
+- Prompt: `docs/ai/prompts/0010-project-activities-v1.md`.
+- Plan: `docs/exec-plans/0006-project-activities-v1.md`.
+- Integración y escritura: exclusivamente el agente principal.
+- Revisión inicial: `architect`, `database_security_reviewer`,
+  `domain_modeler`, `qa_reviewer` y `docs_governor`.
+- Validación: runtime exacto Node 22.18.0/pnpm 11.9.0, frozen install,
+  `pnpm verify`, reset/lint DB, 309 pgTAP, 7 carreras, 21 Functions y 11 E2E.
+- Estado: diseño y baseline documentados; detenido para revisión humana, sin
+  migración, código productivo, UI, pruebas productivas, push, merge, rebase,
+  amend, despliegue ni acceso Supabase remoto.
+
+Decisiones materiales: ownership de Activity en Projects; lifecycle scheduled
+a terminal; permisos Project existentes; firmas Project + Activity; locks
+cuenta–scope–proyecto–Activity; guard de cierre forward-only; RLS default-deny;
+auditoría mínima y exclusión explícita de Participation/Tasks.
