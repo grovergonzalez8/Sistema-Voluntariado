@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(39);
+select plan(46);
 
 select has_table(
   'public',
@@ -118,6 +118,34 @@ select throws_ok(
   '42501',
   'permission denied for function list_project_manager_assignments',
   'anonymous cannot execute manager RPCs'
+);
+
+reset role;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-000000000006","role":"authenticated"}',
+  true
+);
+set local role authenticated;
+select throws_ok(
+  $$select * from public.list_projects('', 25, 0)$$,
+  '42501',
+  'permission_denied',
+  'coordinator has no project access'
+);
+
+reset role;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-000000000001","role":"authenticated"}',
+  true
+);
+set local role authenticated;
+select throws_ok(
+  $$select * from public.list_projects('', 25, 0)$$,
+  '42501',
+  'permission_denied',
+  'ordinary volunteer account has no project access'
 );
 
 reset role;
@@ -430,6 +458,57 @@ select is(
   ),
   0::bigint,
   'ended manager scope remains historical and inactive'
+);
+
+reset role;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-000000000004","role":"authenticated"}',
+  true
+);
+set local role authenticated;
+select lives_ok(
+  $$create temporary table reassignment_project as select * from public.create_project('Proyecto Reasignación Manager', null)$$,
+  'administrator creates an active project for historical reassignment'
+);
+select lives_ok(
+  $test$
+    create temporary table first_historical_manager_scope as
+    select * from public.assign_project_manager(
+      (select id from reassignment_project),
+      '10000000-0000-4000-8000-000000000007'
+    )
+  $test$,
+  'administrator creates the first manager scope occurrence'
+);
+select lives_ok(
+  $test$
+    select * from public.finish_project_manager_assignment(
+      (select assignment_id from first_historical_manager_scope)
+    )
+  $test$,
+  'administrator finishes the first scope while the project remains active'
+);
+select lives_ok(
+  $test$
+    create temporary table second_historical_manager_scope as
+    select * from public.assign_project_manager(
+      (select id from reassignment_project),
+      '10000000-0000-4000-8000-000000000007'
+    )
+  $test$,
+  'historical scope permits a new active assignment on an active project'
+);
+reset role;
+select ok(
+  (
+    select count(*) = 2
+      and count(*) filter (where ended_at is null) = 1
+    from public.project_manager_assignments
+    where project_id = (select id from reassignment_project)
+      and manager_account_id = '10000000-0000-4000-8000-000000000007'
+  ),
+  'historical reassignment preserves one ended and one active scope'
 );
 
 select * from finish();
