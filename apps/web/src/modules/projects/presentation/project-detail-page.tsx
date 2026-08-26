@@ -46,38 +46,67 @@ export function ProjectDetailPage({
   const [success, setSuccess] = useState<string | null>(null);
   const { t } = useTranslation();
 
-  const load = useCallback(async () => {
+  const fetchDetail = useCallback(async () => {
     const capabilitiesResult = await service.getCapabilities();
     if (!capabilitiesResult.ok) {
-      setError(capabilitiesResult.error.message);
-      setLoading(false);
-      return;
+      return { error: capabilitiesResult.error.message, ok: false } as const;
     }
     const [projectResult, assignmentsResult] = await Promise.all([
       service.getProject(id),
       service.listProjectAssignments(id),
     ]);
-    if (!projectResult.ok) setError(projectResult.error.message);
-    else if (!assignmentsResult.ok) setError(assignmentsResult.error.message);
-    else {
-      setProject(projectResult.value);
-      setAssignments(assignmentsResult.value);
-      setCapabilities(capabilitiesResult.value);
-      setError(null);
-      if (capabilitiesResult.value.manage) {
-        const managersResult = await service.listManagerAssignments(id);
-        if (managersResult.ok) setManagerAssignments(managersResult.value);
-        else setError(managersResult.error.message);
-      } else {
-        setManagerAssignments([]);
-      }
+    if (!projectResult.ok) {
+      return { error: projectResult.error.message, ok: false } as const;
     }
-    setLoading(false);
+    if (!assignmentsResult.ok) {
+      return { error: assignmentsResult.error.message, ok: false } as const;
+    }
+    const managersResult = capabilitiesResult.value.manage
+      ? await service.listManagerAssignments(id)
+      : null;
+    if (managersResult && !managersResult.ok) {
+      return { error: managersResult.error.message, ok: false } as const;
+    }
+    return {
+      assignments: assignmentsResult.value,
+      capabilities: capabilitiesResult.value,
+      managerAssignments: managersResult?.value ?? [],
+      ok: true,
+      project: projectResult.value,
+    } as const;
   }, [id, service]);
 
+  const load = useCallback(async () => {
+    const result = await fetchDetail();
+    if (!result.ok) setError(result.error);
+    else {
+      setProject(result.project);
+      setAssignments(result.assignments);
+      setCapabilities(result.capabilities);
+      setManagerAssignments(result.managerAssignments);
+      setError(null);
+    }
+    setLoading(false);
+  }, [fetchDetail]);
+
   useEffect(() => {
-    void load();
-  }, [load]);
+    let active = true;
+    void fetchDetail().then((result) => {
+      if (!active) return;
+      if (!result.ok) setError(result.error);
+      else {
+        setProject(result.project);
+        setAssignments(result.assignments);
+        setCapabilities(result.capabilities);
+        setManagerAssignments(result.managerAssignments);
+        setError(null);
+      }
+      setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [fetchDetail]);
 
   const searchCandidates = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();

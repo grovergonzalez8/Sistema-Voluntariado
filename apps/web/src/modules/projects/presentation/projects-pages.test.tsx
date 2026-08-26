@@ -240,8 +240,9 @@ describe('project administration pages', () => {
     await user.type(volunteerSearch, 'Persona');
     const volunteerForm = volunteerSearch.closest('form');
     expect(volunteerForm).not.toBeNull();
+    if (!volunteerForm) throw new Error('Volunteer search form is missing');
     await user.click(
-      within(volunteerForm as HTMLFormElement).getByRole('button', {
+      within(volunteerForm).getByRole('button', {
         name: 'Buscar',
       }),
     );
@@ -327,8 +328,9 @@ describe('project administration pages', () => {
     await user.type(managerSearch, 'Responsable');
     const managerForm = managerSearch.closest('form');
     expect(managerForm).not.toBeNull();
+    if (!managerForm) throw new Error('Manager search form is missing');
     await user.click(
-      within(managerForm as HTMLFormElement).getByRole('button', {
+      within(managerForm).getByRole('button', {
         name: 'Buscar',
       }),
     );
