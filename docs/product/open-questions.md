@@ -21,6 +21,13 @@
 - La participación es directa, activa por `ended_at is null`, histórica al finalizar y sin aprobación o eliminación.
 - Cerrar falla mientras existan participaciones activas y nunca las finaliza automáticamente.
 
+## Resueltas en el hito 0005
+
+- El alcance de `project_manager` es una relación histórica explícita entre `accounts` y `projects`, no un framework genérico.
+- Las altas exigen cuenta y proyecto activos, rol/permiso vigentes y ausencia de scope activo equivalente.
+- El cierre no finaliza scopes previos: `closed + active manager scope` es válido, mientras `closed + active volunteer assignment` sigue prohibido.
+- Suspensión, archivo, pérdida de rol/permiso o finalización del scope corta la autoridad dinámicamente sin borrar el histórico.
+
 ## Pendientes
 
 1. ¿Se separarán nombre legal, preferido y de presentación?

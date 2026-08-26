@@ -9,6 +9,8 @@ import { ProjectManagementService } from './project-management-service';
 const projectId = '10000000-0000-4000-8000-000000000001';
 const volunteerId = '20000000-0000-4000-8000-000000000001';
 const assignmentId = '30000000-0000-4000-8000-000000000001';
+const managerAccountId = '40000000-0000-4000-8000-000000000001';
+const managerAssignmentId = '50000000-0000-4000-8000-000000000001';
 const project = {
   createdAt: '2026-08-24T10:00:00Z',
   description: null,
@@ -25,6 +27,18 @@ function createGateway(): {
   >;
 } {
   const spies = {
+    assignManager: vi.fn().mockResolvedValue(
+      success({
+        assignmentId: managerAssignmentId,
+        createdAt: '2026-08-24T10:00:00Z',
+        endedAt: null,
+        managerAccountId,
+        managerDisplayName: 'Responsable Uno',
+        projectId,
+        startedAt: '2026-08-24T10:00:00Z',
+        updatedAt: '2026-08-24T10:00:00Z',
+      }),
+    ),
     assignVolunteer: vi.fn().mockResolvedValue(
       success({
         assignmentId,
@@ -53,8 +67,21 @@ function createGateway(): {
         volunteerName: 'Voluntaria Uno',
       }),
     ),
+    endManagerAssignment: vi.fn().mockResolvedValue(
+      success({
+        assignmentId: managerAssignmentId,
+        createdAt: '2026-08-24T10:00:00Z',
+        endedAt: '2026-08-24T11:00:00Z',
+        managerAccountId,
+        managerDisplayName: 'Responsable Uno',
+        projectId,
+        startedAt: '2026-08-24T10:00:00Z',
+        updatedAt: '2026-08-24T11:00:00Z',
+      }),
+    ),
     getProject: vi.fn().mockResolvedValue(success(project)),
     listProjectAssignments: vi.fn().mockResolvedValue(success([])),
+    listProjectManagerAssignments: vi.fn().mockResolvedValue(success([])),
     listProjects: vi
       .fn()
       .mockResolvedValue(
@@ -62,6 +89,7 @@ function createGateway(): {
       ),
     listVolunteerProjects: vi.fn().mockResolvedValue(success([])),
     searchVolunteerCandidates: vi.fn().mockResolvedValue(success([])),
+    searchManagerCandidates: vi.fn().mockResolvedValue(success([])),
     updateProject: vi.fn().mockResolvedValue(success(project)),
   };
   return { gateway: spies, spies };
@@ -103,7 +131,7 @@ describe('ProjectManagementService', () => {
     expect(result).toEqual({
       error: {
         code: 'forbidden',
-        message: 'No tienes permiso para administrar proyectos.',
+        message: 'No tienes permiso para realizar esta operación de proyectos.',
       },
       ok: false,
     });
@@ -146,6 +174,29 @@ describe('ProjectManagementService', () => {
       (await service.searchVolunteerCandidates(projectId, ' Uno ')).ok,
     ).toBe(true);
     expect(spies.searchVolunteerCandidates).toHaveBeenCalledWith(
+      projectId,
+      'Uno',
+    );
+  });
+
+  it('delegates administrator-only manager assignment lifecycle', async () => {
+    const { gateway, spies } = createGateway();
+    const service = new ProjectManagementService(
+      createAuthorization(),
+      gateway,
+    );
+
+    expect((await service.assignManager(projectId, managerAccountId)).ok).toBe(
+      true,
+    );
+    expect((await service.endManagerAssignment(managerAssignmentId)).ok).toBe(
+      true,
+    );
+    expect((await service.listManagerAssignments(projectId)).ok).toBe(true);
+    expect((await service.searchManagerCandidates(projectId, ' Uno ')).ok).toBe(
+      true,
+    );
+    expect(spies.searchManagerCandidates).toHaveBeenCalledWith(
       projectId,
       'Uno',
     );

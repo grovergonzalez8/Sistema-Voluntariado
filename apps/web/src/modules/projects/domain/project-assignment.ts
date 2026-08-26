@@ -16,6 +16,22 @@ export interface ProjectVolunteerCandidate {
   readonly id: string;
 }
 
+export interface ProjectManagerAssignment {
+  readonly assignmentId: string;
+  readonly createdAt: string;
+  readonly endedAt: string | null;
+  readonly managerAccountId: string;
+  readonly managerDisplayName: string;
+  readonly projectId: string;
+  readonly startedAt: string;
+  readonly updatedAt: string;
+}
+
+export interface ProjectManagerCandidate {
+  readonly displayName: string;
+  readonly managerAccountId: string;
+}
+
 export interface VolunteerProjectAssignment {
   readonly assignmentId: string;
   readonly endedAt: string | null;
@@ -26,7 +42,10 @@ export interface VolunteerProjectAssignment {
 }
 
 export function isActiveProjectAssignment(
-  assignment: Pick<ProjectVolunteerAssignment, 'endedAt'>,
+  assignment: Pick<
+    ProjectManagerAssignment | ProjectVolunteerAssignment,
+    'endedAt'
+  >,
 ): boolean {
   return assignment.endedAt === null;
 }

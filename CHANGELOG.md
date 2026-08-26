@@ -33,3 +33,5 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 - Preview e importación atómica `.xlsx`, plantilla y exportación del conjunto filtrado, protegidas por permisos exclusivos de administrator y límites de 5 MiB/1.000 filas.
 - Proyectos administrativos mínimos con alta, listado/búsqueda, detalle, edición y cierre histórico sin eliminación física.
 - Asignaciones directas entre proyectos y el padrón `volunteers`, con consulta en ambos sentidos, finalización histórica, auditoría sin PII y protección concurrente contra duplicados activos.
+- Scope contextual histórico entre cuentas `project_manager` y proyectos, con administración exclusiva, revocación dinámica de autoridad y acceso limitado a proyectos asignados.
+- Regresiones PostgreSQL deterministas para alta/cierre de scopes, duplicados concurrentes y revocación concurrente frente a mutaciones contextuales.

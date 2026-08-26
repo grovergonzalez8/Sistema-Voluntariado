@@ -420,12 +420,12 @@ select throws_ok(
 );
 select is(
   (select count(*) from auth.users),
-  5::bigint,
+  6::bigint,
   'project operations do not create Auth users'
 );
 select is(
   (select count(*) from public.accounts),
-  4::bigint,
+  5::bigint,
   'project operations do not create accounts'
 );
 select is(

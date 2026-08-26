@@ -8,10 +8,13 @@ import { Button, Field } from '@sistema-voluntariado/ui';
 
 import type { ProjectManagementService } from '../application/project-management-service';
 import type {
+  ProjectManagerAssignment,
+  ProjectManagerCandidate,
   ProjectVolunteerAssignment,
   ProjectVolunteerCandidate,
 } from '../domain/project-assignment';
 import type { Project } from '../domain/project';
+import type { ProjectCapabilities } from '../application/project-authorization-port';
 
 export function ProjectDetailPage({
   service,
@@ -23,6 +26,16 @@ export function ProjectDetailPage({
   const [assignments, setAssignments] = useState<
     readonly ProjectVolunteerAssignment[]
   >([]);
+  const [managerAssignments, setManagerAssignments] = useState<
+    readonly ProjectManagerAssignment[]
+  >([]);
+  const [managerCandidates, setManagerCandidates] = useState<
+    readonly ProjectManagerCandidate[]
+  >([]);
+  const [capabilities, setCapabilities] = useState<ProjectCapabilities | null>(
+    null,
+  );
+  const [managerSearch, setManagerSearch] = useState('');
   const [candidates, setCandidates] = useState<
     readonly ProjectVolunteerCandidate[]
   >([]);
@@ -33,33 +46,59 @@ export function ProjectDetailPage({
   const [success, setSuccess] = useState<string | null>(null);
   const { t } = useTranslation();
 
-  const load = useCallback(async () => {
+  const fetchDetail = useCallback(async () => {
+    const capabilitiesResult = await service.getCapabilities();
+    if (!capabilitiesResult.ok) {
+      return { error: capabilitiesResult.error.message, ok: false } as const;
+    }
     const [projectResult, assignmentsResult] = await Promise.all([
       service.getProject(id),
       service.listProjectAssignments(id),
     ]);
-    if (!projectResult.ok) setError(projectResult.error.message);
-    else if (!assignmentsResult.ok) setError(assignmentsResult.error.message);
+    if (!projectResult.ok) {
+      return { error: projectResult.error.message, ok: false } as const;
+    }
+    if (!assignmentsResult.ok) {
+      return { error: assignmentsResult.error.message, ok: false } as const;
+    }
+    const managersResult = capabilitiesResult.value.manage
+      ? await service.listManagerAssignments(id)
+      : null;
+    if (managersResult && !managersResult.ok) {
+      return { error: managersResult.error.message, ok: false } as const;
+    }
+    return {
+      assignments: assignmentsResult.value,
+      capabilities: capabilitiesResult.value,
+      managerAssignments: managersResult?.value ?? [],
+      ok: true,
+      project: projectResult.value,
+    } as const;
+  }, [id, service]);
+
+  const load = useCallback(async () => {
+    const result = await fetchDetail();
+    if (!result.ok) setError(result.error);
     else {
-      setProject(projectResult.value);
-      setAssignments(assignmentsResult.value);
+      setProject(result.project);
+      setAssignments(result.assignments);
+      setCapabilities(result.capabilities);
+      setManagerAssignments(result.managerAssignments);
       setError(null);
     }
     setLoading(false);
-  }, [id, service]);
+  }, [fetchDetail]);
 
   useEffect(() => {
     let active = true;
-    void Promise.all([
-      service.getProject(id),
-      service.listProjectAssignments(id),
-    ]).then(([projectResult, assignmentsResult]) => {
+    void fetchDetail().then((result) => {
       if (!active) return;
-      if (!projectResult.ok) setError(projectResult.error.message);
-      else if (!assignmentsResult.ok) setError(assignmentsResult.error.message);
+      if (!result.ok) setError(result.error);
       else {
-        setProject(projectResult.value);
-        setAssignments(assignmentsResult.value);
+        setProject(result.project);
+        setAssignments(result.assignments);
+        setCapabilities(result.capabilities);
+        setManagerAssignments(result.managerAssignments);
         setError(null);
       }
       setLoading(false);
@@ -67,7 +106,7 @@ export function ProjectDetailPage({
     return () => {
       active = false;
     };
-  }, [id, service]);
+  }, [fetchDetail]);
 
   const searchCandidates = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -88,6 +127,42 @@ export function ProjectDetailPage({
       setCandidates([]);
       setSearch('');
       setSuccess(t('projects.assigned'));
+      await load();
+    } else setError(result.error.message);
+    setBusy(false);
+  };
+
+  const searchManagers = (event: SyntheticEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    void service.searchManagerCandidates(id, managerSearch).then((result) => {
+      if (result.ok) setManagerCandidates(result.value);
+      else setError(result.error.message);
+      setBusy(false);
+    });
+  };
+
+  const assignManager = async (managerAccountId: string) => {
+    setBusy(true);
+    setError(null);
+    const result = await service.assignManager(id, managerAccountId);
+    if (result.ok) {
+      setManagerCandidates([]);
+      setManagerSearch('');
+      setSuccess(t('projects.managerAssigned'));
+      await load();
+    } else setError(result.error.message);
+    setBusy(false);
+  };
+
+  const finishManager = async (assignmentId: string) => {
+    if (!globalThis.confirm(t('projects.confirmManagerFinish'))) return;
+    setBusy(true);
+    setError(null);
+    const result = await service.endManagerAssignment(assignmentId);
+    if (result.ok) {
+      setSuccess(t('projects.managerFinished'));
       await load();
     } else setError(result.error.message);
     setBusy(false);
@@ -132,10 +207,12 @@ export function ProjectDetailPage({
           </p>
         </div>
         <div className="button-row">
-          <Link className="button" to={`/app/admin/projects/${id}/edit`}>
-            {t('projects.editAction')}
-          </Link>
-          {project.status === 'active' ? (
+          {capabilities?.manageAssigned ? (
+            <Link className="button" to={`/app/admin/projects/${id}/edit`}>
+              {t('projects.editAction')}
+            </Link>
+          ) : null}
+          {capabilities?.manage && project.status === 'active' ? (
             <Button disabled={busy} onClick={() => void close()}>
               {t('projects.closeAction')}
             </Button>
@@ -154,7 +231,7 @@ export function ProjectDetailPage({
           <dd>{new Date(project.createdAt).toLocaleString()}</dd>
         </div>
       </dl>
-      {project.status === 'active' ? (
+      {capabilities?.manageAssigned && project.status === 'active' ? (
         <section className="panel project-assignment-panel">
           <h2>{t('projects.assignTitle')}</h2>
           <p className="muted">{t('projects.assignDescription')}</p>
@@ -212,11 +289,15 @@ export function ProjectDetailPage({
                 {assignments.map((assignment) => (
                   <tr key={assignment.assignmentId}>
                     <td>
-                      <Link
-                        to={`/app/admin/volunteers/${assignment.volunteerId}`}
-                      >
-                        {assignment.volunteerName}
-                      </Link>
+                      {capabilities?.manage ? (
+                        <Link
+                          to={`/app/admin/volunteers/${assignment.volunteerId}`}
+                        >
+                          {assignment.volunteerName}
+                        </Link>
+                      ) : (
+                        assignment.volunteerName
+                      )}
                     </td>
                     <td>{new Date(assignment.startedAt).toLocaleString()}</td>
                     <td>
@@ -225,7 +306,8 @@ export function ProjectDetailPage({
                         : t('projects.activeAssignment')}
                     </td>
                     <td>
-                      {isActiveProjectAssignment(assignment) ? (
+                      {capabilities?.manageAssigned &&
+                      isActiveProjectAssignment(assignment) ? (
                         <Button
                           disabled={busy}
                           onClick={() => void finish(assignment.assignmentId)}
@@ -243,6 +325,87 @@ export function ProjectDetailPage({
           </div>
         )}
       </section>
+      {capabilities?.manage ? (
+        <section className="panel project-assignment-panel">
+          <h2>{t('projects.managersTitle')}</h2>
+          <p className="muted">{t('projects.managersDescription')}</p>
+          {project.status === 'active' ? (
+            <form
+              className="search-row search-row--single"
+              onSubmit={searchManagers}
+            >
+              <Field
+                label={t('projects.managerSearch')}
+                maxLength={100}
+                name="projectManagerSearch"
+                onChange={(event) => {
+                  setManagerSearch(event.target.value);
+                }}
+                value={managerSearch}
+              />
+              <Button disabled={busy} type="submit">
+                {t('projects.searchAction')}
+              </Button>
+            </form>
+          ) : null}
+          <ul className="candidate-list">
+            {managerCandidates.map((candidate) => (
+              <li className="inline-item" key={candidate.managerAccountId}>
+                <span>{candidate.displayName}</span>
+                <Button
+                  disabled={busy}
+                  onClick={() => void assignManager(candidate.managerAccountId)}
+                >
+                  {t('projects.assignManagerAction')}
+                </Button>
+              </li>
+            ))}
+          </ul>
+          {managerAssignments.length === 0 ? (
+            <p className="muted">{t('projects.noManagers')}</p>
+          ) : (
+            <div className="table-scroll">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>{t('projects.manager')}</th>
+                    <th>{t('projects.startedAt')}</th>
+                    <th>{t('projects.endedAt')}</th>
+                    <th>{t('projects.actions')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {managerAssignments.map((assignment) => (
+                    <tr key={assignment.assignmentId}>
+                      <td>{assignment.managerDisplayName}</td>
+                      <td>{new Date(assignment.startedAt).toLocaleString()}</td>
+                      <td>
+                        {assignment.endedAt
+                          ? new Date(assignment.endedAt).toLocaleString()
+                          : t('projects.activeAssignment')}
+                      </td>
+                      <td>
+                        {isActiveProjectAssignment(assignment) ? (
+                          <Button
+                            disabled={busy}
+                            onClick={() =>
+                              void finishManager(assignment.assignmentId)
+                            }
+                          >
+                            {t('projects.finishManagerAction')}
+                          </Button>
+                        ) : (
+                          t('projects.historical')
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      ) : null}
     </section>
   );
 }

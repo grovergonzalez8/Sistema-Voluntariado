@@ -278,12 +278,12 @@ select is(
 reset role;
 select is(
   (select count(*) from auth.users),
-  5::bigint,
+  6::bigint,
   'creating a volunteer does not create Auth users'
 );
 select is(
   (select count(*) from public.accounts),
-  4::bigint,
+  5::bigint,
   'creating a volunteer does not create accounts'
 );
 select is(

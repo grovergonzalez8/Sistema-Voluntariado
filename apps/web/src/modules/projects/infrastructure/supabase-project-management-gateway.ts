@@ -14,6 +14,8 @@ import type {
   ProjectUpdateCommand,
 } from '../application/project-management-gateway';
 import type {
+  ProjectManagerAssignment,
+  ProjectManagerCandidate,
   ProjectVolunteerAssignment,
   ProjectVolunteerCandidate,
   VolunteerProjectAssignment,
@@ -29,25 +31,40 @@ const errorCodes: Readonly<Record<string, AppErrorCode>> = {
   assignment_already_ended: 'conflict',
   assignment_not_found: 'not-found',
   invalid_project_query: 'validation',
+  invalid_project_manager_query: 'validation',
   invalid_volunteer_query: 'validation',
   permission_denied: 'forbidden',
+  project_manager_assignment_already_active: 'conflict',
+  project_manager_assignment_already_ended: 'conflict',
+  project_manager_assignment_not_found: 'not-found',
+  project_manager_not_eligible: 'conflict',
   project_already_closed: 'conflict',
   project_closed: 'conflict',
   project_has_active_assignments: 'conflict',
   project_not_found: 'not-found',
+  account_not_found: 'not-found',
   volunteer_not_found: 'not-found',
 };
 
 const specificMessages: Readonly<Record<string, string>> = {
+  account_not_found: 'No se encontró la cuenta solicitada.',
   assignment_already_active:
     'El voluntario ya tiene una asignación activa a este proyecto.',
   assignment_already_ended: 'La asignación ya había sido finalizada.',
   assignment_not_found: 'No se encontró la asignación solicitada.',
   project_already_closed: 'El proyecto ya está cerrado.',
-  project_closed: 'No se puede asignar a un proyecto cerrado.',
+  project_closed: 'El proyecto cerrado no admite nuevas asignaciones.',
   project_has_active_assignments:
     'Finaliza todas las asignaciones activas antes de cerrar el proyecto.',
   project_not_found: 'No se encontró el proyecto solicitado.',
+  project_manager_assignment_already_active:
+    'La cuenta ya tiene una asignación activa a este proyecto.',
+  project_manager_assignment_already_ended:
+    'La asignación del responsable ya había sido finalizada.',
+  project_manager_assignment_not_found:
+    'No se encontró la asignación del responsable.',
+  project_manager_not_eligible:
+    'La cuenta ya no es elegible como responsable de proyecto.',
   volunteer_not_found: 'No se encontró el voluntario solicitado.',
 };
 
@@ -56,7 +73,7 @@ function gatewayFailure<T>(error: SupabaseErrorLike): Result<T> {
   const message =
     specificMessages[error.message] ??
     (code === 'forbidden'
-      ? 'No tienes permiso para administrar proyectos.'
+      ? 'No tienes permiso para realizar esta operación de proyectos.'
       : code === 'validation'
         ? 'La solicitud de proyectos no es válida.'
         : 'No fue posible completar la operación de proyectos.');
@@ -100,6 +117,28 @@ function mapAssignment(row: {
     updatedAt: row.updated_at,
     volunteerId: row.volunteer_id,
     volunteerName: row.volunteer_name,
+  };
+}
+
+function mapManagerAssignment(row: {
+  readonly assignment_id: string;
+  readonly created_at: string;
+  readonly ended_at: string | null;
+  readonly manager_account_id: string;
+  readonly manager_display_name: string;
+  readonly project_id: string;
+  readonly started_at: string;
+  readonly updated_at: string;
+}): ProjectManagerAssignment {
+  return {
+    assignmentId: row.assignment_id,
+    createdAt: row.created_at,
+    endedAt: row.ended_at,
+    managerAccountId: row.manager_account_id,
+    managerDisplayName: row.manager_display_name,
+    projectId: row.project_id,
+    startedAt: row.started_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -261,5 +300,71 @@ export class SupabaseProjectManagementGateway implements ProjectManagementGatewa
             startedAt: row.started_at,
           })),
         );
+  }
+
+  public async listProjectManagerAssignments(
+    projectId: string,
+  ): Promise<Result<readonly ProjectManagerAssignment[]>> {
+    const { data, error } = await this.client.rpc(
+      'list_project_manager_assignments',
+      { requested_project_id: projectId },
+    );
+    return error
+      ? gatewayFailure(error)
+      : success(data.map(mapManagerAssignment));
+  }
+
+  public async searchManagerCandidates(
+    projectId: string,
+    search: string,
+  ): Promise<Result<readonly ProjectManagerCandidate[]>> {
+    const { data, error } = await this.client.rpc(
+      'search_project_manager_candidates',
+      {
+        requested_limit: 20,
+        requested_project_id: projectId,
+        requested_search: search,
+      },
+    );
+    return error
+      ? gatewayFailure(error)
+      : success(
+          data.map((row) => ({
+            displayName: row.display_name,
+            managerAccountId: row.manager_account_id,
+          })),
+        );
+  }
+
+  public async assignManager(
+    projectId: string,
+    managerAccountId: string,
+  ): Promise<Result<ProjectManagerAssignment>> {
+    const { data, error } = await this.client.rpc('assign_project_manager', {
+      requested_manager_account_id: managerAccountId,
+      requested_project_id: projectId,
+    });
+    if (error) return gatewayFailure(error);
+    const row = data[0];
+    return row
+      ? success(mapManagerAssignment(row))
+      : failure({
+          code: 'unexpected',
+          message: 'El servidor no devolvió la asignación del responsable.',
+        });
+  }
+
+  public async endManagerAssignment(
+    id: string,
+  ): Promise<Result<ProjectManagerAssignment>> {
+    const { data, error } = await this.client.rpc(
+      'finish_project_manager_assignment',
+      { requested_assignment_id: id },
+    );
+    if (error) return gatewayFailure(error);
+    const row = data[0];
+    return row
+      ? success(mapManagerAssignment(row))
+      : gatewayFailure({ message: 'project_manager_assignment_not_found' });
   }
 }

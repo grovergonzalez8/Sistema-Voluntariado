@@ -1,6 +1,6 @@
 # Sistema-Voluntariado
 
-Monolito modular para gestionar progresivamente la operación de voluntariado. El alcance actual incluye autenticación, perfil propio, invitaciones, onboarding, ciclo de vida de cuentas, administración segura de roles, un padrón administrativo independiente con importación/exportación Excel y proyectos administrativos con participación histórica de voluntarios.
+Monolito modular para gestionar progresivamente la operación de voluntariado. El alcance actual incluye autenticación, perfil propio, invitaciones, onboarding, ciclo de vida de cuentas, administración segura de roles, un padrón administrativo independiente con importación/exportación Excel y proyectos con participación histórica de voluntarios y alcance contextual explícito para project managers.
 
 ## Estado
 
@@ -39,7 +39,7 @@ En la tercera, inicie Vite:
 corepack pnpm dev
 ```
 
-El seed local crea `administrator@example.invalid`, `coordinator@example.invalid` y `volunteer-a@example.invalid` con la contraseña pública de fixture `local-test-only-not-a-secret`. Son identidades ficticias exclusivamente locales; nunca reutilice esa contraseña.
+El seed local crea, entre otras identidades de prueba, `administrator@example.invalid`, `coordinator@example.invalid`, `project-manager@example.invalid` y `volunteer-a@example.invalid` con la contraseña pública de fixture `local-test-only-not-a-secret`. Son identidades ficticias exclusivamente locales; nunca reutilice esa contraseña.
 
 Mailpit está disponible en `http://127.0.0.1:54324`. Use solamente destinatarios `.invalid`; no guarde enlaces ni cuerpos de invitación en Git.
 
@@ -55,6 +55,6 @@ corepack pnpm test:e2e
 corepack pnpm account-lifecycle:test
 ```
 
-`verify` no exige Docker; las pruebas de funciones, PostgreSQL, concurrencia, Auth, Mailpit y E2E sí requieren Supabase local. `projects:test:concurrency` presupone `db:start` y `db:reset`, usa dos conexiones PostgreSQL reales y limpia sus fixtures. Consulte `docs/deployment/local-development.md` para el recorrido completo. Alojamiento, actividades, tareas, finanzas y los demás contextos operativos siguen fuera de alcance. Projects V1 no habilita `project_manager`, scopes, capacidad, calendario, actividades ni portal del voluntario.
+`verify` no exige Docker; las pruebas de funciones, PostgreSQL, concurrencia, Auth, Mailpit y E2E sí requieren Supabase local. `projects:test:concurrency` presupone `db:start` y `db:reset`, usa conexiones PostgreSQL reales y limpia sus fixtures. Cubre tanto participaciones como scopes de project managers. Consulte `docs/deployment/local-development.md` para el recorrido completo. Alojamiento, actividades, tareas, finanzas y los demás contextos operativos siguen fuera de alcance. El alcance de project manager es una relación explícita por proyecto, no un framework genérico de scopes.
 
 La propiedad de procesos y el comando Linux equivalente al job `Quality` se documentan en `docs/deployment/continuous-integration.md`.

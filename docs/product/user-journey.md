@@ -30,7 +30,11 @@ Para Excel, administrator descarga una plantilla, selecciona un `.xlsx`, revisa 
 
 Administrator crea un proyecto activo con nombre y descripción opcional, busca una persona del padrón y la asigna directamente. Un mismo voluntario puede participar simultáneamente en varios proyectos, pero no puede tener dos participaciones activas en el mismo. Al finalizar, el timestamp de servidor cierra esa ocurrencia sin borrarla y permite una participación futura nueva.
 
-Un proyecto con participaciones activas no puede cerrarse: la interfaz explica que deben finalizarse primero. El proyecto cerrado sigue visible con todo su histórico y no admite nuevas asignaciones. No existe aprobación, capacidad, calendario, autoinscripción ni acceso para project_manager, coordinator o voluntarios.
+Un proyecto con participaciones activas no puede cerrarse: la interfaz explica que deben finalizarse primero. El proyecto cerrado sigue visible con todo su histórico y no admite nuevas participaciones.
+
+Administrator puede buscar cuentas activas con rol `project_manager`, asignarlas a un proyecto activo, consultar el histórico y finalizar el scope. Un manager ve únicamente proyectos con scope activo. En ellos consulta detalle y participantes, edita nombre/descripción y gestiona participaciones mientras el proyecto esté activo. Si el proyecto se cierra, conserva lectura histórica y edición descriptiva, pero no puede crear participaciones ni administrar lifecycle o managers. Suspensión, archivo, pérdida de rol/permiso o finalización del scope corta el acceso en la siguiente operación.
+
+No existe aprobación, capacidad, calendario, autoinscripción, scope genérico ni acceso para coordinator o voluntarios.
 
 ## Estados observables
 
@@ -39,6 +43,6 @@ Un proyecto con participaciones activas no puede cerrarse: la interfaz explica q
 - Cambio de identidad, estado o versión de autoridad: limpia toda caché sensible y vuelve a resolver el contexto.
 - Cierre de sesión: limpia estado/caché y vuelve a `/login`.
 - Padrón: carga, vacío orientado a alta/importación, sin resultados, error, éxito, paginación y preview/importación en proceso.
-- Proyectos: carga, vacío, sin resultados, error, éxito, participantes activos/históricos, búsqueda de candidatos, confirmación de finalización y cierre bloqueado con participaciones activas.
+- Proyectos: carga, vacío, sin resultados, error, éxito, participantes activos/históricos, managers activos/históricos, búsqueda de candidatos, confirmación de finalización, revocación de scope y cierre bloqueado con participaciones activas.
 
 La interfaz nunca promete alta pública ni módulos futuros.

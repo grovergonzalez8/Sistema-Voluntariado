@@ -177,21 +177,35 @@ export function createAppRouter(
                         },
                         {
                           element: (
-                            <ProjectCreatePage service={services.projects} />
-                          ),
-                          path: 'admin/projects/new',
-                        },
-                        {
-                          element: (
                             <ProjectDetailPage service={services.projects} />
                           ),
                           path: 'admin/projects/:id',
                         },
+                      ],
+                      element: (
+                        <PermissionRoute permission="project.read_assigned" />
+                      ),
+                    },
+                    {
+                      children: [
                         {
                           element: (
                             <ProjectEditPage service={services.projects} />
                           ),
                           path: 'admin/projects/:id/edit',
+                        },
+                      ],
+                      element: (
+                        <PermissionRoute permission="project.manage_assigned" />
+                      ),
+                    },
+                    {
+                      children: [
+                        {
+                          element: (
+                            <ProjectCreatePage service={services.projects} />
+                          ),
+                          path: 'admin/projects/new',
                         },
                         {
                           element: (

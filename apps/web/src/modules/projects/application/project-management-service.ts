@@ -6,6 +6,8 @@ import {
 } from '@sistema-voluntariado/shared-kernel';
 
 import type {
+  ProjectManagerAssignment,
+  ProjectManagerCandidate,
   ProjectVolunteerAssignment,
   ProjectVolunteerCandidate,
   VolunteerProjectAssignment,
@@ -16,8 +18,10 @@ import {
   type ProjectInput,
 } from '../domain/project';
 import {
-  projectManagementPermission,
+  projectPermissions,
+  type ProjectCapabilities,
   type ProjectAuthorizationPort,
+  type ProjectPermission,
 } from './project-authorization-port';
 import type {
   ProjectManagementGateway,
@@ -33,25 +37,27 @@ export class ProjectManagementService {
     private readonly gateway: ProjectManagementGateway,
   ) {}
 
-  private async authorize(): Promise<Result<true>> {
-    const result = await this.authorization.hasPermission(
-      projectManagementPermission,
-    );
+  private async authorize(
+    permission: ProjectPermission,
+  ): Promise<Result<true>> {
+    const result = await this.authorization.hasPermission(permission);
     if (!result.ok) return result;
     return result.value
       ? success(true)
       : failure({
           code: 'forbidden',
-          message: 'No tienes permiso para administrar proyectos.',
+          message:
+            'No tienes permiso para realizar esta operación de proyectos.',
         });
   }
 
   private invalidIdError(
     id: string,
-    entity: 'assignment' | 'project' | 'volunteer',
+    entity: 'account' | 'assignment' | 'project' | 'volunteer',
   ): AppError | undefined {
     if (uuidPattern.test(id)) return undefined;
     const labels = {
+      account: 'La cuenta solicitada no es válida.',
       assignment: 'La asignación solicitada no es válida.',
       project: 'El proyecto solicitado no es válido.',
       volunteer: 'El voluntario solicitado no es válido.',
@@ -67,7 +73,7 @@ export class ProjectManagementService {
         message: 'Revisa los datos del proyecto.',
       });
     }
-    const authorized = await this.authorize();
+    const authorized = await this.authorize(projectPermissions.manage);
     return authorized.ok
       ? this.gateway.createProject(canonical.value)
       : authorized;
@@ -86,7 +92,7 @@ export class ProjectManagementService {
         message: 'Revisa los datos del proyecto.',
       });
     }
-    const authorized = await this.authorize();
+    const authorized = await this.authorize(projectPermissions.manageAssigned);
     return authorized.ok
       ? this.gateway.updateProject({ id, ...canonical.value })
       : authorized;
@@ -95,14 +101,14 @@ export class ProjectManagementService {
   public async closeProject(id: string): Promise<Result<Project>> {
     const invalidId = this.invalidIdError(id, 'project');
     if (invalidId) return failure(invalidId);
-    const authorized = await this.authorize();
+    const authorized = await this.authorize(projectPermissions.manage);
     return authorized.ok ? this.gateway.closeProject(id) : authorized;
   }
 
   public async getProject(id: string): Promise<Result<Project>> {
     const invalidId = this.invalidIdError(id, 'project');
     if (invalidId) return failure(invalidId);
-    const authorized = await this.authorize();
+    const authorized = await this.authorize(projectPermissions.readAssigned);
     return authorized.ok ? this.gateway.getProject(id) : authorized;
   }
 
@@ -129,7 +135,7 @@ export class ProjectManagementService {
         message: 'Los filtros de proyectos no son válidos.',
       });
     }
-    const authorized = await this.authorize();
+    const authorized = await this.authorize(projectPermissions.readAssigned);
     return authorized.ok
       ? this.gateway.listProjects({ limit, offset, search })
       : authorized;
@@ -140,7 +146,7 @@ export class ProjectManagementService {
   ): Promise<Result<readonly ProjectVolunteerAssignment[]>> {
     const invalidId = this.invalidIdError(projectId, 'project');
     if (invalidId) return failure(invalidId);
-    const authorized = await this.authorize();
+    const authorized = await this.authorize(projectPermissions.readAssigned);
     return authorized.ok
       ? this.gateway.listProjectAssignments(projectId)
       : authorized;
@@ -159,7 +165,7 @@ export class ProjectManagementService {
         message: 'La búsqueda de voluntarios no es válida.',
       });
     }
-    const authorized = await this.authorize();
+    const authorized = await this.authorize(projectPermissions.manageAssigned);
     return authorized.ok
       ? this.gateway.searchVolunteerCandidates(projectId, normalizedSearch)
       : authorized;
@@ -173,7 +179,7 @@ export class ProjectManagementService {
     if (invalidProject) return failure(invalidProject);
     const invalidVolunteer = this.invalidIdError(volunteerId, 'volunteer');
     if (invalidVolunteer) return failure(invalidVolunteer);
-    const authorized = await this.authorize();
+    const authorized = await this.authorize(projectPermissions.manageAssigned);
     return authorized.ok
       ? this.gateway.assignVolunteer(projectId, volunteerId)
       : authorized;
@@ -184,7 +190,7 @@ export class ProjectManagementService {
   ): Promise<Result<ProjectVolunteerAssignment>> {
     const invalidId = this.invalidIdError(id, 'assignment');
     if (invalidId) return failure(invalidId);
-    const authorized = await this.authorize();
+    const authorized = await this.authorize(projectPermissions.manageAssigned);
     return authorized.ok ? this.gateway.endAssignment(id) : authorized;
   }
 
@@ -193,9 +199,80 @@ export class ProjectManagementService {
   ): Promise<Result<readonly VolunteerProjectAssignment[]>> {
     const invalidId = this.invalidIdError(volunteerId, 'volunteer');
     if (invalidId) return failure(invalidId);
-    const authorized = await this.authorize();
+    const authorized = await this.authorize(projectPermissions.manage);
     return authorized.ok
       ? this.gateway.listVolunteerProjects(volunteerId)
+      : authorized;
+  }
+
+  public async getCapabilities(): Promise<Result<ProjectCapabilities>> {
+    const [manage, manageAssigned, readAssigned] = await Promise.all([
+      this.authorization.hasPermission(projectPermissions.manage),
+      this.authorization.hasPermission(projectPermissions.manageAssigned),
+      this.authorization.hasPermission(projectPermissions.readAssigned),
+    ]);
+    if (!manage.ok) return manage;
+    if (!manageAssigned.ok) return manageAssigned;
+    if (!readAssigned.ok) return readAssigned;
+    return success({
+      manage: manage.value,
+      manageAssigned: manageAssigned.value,
+      readAssigned: readAssigned.value,
+    });
+  }
+
+  public async listManagerAssignments(
+    projectId: string,
+  ): Promise<Result<readonly ProjectManagerAssignment[]>> {
+    const invalidId = this.invalidIdError(projectId, 'project');
+    if (invalidId) return failure(invalidId);
+    const authorized = await this.authorize(projectPermissions.manage);
+    return authorized.ok
+      ? this.gateway.listProjectManagerAssignments(projectId)
+      : authorized;
+  }
+
+  public async searchManagerCandidates(
+    projectId: string,
+    search: string,
+  ): Promise<Result<readonly ProjectManagerCandidate[]>> {
+    const invalidId = this.invalidIdError(projectId, 'project');
+    if (invalidId) return failure(invalidId);
+    const normalizedSearch = search.trim();
+    if (normalizedSearch.length > 100) {
+      return failure({
+        code: 'validation',
+        message: 'La búsqueda de responsables no es válida.',
+      });
+    }
+    const authorized = await this.authorize(projectPermissions.manage);
+    return authorized.ok
+      ? this.gateway.searchManagerCandidates(projectId, normalizedSearch)
+      : authorized;
+  }
+
+  public async assignManager(
+    projectId: string,
+    managerAccountId: string,
+  ): Promise<Result<ProjectManagerAssignment>> {
+    const invalidProject = this.invalidIdError(projectId, 'project');
+    if (invalidProject) return failure(invalidProject);
+    const invalidAccount = this.invalidIdError(managerAccountId, 'account');
+    if (invalidAccount) return failure(invalidAccount);
+    const authorized = await this.authorize(projectPermissions.manage);
+    return authorized.ok
+      ? this.gateway.assignManager(projectId, managerAccountId)
+      : authorized;
+  }
+
+  public async endManagerAssignment(
+    assignmentId: string,
+  ): Promise<Result<ProjectManagerAssignment>> {
+    const invalidId = this.invalidIdError(assignmentId, 'assignment');
+    if (invalidId) return failure(invalidId);
+    const authorized = await this.authorize(projectPermissions.manage);
+    return authorized.ok
+      ? this.gateway.endManagerAssignment(assignmentId)
       : authorized;
   }
 }

@@ -25,6 +25,7 @@ values
   ('accommodation.approve_assignment', 'Aprobar asignación de alojamiento'),
   ('accommodation.manage', 'Administrar alojamiento'),
   ('project.read_assigned', 'Consultar proyectos asignados'),
+  ('project.manage_assigned', 'Administrar proyectos asignados'),
   ('project.manage', 'Administrar proyectos y asignaciones de voluntarios'),
   ('project.propose_assignment', 'Proponer asignación de proyecto'),
   ('project.approve_assignment', 'Aprobar asignación de proyecto'),
@@ -78,6 +79,7 @@ where r.code = 'administrator'
     'accommodation.approve_assignment',
     'accommodation.manage',
     'project.read_assigned',
+    'project.manage_assigned',
     'project.manage',
     'project.propose_assignment',
     'project.approve_assignment',
@@ -209,6 +211,23 @@ values
     '',
     '',
     ''
+  ),
+  (
+    '00000000-0000-0000-0000-000000000000',
+    '00000000-0000-4000-8000-000000000007',
+    'authenticated',
+    'authenticated',
+    'project-manager@example.invalid',
+    extensions.crypt('local-test-only-not-a-secret', extensions.gen_salt('bf')),
+    statement_timestamp(),
+    '{"provider":"email","providers":["email"]}',
+    '{}',
+    statement_timestamp(),
+    statement_timestamp(),
+    '',
+    '',
+    '',
+    ''
   )
 on conflict (id) do nothing;
 
@@ -237,7 +256,8 @@ where u.email in (
   'volunteer-b@example.invalid',
   'unprovisioned@example.invalid',
   'administrator@example.invalid',
-  'coordinator@example.invalid'
+  'coordinator@example.invalid',
+  'project-manager@example.invalid'
 )
 on conflict (provider_id, provider) do nothing;
 
@@ -248,9 +268,18 @@ from (
     ('00000000-0000-4000-8000-000000000001'::uuid, 'volunteer'),
     ('00000000-0000-4000-8000-000000000002'::uuid, 'volunteer'),
     ('00000000-0000-4000-8000-000000000004'::uuid, 'administrator'),
-    ('00000000-0000-4000-8000-000000000006'::uuid, 'coordinator')
+    ('00000000-0000-4000-8000-000000000006'::uuid, 'coordinator'),
+    ('00000000-0000-4000-8000-000000000007'::uuid, 'project_manager')
 ) as fixture(user_id, role_code)
 inner join public.roles as r on r.code = fixture.role_code
+on conflict do nothing;
+
+insert into public.role_permissions (role_id, permission_id)
+select role.id, permission.id
+from public.roles as role
+cross join public.permissions as permission
+where role.code = 'project_manager'
+  and permission.code in ('project.read_assigned', 'project.manage_assigned')
 on conflict do nothing;
 
 insert into public.role_permissions (role_id, permission_id)
@@ -280,6 +309,20 @@ from (
 on conflict (auth_user_id) do update
 set status = 'active',
     status_changed_at = statement_timestamp();
+
+insert into public.accounts (id, auth_user_id, status)
+values (
+  '10000000-0000-4000-8000-000000000007',
+  '00000000-0000-4000-8000-000000000007',
+  'active'
+)
+on conflict (auth_user_id) do update
+set status = 'active',
+    status_changed_at = statement_timestamp();
+
+update public.profiles
+set display_name = 'Project Manager Fixture'
+where id = '00000000-0000-4000-8000-000000000007';
 
 insert into public.role_grant_policies (
   actor_role_id,
