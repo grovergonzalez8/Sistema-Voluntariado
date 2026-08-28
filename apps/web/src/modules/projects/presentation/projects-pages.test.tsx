@@ -11,6 +11,8 @@ import { createI18n } from '../../../app/providers/i18n';
 import type { ProjectAuthorizationPort } from '../application/project-authorization-port';
 import type { ProjectManagementGateway } from '../application/project-management-gateway';
 import { ProjectManagementService } from '../application/project-management-service';
+import type { ProjectActivityGateway } from '../application/project-activity-gateway';
+import { ProjectActivityService } from '../application/project-activity-service';
 import type { ProjectVolunteerAssignment } from '../domain/project-assignment';
 import type { Project } from '../domain/project';
 import { ProjectCreatePage } from './project-create-page';
@@ -117,6 +119,23 @@ function createGateway(
     updateProject: () => Promise.resolve(success(project)),
     ...overrides,
   };
+}
+
+function createActivityService(): ProjectActivityService {
+  const gateway: ProjectActivityGateway = {
+    cancelProjectActivity: () =>
+      Promise.reject(new Error('Unexpected activity mutation')),
+    completeProjectActivity: () =>
+      Promise.reject(new Error('Unexpected activity mutation')),
+    createProjectActivity: () =>
+      Promise.reject(new Error('Unexpected activity mutation')),
+    getProjectActivity: () =>
+      Promise.reject(new Error('Unexpected activity detail')),
+    listProjectActivities: () => Promise.resolve(success([])),
+    updateProjectActivity: () =>
+      Promise.reject(new Error('Unexpected activity mutation')),
+  };
+  return new ProjectActivityService(authorization, gateway);
 }
 
 async function renderWithI18n(node: ReactNode) {
@@ -226,7 +245,12 @@ describe('project administration pages', () => {
       <MemoryRouter initialEntries={[`/projects/${projectId}`]}>
         <Routes>
           <Route
-            element={<ProjectDetailPage service={service} />}
+            element={
+              <ProjectDetailPage
+                activityService={createActivityService()}
+                service={service}
+              />
+            }
             path="/projects/:id"
           />
         </Routes>
@@ -315,7 +339,12 @@ describe('project administration pages', () => {
       <MemoryRouter initialEntries={[`/projects/${projectId}`]}>
         <Routes>
           <Route
-            element={<ProjectDetailPage service={service} />}
+            element={
+              <ProjectDetailPage
+                activityService={createActivityService()}
+                service={service}
+              />
+            }
             path="/projects/:id"
           />
         </Routes>
