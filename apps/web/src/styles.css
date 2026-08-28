@@ -285,6 +285,19 @@ h1 {
   max-width: none;
 }
 
+.project-activity-form {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  max-width: none;
+}
+
+.project-activity-form__dates {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .candidate-list {
   list-style: none;
   margin: 0;

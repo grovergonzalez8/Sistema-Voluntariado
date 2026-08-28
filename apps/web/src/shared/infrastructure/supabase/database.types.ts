@@ -63,6 +63,21 @@ interface ProjectManagerAssignmentProjectionRow {
   updated_at: string;
 }
 
+interface ProjectActivityProjectionRow {
+  [key: string]: unknown;
+  created_at: string;
+  description: string | null;
+  ends_at: string | null;
+  id: string;
+  location_text: string | null;
+  name: string;
+  project_id: string;
+  starts_at: string;
+  status: 'cancelled' | 'completed' | 'scheduled';
+  status_changed_at: string;
+  updated_at: string;
+}
+
 export interface Database {
   public: {
     CompositeTypes: Record<string, never>;
@@ -101,6 +116,20 @@ export interface Database {
         Args: { requested_project_id: string };
         Returns: ProjectProjectionRow[];
       };
+      cancel_project_activity: {
+        Args: {
+          requested_activity_id: string;
+          requested_project_id: string;
+        };
+        Returns: ProjectActivityProjectionRow[];
+      };
+      complete_project_activity: {
+        Args: {
+          requested_activity_id: string;
+          requested_project_id: string;
+        };
+        Returns: ProjectActivityProjectionRow[];
+      };
       complete_current_account_profile: {
         Args: {
           requested_display_name: string;
@@ -114,6 +143,17 @@ export interface Database {
           requested_name: string;
         };
         Returns: ProjectProjectionRow[];
+      };
+      create_project_activity: {
+        Args: {
+          requested_description: string | null;
+          requested_ends_at: string | null;
+          requested_location_text: string | null;
+          requested_name: string;
+          requested_project_id: string;
+          requested_starts_at: string;
+        };
+        Returns: ProjectActivityProjectionRow[];
       };
       finish_project_volunteer_assignment: {
         Args: { requested_assignment_id: string };
@@ -168,6 +208,13 @@ export interface Database {
         Args: { requested_project_id: string };
         Returns: ProjectProjectionRow[];
       };
+      get_project_activity_detail: {
+        Args: {
+          requested_activity_id: string;
+          requested_project_id: string;
+        };
+        Returns: ProjectActivityProjectionRow[];
+      };
       has_permission: {
         Args: { requested_permission: string };
         Returns: boolean;
@@ -208,6 +255,10 @@ export interface Database {
       list_project_assignments: {
         Args: { requested_project_id: string };
         Returns: ProjectAssignmentProjectionRow[];
+      };
+      list_project_activities: {
+        Args: { requested_project_id: string };
+        Returns: ProjectActivityProjectionRow[];
       };
       list_project_manager_assignments: {
         Args: { requested_project_id: string };
@@ -356,8 +407,50 @@ export interface Database {
         };
         Returns: ProjectProjectionRow[];
       };
+      update_project_activity: {
+        Args: {
+          requested_activity_id: string;
+          requested_description: string | null;
+          requested_ends_at: string | null;
+          requested_location_text: string | null;
+          requested_name: string;
+          requested_project_id: string;
+          requested_starts_at: string;
+        };
+        Returns: ProjectActivityProjectionRow[];
+      };
     };
     Tables: {
+      project_activities: {
+        Insert: {
+          created_at?: string;
+          description?: string | null;
+          ends_at?: string | null;
+          id?: string;
+          location_text?: string | null;
+          name: string;
+          project_id: string;
+          starts_at: string;
+          status?: 'cancelled' | 'completed' | 'scheduled';
+          status_changed_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+        Row: ProjectActivityProjectionRow;
+        Update: {
+          created_at?: string;
+          description?: string | null;
+          ends_at?: string | null;
+          id?: string;
+          location_text?: string | null;
+          name?: string;
+          project_id?: string;
+          starts_at?: string;
+          status?: 'cancelled' | 'completed' | 'scheduled';
+          status_changed_at?: string;
+          updated_at?: string;
+        };
+      };
       project_manager_assignments: {
         Insert: {
           created_at?: string;

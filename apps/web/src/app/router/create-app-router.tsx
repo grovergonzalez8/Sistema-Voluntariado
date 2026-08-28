@@ -177,7 +177,10 @@ export function createAppRouter(
                         },
                         {
                           element: (
-                            <ProjectDetailPage service={services.projects} />
+                            <ProjectDetailPage
+                              activityService={services.projectActivities}
+                              service={services.projects}
+                            />
                           ),
                           path: 'admin/projects/:id',
                         },

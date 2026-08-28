@@ -7,6 +7,7 @@ import { isActiveProjectAssignment } from '../domain/project-assignment';
 import { Button, Field } from '@sistema-voluntariado/ui';
 
 import type { ProjectManagementService } from '../application/project-management-service';
+import type { ProjectActivityService } from '../application/project-activity-service';
 import type {
   ProjectManagerAssignment,
   ProjectManagerCandidate,
@@ -15,10 +16,13 @@ import type {
 } from '../domain/project-assignment';
 import type { Project } from '../domain/project';
 import type { ProjectCapabilities } from '../application/project-authorization-port';
+import { ProjectActivitiesSection } from './project-activities-section';
 
 export function ProjectDetailPage({
+  activityService,
   service,
 }: {
+  readonly activityService: ProjectActivityService;
   readonly service: ProjectManagementService;
 }) {
   const { id = '' } = useParams();
@@ -231,6 +235,17 @@ export function ProjectDetailPage({
           <dd>{new Date(project.createdAt).toLocaleString()}</dd>
         </div>
       </dl>
+      <ProjectActivitiesSection
+        canManage={
+          capabilities?.manage === true
+            ? true
+            : capabilities?.manageAssigned === true
+        }
+        key={id}
+        projectId={id}
+        projectStatus={project.status}
+        service={activityService}
+      />
       {capabilities?.manageAssigned && project.status === 'active' ? (
         <section className="panel project-assignment-panel">
           <h2>{t('projects.assignTitle')}</h2>

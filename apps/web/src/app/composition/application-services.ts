@@ -18,7 +18,9 @@ import {
   type CurrentActorPort,
 } from '../../modules/volunteer-profile';
 import {
+  ProjectActivityService,
   ProjectManagementService,
+  SupabaseProjectActivityGateway,
   SupabaseProjectManagementGateway,
   type ProjectAuthorizationPort,
 } from '../../modules/projects';
@@ -38,6 +40,7 @@ export interface ApplicationServices {
   readonly invitations: InvitationAdministrationService;
   readonly onboarding: OnboardingService;
   readonly profile: ProfileService;
+  readonly projectActivities: ProjectActivityService;
   readonly projects: ProjectManagementService;
   readonly volunteers: VolunteerRegistryService;
 }
@@ -108,6 +111,10 @@ export function createApplicationServices(
     projectAuthorization,
     new SupabaseProjectManagementGateway(supabase),
   );
+  const projectActivities = new ProjectActivityService(
+    projectAuthorization,
+    new SupabaseProjectActivityGateway(supabase),
+  );
 
   return {
     accountAdministration,
@@ -116,6 +123,7 @@ export function createApplicationServices(
     invitations,
     onboarding,
     profile,
+    projectActivities,
     projects,
     volunteers,
   };
