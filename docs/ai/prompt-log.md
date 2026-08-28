@@ -11,7 +11,8 @@
 | 0007 | 2026-08-24 | Implementar proyectos y asignaciones V1          | Codex       | Completado; gates locales aprobados | `625708b`, `64affd8` y cierre documental                                             |
 | 0008 | 2026-08-24 | Probar concurrencia assign/close                 | Codex       | Completado; gates locales aprobados | `98a615f` y cierre documental                                                        |
 | 0009 | 2026-08-25 | Scope contextual de project manager V1           | Codex       | Completado; gates locales aprobados | `daeedd1`, `749da5e`, `3b4c282`, `0a9fe2f`, `fd2706c`, `0a10b65` y cierre documental |
-| 0010 | 2026-08-26 | Diseñar Project Activities V1                    | Codex       | Diseño inicial; baseline aprobada   | commit documental de esta fase                                                       |
+| 0010 | 2026-08-26 | Diseñar Project Activities V1                    | Codex       | Diseño inicial; baseline aprobada   | `d13e73c`                                                                            |
+| 0011 | 2026-08-26 | Implementar Project Activities V1                | Codex       | Completado; gates locales aprobados | `21db0cd`, `bb1a16a` y cierre documental                                             |
 
 Detalle: `docs/ai/prompts/0001-bootstrap-foundation.md`.
 
@@ -48,3 +49,17 @@ primera fase se limitó a inspección, baseline, diseño SQL/RLS/concurrencia,
 ExecPlan y revisiones de solo lectura. El resultado se conserva en
 `docs/exec-plans/0006-project-activities-v1.md`; no se creó migración, RPC,
 código productivo, UI ni pruebas productivas.
+
+Implementación Project Activities V1 0011:
+`docs/ai/prompts/0011-project-activities-v1-implementation.md`. Ejecuta el
+diseño aprobado sin reinterpretar permisos placeholders ni introducir
+Participation/Tasks. El resultado técnico, las carreras, mutation checks,
+revisiones y gates finales se conservan en el ExecPlan 0006.
+
+El cierre 0011 aprobó frozen install y `pnpm verify` con Node 22.18.0/pnpm
+11.9.0, 202 unitarias, 2 integración, 13 orquestación, 21 Functions, reset/lint,
+406 pgTAP, 24 carreras combinadas, cinco repeticiones Activity 85/85 y 15 E2E
+tanto normal como con `CI=true`. Los tres mutation checks fallaron bajo la
+degradación dirigida y la restauración recuperó el hash revisado. Arquitectura,
+dominio, database security, QA y documentación emitieron GO final de solo
+lectura. GitHub Actions remoto queda pendiente de la revisión pre-merge.

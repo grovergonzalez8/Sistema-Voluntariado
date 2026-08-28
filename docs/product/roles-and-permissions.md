@@ -17,18 +17,18 @@ Una cuenta solo obtiene permisos efectivos cuando `accounts.status = 'active'`. 
 
 ## Catálogo
 
-| Área                       | Permisos registrados                                                                                                                          |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Perfil                     | `volunteer.read_self`, `volunteer.update_self`, `volunteer.read_basic_others`                                                                 |
-| Alojamiento futuro         | `accommodation.read_self`, `accommodation.propose_assignment`, `accommodation.approve_assignment`, `accommodation.manage`                     |
-| Proyectos                  | `project.read_assigned`, `project.manage_assigned`, `project.manage`, `project.propose_assignment`, `project.approve_assignment`              |
-| Actividades/tareas futuras | `activity.create`, `activity.join`, `task.assign`, `task.complete`                                                                            |
-| Finanzas futuras           | `payment.read_self`, `payment.manage`                                                                                                         |
-| Invitaciones               | `invitation.read`, `invitation.create`, `invitation.revoke`, `invitation.resend`                                                              |
-| Cuentas                    | `account.read`, `account.activate`, `account.suspend`, `account.archive`, `account.reactivate`                                                |
-| Roles                      | `role_assignment.read`, `role_assignment.manage`                                                                                              |
-| Auditoría                  | `audit.read`                                                                                                                                  |
-| Padrón de voluntarios      | `volunteer_registry.read`, `volunteer_registry.create`, `volunteer_registry.update`, `volunteer_registry.import`, `volunteer_registry.export` |
+| Área                    | Permisos registrados                                                                                                                          |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Perfil                  | `volunteer.read_self`, `volunteer.update_self`, `volunteer.read_basic_others`                                                                 |
+| Alojamiento futuro      | `accommodation.read_self`, `accommodation.propose_assignment`, `accommodation.approve_assignment`, `accommodation.manage`                     |
+| Proyectos               | `project.read_assigned`, `project.manage_assigned`, `project.manage`, `project.propose_assignment`, `project.approve_assignment`              |
+| Placeholders históricos | `activity.create`, `activity.join`, `task.assign`, `task.complete`                                                                            |
+| Finanzas futuras        | `payment.read_self`, `payment.manage`                                                                                                         |
+| Invitaciones            | `invitation.read`, `invitation.create`, `invitation.revoke`, `invitation.resend`                                                              |
+| Cuentas                 | `account.read`, `account.activate`, `account.suspend`, `account.archive`, `account.reactivate`                                                |
+| Roles                   | `role_assignment.read`, `role_assignment.manage`                                                                                              |
+| Auditoría               | `audit.read`                                                                                                                                  |
+| Padrón de voluntarios   | `volunteer_registry.read`, `volunteer_registry.create`, `volunteer_registry.update`, `volunteer_registry.import`, `volunteer_registry.export` |
 
 ## Concesiones implementadas
 
@@ -49,3 +49,5 @@ Las RPC niegan autoasignación/autorretiro, cambios sobre cuentas no activas, es
 Los cinco permisos `volunteer_registry.*` se conceden exclusivamente a `administrator`. Coordinator y los demás roles no reciben acceso al padrón; la autoridad se decide por capacidades efectivas, no por una comprobación de nombre de rol paralela.
 
 Projects conserva `project.manage` exclusivamente para `administrator`: alta/cierre, consulta inversa desde Volunteers y administración de managers siguen siendo globales. `project_manager` usa `project.read_assigned` y `project.manage_assigned` solo cuando PostgreSQL confirma cuenta activa, rol vigente y scope activo para el proyecto. `project.propose_assignment` y `project.approve_assignment` permanecen registrados pero no se usan. Coordinator y voluntarios no reciben acceso.
+
+Project Activities hereda exactamente esa autoridad del Project. Administrator usa `project.manage`; un manager contextual usa `project.read_assigned` para consultar y `project.manage_assigned` para crear, editar, completar o cancelar dentro de su scope vigente. `activity.create` y `activity.join` siguen siendo placeholders sin uso funcional: no autorizan RPC, UI ni acceso directo y no se reinterpretan en esta V1. Tasks y participación Activity–Volunteer continúan fuera de alcance.

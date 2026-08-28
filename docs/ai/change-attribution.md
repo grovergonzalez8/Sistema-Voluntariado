@@ -153,3 +153,34 @@ Decisiones materiales: ownership de Activity en Projects; lifecycle scheduled
 a terminal; permisos Project existentes; firmas Project + Activity; locks
 cuenta–scope–proyecto–Activity; guard de cierre forward-only; RLS default-deny;
 auditoría mínima y exclusión explícita de Participation/Tasks.
+
+## Project Activities V1 0011 — implementación
+
+- Objetivo: implementar el slice aprobado de Activity dentro de Projects y
+  dejarlo listo para revisión pre-merge local.
+- Herramienta: agente principal de Codex; revisiones especializadas de solo
+  lectura.
+- Rama y base: `feat/project-activities-v1` desde `main@3416aca`; HEAD técnico
+  inicial `d13e73c`.
+- Prompt: `docs/ai/prompts/0011-project-activities-v1-implementation.md`.
+- Plan: `docs/exec-plans/0006-project-activities-v1.md`.
+- Integración y escritura: exclusivamente el agente principal.
+- Validación final: 26 pruebas focalizadas; frozen install y `verify` con Node
+  22.18.0/pnpm 11.9.0; 202 unitarias, 2 integración, 13 orquestación, 21
+  Functions, reset/lint, 406 pgTAP, 24 carreras combinadas, cinco repeticiones
+  Activity 85/85 y 15 E2E normal más 15 con `CI=true`.
+- Revisiones de solo lectura: architect, domain_modeler,
+  database_security_reviewer, qa_reviewer y docs_governor emitieron GO final.
+- Commits: `21db0cd`, `bb1a16a` y cierre documental.
+- Estado: incremento completado y listo para revisión pre-merge; cero sesiones,
+  locks o procesos propios y Supabase local detenido conservando volúmenes. Sin
+  push, merge, rebase, amend, despliegue, modificación de main ni Supabase
+  remoto.
+
+Hallazgos materiales integrados: normalización SQL colapsa whitespace antes de
+`btrim`; timestamps exigen offset, calendario, finitud y rango UTC 0001–9999;
+el harness captura el mensaje PostgreSQL de forma ordenada y prueba las cuatro
+mutaciones frente a scope removal; pgTAP ejecuta DML denegado y valida actor de
+auditoría; E2E espera terminalización antes de cerrar. El polling de locks usa
+una sesión `psql` persistente después de detectar un timeout de `docker exec`
+en una repetición extendida.

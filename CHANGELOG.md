@@ -35,3 +35,5 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 - Asignaciones directas entre proyectos y el padrón `volunteers`, con consulta en ambos sentidos, finalización histórica, auditoría sin PII y protección concurrente contra duplicados activos.
 - Scope contextual histórico entre cuentas `project_manager` y proyectos, con administración exclusiva, revocación dinámica de autoridad y acceso limitado a proyectos asignados.
 - Regresiones PostgreSQL deterministas para alta/cierre de scopes, duplicados concurrentes y revocación concurrente frente a mutaciones contextuales.
+- Project Activities V1 dentro de Projects, con agenda mínima, estados `scheduled|completed|cancelled`, histórico de solo lectura, autorización global/contextual, RLS default-deny y auditoría mínima.
+- Guard forward-only que impide cerrar un proyecto con actividades programadas, más regresiones deterministas para create/close, terminal/close, complete/cancel y revocación de scope frente a mutaciones Activity.

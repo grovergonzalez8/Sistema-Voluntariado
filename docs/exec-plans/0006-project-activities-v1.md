@@ -1,19 +1,21 @@
 # ExecPlan 0006 — Project Activities V1
 
-- Estado: diseño inicial completado; detenido para revisión humana
+- Estado: implementación completada; lista para revisión pre-merge
 - Fecha: 2026-08-26
 - Rama: `feat/project-activities-v1`
 - Base: `main@3416aca`
-- Restricción de esta fase: documentación y planificación únicamente
+- Aprobación de implementación: 2026-08-26, recibida sobre
+  `d13e73c2538a7ae962d7c45435de1cf8d3d6c89b`
 
 ## Objetivo
 
-Diseñar el siguiente slice vertical de Projects: actividades pertenecientes a un
+Implementar el siguiente slice vertical de Projects: actividades pertenecientes a un
 proyecto, con agenda mínima, lifecycle terminal, consulta histórica,
 autorización global/contextual y concurrencia compatible con el cierre del
-proyecto y la revocación de manager scope. Esta primera fase no implementa SQL,
-RPC, RLS, infraestructura, UI ni pruebas productivas; deja un diseño revisado y
-se detiene antes de la migración.
+proyecto y la revocación de manager scope. La fase de diseño fue aprobada en
+`d13e73c`; la fase técnica incorpora dominio, PostgreSQL/RLS/RPC, adaptador,
+composición, UI mínima, pruebas y documentación sin ampliar Participation o
+Tasks.
 
 ## Contexto y estado inicial
 
@@ -37,8 +39,8 @@ se detiene antes de la migración.
   `project_manager`, permiso contextual y scope activo. El helper autoritativo
   toma locks `account FOR SHARE → scope FOR SHARE`; las mutaciones continúan
   con `project FOR UPDATE → child row FOR UPDATE`.
-- No existe tabla, tipo de dominio, RPC, gateway, ruta, componente o prueba de
-  Project Activity.
+- Al iniciar el incremento no existía tabla, tipo de dominio, RPC, gateway,
+  ruta, componente o prueba de Project Activity.
 - `activity.create` y `activity.join` existen únicamente en el seed local y en
   documentación histórica como permisos futuros. El seed los concede a
   administrator, pero ninguna migración productiva, RPC, policy, aplicación o
@@ -107,7 +109,7 @@ voluntario. Ninguna de esas reglas se infiere en V1.
 ## Modelo de dominio y lenguaje ubicuo
 
 `ProjectActivity` es el nombre de la entidad; `project_activities`, el nombre
-propuesto de su tabla. No se usa `Event`, `Task`, `Assignment`, `Participation`
+implementado de su tabla. No se usa `Event`, `Task`, `Assignment`, `Participation`
 ni `active` como sinónimos.
 
 Campos de dominio:
@@ -124,7 +126,7 @@ Campos de dominio:
 - `createdAt`
 - `updatedAt`
 
-Normalización propuesta, simétrica entre TypeScript y PostgreSQL:
+Normalización implementada, simétrica entre TypeScript y PostgreSQL:
 
 - `name`: trim, whitespace visible colapsado, obligatorio, 1–120 caracteres.
 - `description`: trim, whitespace colapsado, vacío a `null`, máximo 1.000.
@@ -134,8 +136,9 @@ Normalización propuesta, simétrica entre TypeScript y PostgreSQL:
 - Sin columna de timezone. PostgreSQL conserva instantes y presentación aplica
   locale.
 
-Los tests de paridad deberán incluir Unicode astral para no aceptar una
-diferencia accidental entre `String.length` y `char_length`.
+Los tests de paridad incluyen Unicode astral para no aceptar una diferencia
+accidental entre `String.length` y `char_length`. Los instantes exigen offset
+explícito, calendario real, finitud y representación UTC ISO en años 0001–9999.
 
 ## Estados, lifecycle e invariantes
 
@@ -194,8 +197,8 @@ administrar managers.
 ### Permisos históricos
 
 Activities V1 no usa `activity.create` ni `activity.join`. Conservar esos
-placeholders evita un cambio silencioso de significado; en pruebas se retirarán
-temporalmente del administrator y se concederá `activity.create` a un actor no
+placeholders evita un cambio silencioso de significado; pgTAP los retira
+temporalmente del administrator y concede `activity.create` a un actor no
 autorizado para demostrar que no influyen. No se añade
 `activity.manage_assigned`: Activity hereda la autoridad de su Project.
 
@@ -203,29 +206,30 @@ La UI usa capacidades solo para UX. Para operaciones compartidas debe considerar
 `project.manage || project.manage_assigned`, pero el scope de una fila nunca se
 decide en React.
 
-## Modelo SQL propuesto — no implementado
+## Modelo SQL implementado
 
 ### Tabla `public.project_activities`
 
-| Columna             | Tipo               | Regla propuesta                                    |
-| ------------------- | ------------------ | -------------------------------------------------- |
-| `id`                | `uuid`             | PK, `extensions.gen_random_uuid()`                 |
-| `project_id`        | `uuid`             | NOT NULL, FK `projects(id) ON DELETE RESTRICT`     |
-| `name`              | `text`             | NOT NULL, normalizado, 1–120                       |
-| `description`       | `text null`        | normalizado, 1–1.000 cuando existe                 |
-| `starts_at`         | `timestamptz`      | NOT NULL, dato de agenda                           |
-| `ends_at`           | `timestamptz null` | `null` o `>= starts_at`                            |
-| `location_text`     | `text null`        | normalizado, 1–200 cuando existe                   |
-| `status`            | `text`             | NOT NULL DEFAULT `scheduled`, allowlist exacta     |
-| `status_changed_at` | `timestamptz`      | NOT NULL DEFAULT `statement_timestamp()`; servidor |
-| `created_at`        | `timestamptz`      | NOT NULL DEFAULT `statement_timestamp()`; servidor |
-| `updated_at`        | `timestamptz`      | NOT NULL DEFAULT `statement_timestamp()`; trigger  |
+| Columna             | Tipo               | Regla                                                   |
+| ------------------- | ------------------ | ------------------------------------------------------- |
+| `id`                | `uuid`             | PK, `extensions.gen_random_uuid()`                      |
+| `project_id`        | `uuid`             | NOT NULL, FK `projects(id) ON DELETE RESTRICT`          |
+| `name`              | `text`             | NOT NULL, normalizado, 1–120                            |
+| `description`       | `text null`        | normalizado, 1–1.000 cuando existe                      |
+| `starts_at`         | `timestamptz`      | NOT NULL, finito y representable como ISO UTC 0001–9999 |
+| `ends_at`           | `timestamptz null` | `null` o finito/representable y `>= starts_at`          |
+| `location_text`     | `text null`        | normalizado, 1–200 cuando existe                        |
+| `status`            | `text`             | NOT NULL DEFAULT `scheduled`, allowlist exacta          |
+| `status_changed_at` | `timestamptz`      | NOT NULL DEFAULT `statement_timestamp()`; servidor      |
+| `created_at`        | `timestamptz`      | NOT NULL DEFAULT `statement_timestamp()`; servidor      |
+| `updated_at`        | `timestamptz`      | NOT NULL DEFAULT `statement_timestamp()`; trigger       |
 
-Constraints propuestos:
+Constraints implementados:
 
 - nombre/descripción/ubicación normalizados y dentro de límites;
 - `status IN ('scheduled', 'completed', 'cancelled')`;
-- `ends_at IS NULL OR ends_at >= starts_at`;
+- instantes finitos, representables por el contrato TypeScript/Zod y
+  `ends_at IS NULL OR ends_at >= starts_at`;
 - `status_changed_at >= created_at`;
 - `updated_at >= created_at AND updated_at >= status_changed_at`.
 
@@ -249,13 +253,13 @@ status = 'scheduled'` para el guard de cierre;
 - `set_updated_at` existente;
 - auditoría after insert/update.
 
-Los guards tampoco serán ejecutables por roles cliente. Las RPC prebloquean en
+Los guards tampoco son ejecutables por roles cliente. Las RPC prebloquean en
 el orden canónico; los triggers conservan defensa para cualquier futura ruta
 privilegiada interna.
 
-## RPC propuestas — no implementadas
+## RPC implementadas
 
-Todas serán `SECURITY DEFINER`, `search_path = ''`, nombres cualificados, actor
+Todas son `SECURITY DEFINER`, `search_path = ''`, nombres cualificados, actor
 derivado de `auth.uid()`, parámetros validados y `EXECUTE` exclusivo para
 `authenticated`:
 
@@ -274,7 +278,7 @@ requested_activity_id uuid)`
 - `cancel_project_activity(requested_project_id uuid,
 requested_activity_id uuid)`
 
-No habrá RPC pública genérica que reciba el estado objetivo. Ninguna firma
+No hay RPC pública genérica que reciba el estado objetivo. Ninguna firma
 acepta `status`, `status_changed_at`, `created_at` o `updated_at`.
 
 Detalle/update/complete/cancel reciben Project y Activity para autorizar primero
@@ -282,7 +286,7 @@ el Project y después buscar `activity.id = requested_activity_id AND
 activity.project_id = requested_project_id`. Así un manager no puede usar un
 UUID de Activity como oráculo de existencia fuera de su scope.
 
-Errores estables propuestos:
+Errores estables implementados:
 
 | SQLSTATE | Código                                  |
 | -------- | --------------------------------------- |
@@ -294,6 +298,7 @@ Errores estables propuestos:
 | `23514`  | `project_has_scheduled_activities`      |
 | `22023`  | `project_activity_immutable_fields`     |
 | `22023`  | `project_activity_must_start_scheduled` |
+| `22023`  | `invalid_project_activity`              |
 | `42501`  | `project_activity_delete_not_allowed`   |
 
 `project_activity_not_scheduled` es el error único para editar o intentar una
@@ -302,19 +307,19 @@ un contrato estable sin revelar una transición diferente.
 
 ## RLS y grants
 
-- Habilitar RLS en `project_activities`.
-- Cero policies permisivas.
-- `REVOKE ALL` de tabla a `public`, `anon` y `authenticated`.
-- Sin SELECT/DML directo del navegador; toda proyección sale por RPC mínima.
-- Revocar helpers/triggers a cliente.
-- Revocar cada RPC a `public`/`anon`; conceder solo a `authenticated`.
-- No conceder nada nuevo a `service_role`.
-- Probar catálogo, grants por firma y que DML directo falla incluso para un
-  actor que podría ejecutar la RPC equivalente.
+- RLS está habilitada en `project_activities`, sin policies permisivas.
+- La tabla tiene `REVOKE ALL` para `public`, `anon` y `authenticated`.
+- No existe SELECT/DML directo del navegador; toda proyección sale por RPC
+  mínima.
+- Helpers/triggers están revocados a cliente.
+- Cada RPC está revocada a `public`/`anon` y concedida solo a `authenticated`.
+- No se concedió nada nuevo a `service_role`.
+- pgTAP verifica catálogo, grants por firma y ejecuta INSERT/UPDATE/DELETE
+  directos como un actor que sí podría usar la RPC equivalente.
 
 ## Auditoría
 
-Eventos propuestos, consistentes con Projects:
+Eventos implementados, consistentes con Projects:
 
 - `project_activity.created`
 - `project_activity.updated`
@@ -331,20 +336,20 @@ PII ni cuerpos de solicitud. Una operación fallida revierte cualquier evento.
 
 ## Integración forward-only con cierre de Projects
 
-La futura migración propuesta `202608260006_project_activities.sql`, posterior a
-0005, debe:
+La migración forward-only `202608260006_project_activities.sql`, posterior a
+0005:
 
-1. crear tabla, constraints, índices, guards, auditoría y RPC nuevas;
-2. reemplazar mediante `CREATE OR REPLACE FUNCTION`
+1. crea tabla, constraints, índices, guards, auditoría y RPC nuevas;
+2. reemplaza mediante `CREATE OR REPLACE FUNCTION`
    `public.guard_project_update()`;
-3. conservar primero el chequeo y error histórico
+3. conserva primero el chequeo y error histórico
    `project_has_active_assignments`;
-4. añadir después `EXISTS` de `project_activities` scheduled y lanzar
+4. añade después `EXISTS` de `project_activities` scheduled y lanza
    `23514/project_has_scheduled_activities`;
-5. conservar el trigger existente y la firma/cuerpo/grant de
+5. conserva el trigger existente y la firma/cuerpo/grant de
    `close_project(uuid)`.
 
-No se modifica 0004. El guard central protege tanto la RPC como una futura ruta
+No se modificó 0004. El guard central protege tanto la RPC como una futura ruta
 interna que actualice `projects.status`. Duplicar el chequeo solo en
 `close_project` dejaría una defensa incompleta.
 
@@ -453,19 +458,19 @@ sequenceDiagram
   end
 ```
 
-La regresión debe parametrizar create, update, complete y cancel en ambos
-órdenes; una sola operación representativa no demuestra que todas las RPC
-llaman el helper.
+La regresión parametriza create, update, complete y cancel en ambos órdenes;
+así demuestra nominalmente que las cuatro RPC de mutación siguen el helper
+autoritativo cuando corresponde.
 
 ## Arquitectura de aplicación y UI
 
 Activities permanece en `apps/web/src/modules/projects`. Para no seguir
-acumulando responsabilidades en archivos ya grandes, la implementación futura
-se separará dentro del mismo módulo, por ejemplo:
+acumulando responsabilidades en archivos ya grandes, la implementación se
+separó dentro del mismo módulo:
 
 - `domain/project-activity.ts`
 - puerto/servicio de aplicación específico de Activity
-- gateway Supabase específico o sub-adaptador explícito dentro de Projects
+- gateway Supabase específico de Project Activity
 - `presentation/project-activities-section.tsx`
 
 No se crea un módulo top-level, CRUD genérico, base repository, aggregate
@@ -473,7 +478,7 @@ framework ni framework de scope. La composición conecta el nuevo servicio
 mediante la API pública de Projects; dominio/aplicación no conocen Supabase ni
 Identity.
 
-Project detail incorporará una sección Activities con:
+Project detail incorpora una sección Activities con:
 
 - nombre, fecha/hora, estado y ubicación opcional;
 - empty/loading/error/success accesibles;
@@ -483,7 +488,15 @@ Project detail incorporará una sección Activities con:
 - terminales y Project closed estrictamente read-only;
 - `toLocaleString`/i18n, sin calendario complejo, drag/drop o timeline.
 
-## Estrategia de pruebas futura
+Los controles `datetime-local` no se parsean mediante cadenas dependientes del
+locale. `project-activity-date-time.ts` extrae componentes numéricos, construye
+la hora de pared en el timezone vigente del sistema/navegador, valida round-trip
+calendárico y envía `toISOString()` como instante UTC; al editar realiza la
+conversión inversa. V1 no guarda una timezone propia ni resuelve la ambigüedad
+de la hora repetida durante un cambio DST: usa la resolución estándar del
+runtime local y conserva únicamente el instante resultante.
+
+## Estrategia y cobertura de pruebas
 
 ### Dominio y aplicación
 
@@ -536,9 +549,24 @@ Project detail incorporará una sección Activities con:
   scheduled/helper contextual y demostrar FAIL; restaurar y confirmar PASS sin
   diff.
 
-El harness nuevo debe incorporarse a `projects:test:concurrency`, conservar la
-prueba de paridad con CI y medir si el timeout actual de dos minutos sigue
-siendo suficiente. Repetir la suite cinco veces antes del cierre.
+El harness Activity está incorporado a `projects:test:concurrency`; la prueba
+de orquestación y el workflow conservan el mismo comando. Sus 17 escenarios,
+sumados a los 7 de participaciones/scopes, permanecen dentro del timeout CI de
+dos minutos. La suite se repite cinco veces antes del cierre.
+
+Evidencia de mutation testing local, nunca versionada:
+
+- A: se retiraron temporalmente los locks explícitos de create y se difirió la
+  FK solo para aislar el lock incidental; create-first y close-first fallaron
+  porque el contendiente terminó sin espera (`exit 1`).
+- B: se sustituyó temporalmente el lock/recheck contextual por el helper de
+  lectura; scope-removal-first falló por ausencia de espera (`exit 1`).
+- C: se neutralizó temporalmente el predicado scheduled del guard; pgTAP dejó
+  cerrar el Project, lo observó `closed` y falló la terminalización (`exit 1`).
+- Cada mutación se revirtió mediante parche inverso. El hash productivo
+  `38839f359f2e4825a1df125dc2ac58aad31c6c2b508ba9c546cda7cedfa6f82a`
+  fue restaurado; reset/lint, 397 pgTAP y 17 carreras volvieron a PASS antes de
+  continuar. La ampliación posterior de pgTAP elevó el total a 406.
 
 ### E2E
 
@@ -552,28 +580,28 @@ siendo suficiente. Repetir la suite cinco veces antes del cierre.
 - Los negativos autoritativos permanecen en PostgreSQL; ausencia de botones no
   sustituye RLS/RPC.
 
-Descubrimiento QA: la suite actual de 0005 no prueba nominalmente que un manager
-mute un recurso hijo; sus pgTAP/E2E/harness usan principalmente `update_project`.
-Activities V1 debe cerrar ese hueco y no citar la cobertura previa como prueba.
+Descubrimiento QA: la suite de 0005 no probaba nominalmente que un manager
+mutara un recurso hijo; Activities V1 cerró ese hueco con pgTAP, E2E y ocho
+intercalaciones create/update/complete/cancel frente a scope removal.
 
 ## Riesgos y mitigaciones
 
-| Riesgo                                                 | Mitigación                                                                   |
-| ------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| `closed + scheduled` por TOCTOU                        | lock común de Project, guard central e intercalaciones reales                |
-| complete/cancel dobles                                 | Project → Activity locks, precondición scheduled y error estable             |
-| mutación tras revocar scope                            | account → scope → project → activity y carreras por cada RPC                 |
-| acceso horizontal por UUID Activity                    | firmas con Project + Activity, autorización previa y predicado compuesto     |
-| permisos placeholders adquieren semántica accidental   | no usarlos y probar su irrelevancia                                          |
-| timestamps manipulados                                 | firmas sin campos técnicos, defaults/triggers server-side y cero DML cliente |
-| PII/agenda sensible en auditoría                       | solo IDs, nombres de campos, estados técnicos y metadata vacía               |
-| UI Projects monolítica                                 | slice/section Activity separado dentro del mismo bounded context             |
-| harness excede timeout CI                              | medir duración, mantener gate raíz y ajustar timeout con evidencia           |
-| documentación describe implementación antes de existir | mantener docs de producto como futuro hasta la fase técnica                  |
+| Riesgo                                                    | Mitigación                                                                                 |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `closed + scheduled` por TOCTOU                           | lock común de Project, guard central e intercalaciones reales                              |
+| complete/cancel dobles                                    | Project → Activity locks, precondición scheduled y error estable                           |
+| mutación tras revocar scope                               | account → scope → project → activity y carreras por cada RPC                               |
+| acceso horizontal por UUID Activity                       | firmas con Project + Activity, autorización previa y predicado compuesto                   |
+| permisos placeholders adquieren semántica accidental      | no usarlos y probar su irrelevancia                                                        |
+| timestamps manipulados                                    | firmas sin campos técnicos, defaults/triggers server-side y cero DML cliente               |
+| PII/agenda sensible en auditoría                          | solo IDs, nombres de campos, estados técnicos y metadata vacía                             |
+| UI Projects monolítica                                    | slice/section Activity separado dentro del mismo bounded context                           |
+| harness excede timeout CI                                 | medir duración, mantener gate raíz y ajustar timeout con evidencia                         |
+| documentación desactualizada frente al slice implementado | actualizar arquitectura, datos, seguridad, operación y trazabilidad en el mismo incremento |
 
 ## Preguntas abiertas reales
 
-No hay preguntas de producto bloqueantes para iniciar una futura fase técnica.
+No hay preguntas de producto bloqueantes para cerrar la fase técnica.
 Quedan como decisiones técnicas no bloqueantes ya resueltas en este plan:
 
 - `status_changed_at` es no nulo y comienza en la creación scheduled;
@@ -588,21 +616,21 @@ implementa por inferencia.
 
 ## Fases y validaciones
 
-| Fase                     | Resultado                                                   | Validación                                                     | Estado                           |
-| ------------------------ | ----------------------------------------------------------- | -------------------------------------------------------------- | -------------------------------- |
-| 0. Precheck/baseline     | rama, gobernanza, estado real y suite base                  | Git, frozen install, verify, DB, concurrencia, Functions y E2E | completada                       |
-| 1. Diseño y revisión     | ExecPlan, SQL previo, locks, QA y trazabilidad IA           | cinco revisores read-only y revisión humana                    | completada salvo revisión humana |
-| 2. Dominio/aplicación    | tipos, normalización, lifecycle, puertos/casos de uso       | tests focalizados, typecheck, boundaries                       | pendiente                        |
-| 3. PostgreSQL            | migración 0006, tabla, guards, RPC, RLS, auditoría y cierre | reset, lint, pgTAP, catálogo y mutation tests                  | pendiente                        |
-| 4. Infra/composición     | adaptador tipado y servicio conectado                       | gateway tests, boundaries, typecheck                           | pendiente                        |
-| 5. UI                    | sección Project Activities accesible y read-only histórica  | component tests, i18n y accesibilidad                          | pendiente                        |
-| 6. Concurrencia/E2E/docs | harness integrado, recorridos y documentación vigente       | cinco repeticiones, E2E local/CI y docs review                 | pendiente                        |
-| 7. Cierre                | baseline completa y revisiones finales                      | release-readiness, scans y revisión humana                     | pendiente                        |
+| Fase                     | Resultado                                                   | Validación                                                     | Estado     |
+| ------------------------ | ----------------------------------------------------------- | -------------------------------------------------------------- | ---------- |
+| 0. Precheck/baseline     | rama, gobernanza, estado real y suite base                  | Git, frozen install, verify, DB, concurrencia, Functions y E2E | completada |
+| 1. Diseño y revisión     | ExecPlan, SQL previo, locks, QA y trazabilidad IA           | cinco revisores read-only y revisión humana                    | completada |
+| 2. Dominio/aplicación    | tipos, normalización, lifecycle, puertos/casos de uso       | tests focalizados, typecheck, boundaries                       | completada |
+| 3. PostgreSQL            | migración 0006, tabla, guards, RPC, RLS, auditoría y cierre | reset, lint, pgTAP, catálogo y mutation tests                  | completada |
+| 4. Infra/composición     | adaptador tipado y servicio conectado                       | gateway tests, boundaries, typecheck                           | completada |
+| 5. UI                    | sección Project Activities accesible y read-only histórica  | component tests, i18n y accesibilidad                          | completada |
+| 6. Concurrencia/E2E/docs | harness integrado, recorridos y documentación vigente       | cinco repeticiones, E2E local/CI y docs review                 | completada |
+| 7. Cierre                | baseline completa y revisiones finales                      | release-readiness, scans y revisión humana                     | completada |
 
-No se inicia la fase 2 hasta aprobación humana de este diseño. Antes de escribir
-la migración se integrarán todos los bloqueantes de revisión de diseño.
+La fase 2 comenzó únicamente después de la aprobación humana del diseño. Los
+bloqueantes de revisión inicial se integraron antes de escribir la migración.
 
-## Criterios de aceptación del incremento futuro
+## Criterios de aceptación del incremento
 
 - Activities pertenece a Projects y no introduce Participation, Tasks ni un
   framework genérico.
@@ -656,6 +684,73 @@ escritor. Sus observaciones no sustituyen revisión humana.
 - 2026-08-26: el NO-GO documental inicial señaló dos defectos de trazabilidad;
   se integraron la evidencia de apagado y un estado de revisión coherente; el
   recheck emitió GO.
+- 2026-08-26: dominio, aplicación, gateway, composición y sección UI Activity
+  implementados dentro de Projects; validación focalizada aprobó 26/26.
+- 2026-08-26: migración 0006 aplicada desde reset limpio; DB lint sin
+  hallazgos y 397/397 pgTAP con DML directo denegado, actor auditado y matriz
+  global/contextual.
+- 2026-08-26: harness Activity ampliado a 17 carreras, incluyendo las cuatro
+  mutaciones contextuales frente a scope removal en ambos órdenes; 17/17 PASS
+  con `pg_blocking_pids` y mensajes ordenados por stdout de `psql`.
+- 2026-08-26: revisión detectó y corrigió normalización SQL de whitespace,
+  instantes ambiguos/calendáricamente inválidos, infinity y rango UTC fuera de
+  0001–9999; dominio, SQL y gateway quedaron totales entre sí.
+- 2026-08-26: los tres mutation checks dirigidos produjeron FAIL esperado; la
+  restauración recuperó el hash productivo, 397 pgTAP y 17/17 carreras. La
+  cobertura adicional de precedencia/cierre llevó pgTAP a 406/406.
+- 2026-08-28: una primera serie extendida detectó flakiness del canal de
+  observación: el cuarto proceso agotó el timeout de un `docker exec` usado solo
+  en cleanup tras 16 escenarios correctos. El polling de `pg_stat_activity` se
+  movió a una tercera sesión `psql` persistente por escenario; el recheck pasó
+  17/17 y después cinco repeticiones consecutivas, 85/85, en ~17 segundos cada
+  una, sin sesiones ni locks residuales.
+- 2026-08-28: E2E desde reset limpio aprobó 15/15, incluidos los cuatro
+  recorridos Activity, URL directa fuera de scope y Project cerrado histórico.
+  La primera ejecución expuso un selector global obsoleto en un E2E Projects;
+  se acotó por fila y la repetición completa quedó verde.
+- 2026-08-28: E2E normal y `CI=true` aprobaron 15/15 desde resets limpios. El
+  gate CI definitivo usó un shim temporal de Corepack para conservar Node
+  22.18.0 y pnpm 11.9.0 también en los procesos hijos.
+- 2026-08-28: release-readiness completo aprobó frozen install, `verify`,
+  Functions, DB, concurrencia y scans; cero sesiones/locks Activity y cero
+  procesos propios quedaron activos. `pnpm db:stop` detuvo Supabase conservando
+  volúmenes.
+
+## Baseline final
+
+| Gate                        | Resultado final                                                                                                                                                                                 |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime y dependencias      | Node `22.18.0`, pnpm `11.9.0`; frozen install aprobado para 6 proyectos                                                                                                                         |
+| Formato y estática          | `format`, `format:check`, lint, boundaries, 4 probes arquitectónicos, typecheck web/Functions y `git diff --check` aprobados                                                                    |
+| Unitarias/integración/build | 202/202 unitarias, 2/2 integración y build de 468 módulos                                                                                                                                       |
+| Orquestación/Functions      | 13/13 pruebas de orquestación y 21/21 Functions                                                                                                                                                 |
+| PostgreSQL                  | reset 0001–0006, lint sin hallazgos y 406/406 pgTAP; 0006 aporta 97 checks                                                                                                                      |
+| Concurrencia                | suite combinada 24/24; harness Activity 17/17 repetido cinco veces, 85/85                                                                                                                       |
+| Mutation testing temporal   | A lock Project de create, B lock/revalidación scope y C guard scheduled produjeron FAIL esperado; restauración recuperó hash `38839f359f2e4825a1df125dc2ac58aad31c6c2b508ba9c546cda7cedfa6f82a` |
+| E2E                         | 15/15 normal y 15/15 con `CI=true`, ambos desde reset limpio                                                                                                                                    |
+| `pnpm verify`               | aprobado con runtime exacto; incluye todos los gates estáticos, tests TypeScript y build                                                                                                        |
+| Gobernanza/cleanup          | scans sin secretos ni patrones prohibidos productivos; 0001–0005 intactas; 0 sesiones, 0 locks y 0 procesos propios; Supabase detenido con volúmenes conservados                                |
+
+GitHub Actions no se ejecutó remotamente y no se declara aprobado; el workflow
+queda configurado para la validación pre-merge.
+
+## Revisiones finales y commits
+
+- Architect: GO; ownership y dependencias permanecen en Projects, UI extraída
+  y sin framework de scope genérico.
+- Domain modeler: GO; lifecycle terminal, instantes con zona/calendario válidos,
+  fechas y cierre son coherentes entre capas.
+- Database security: GO; migración/RLS/RPC/grants/audit, locks y TOCTOU quedan
+  protegidos, con 97/97 checks 0006 y 17/17 carreras independientes.
+- QA: GO; matriz negativa, once intercalaciones, mutations y E2E cubren las
+  invariantes sin skips ni falsos positivos conocidos.
+- Docs governor: GO; ExecPlan, producto, arquitectura, datos, seguridad,
+  operación y trazabilidad IA son coherentes.
+
+Commits técnicos nuevos, sin amend: `21db0cd` (`feat(projects): add project
+activities v1`) y `bb1a16a` (`test(projects): cover activity lifecycle and
+concurrency`). El cierre documental se conserva en el commit que contiene esta
+versión del plan.
 
 ## Descubrimientos
 
@@ -667,14 +762,15 @@ escritor. Sus observaciones no sustituyen revisión humana.
   ID antes de autorizar scope; Activities evitará repetir ese oráculo menor.
 - La cobertura contextual existente prueba Project pero no una mutación nominal
   de recurso hijo por manager.
-- La documentación vigente que llama Activities/Tasks un contexto futuro sigue
-  describiendo el código actual; se actualizará solo junto con la implementación.
+- La documentación que agrupaba Activities/Tasks como contexto futuro quedó
+  separada: Project Activity pertenece a Projects; Participation, attendance y
+  Tasks continúan futuros.
 
 ## Decisiones durante esta fase
 
 - Reutilizar permisos Project y helpers específicos de Projects.
 - Mantener `close_project(uuid)` y reemplazar únicamente su guard central en la
-  migración futura.
+  migración 0006.
 - Usar Project como raíz de consistencia y el orden de locks de 0005.
 - No copiar el prelookup por child ID de la participación existente.
 - Separar Activities en archivos propios dentro de Projects para limitar
@@ -682,6 +778,6 @@ escritor. Sus observaciones no sustituyen revisión humana.
 
 ## Resultado de esta fase
 
-Diseño inicial documentado y revisado, con baseline verde y sin cambios de
-implementación. La rama queda detenida para revisión humana. La migración 0006,
-RPC, RLS, código, UI y pruebas siguen expresamente pendientes.
+El slice vertical está implementado, todos los gates locales y revisores están
+en GO y la rama queda lista para revisión pre-merge. No hubo push, merge,
+rebase, amend, despliegue, modificación de `main` ni operación Supabase remota.

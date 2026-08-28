@@ -55,6 +55,24 @@ El índice único parcial `(project_id, volunteer_id) where ended_at is null` im
 
 El índice único parcial `(project_id, manager_account_id) where ended_at is null` impide duplicados activos y permite reasignación histórica. La fila no concede autoridad por sí sola: cada RPC exige cuenta activa, rol `project_manager`, permiso contextual y scope activo. No existe DELETE físico ni reactivación de una ocurrencia finalizada.
 
+## `project_activities`
+
+| Columna             | Tipo               | Regla                                                                              |
+| ------------------- | ------------------ | ---------------------------------------------------------------------------------- |
+| `id`                | `uuid`             | PK de servidor; no se reutiliza como participación o responsable                   |
+| `project_id`        | `uuid`             | FK a `projects`, `ON DELETE RESTRICT`; inmutable                                   |
+| `name`              | `text`             | obligatorio; espacios normalizados; 1–120                                          |
+| `description`       | `text null`        | vacío a `null`; espacios normalizados; máximo 1.000                                |
+| `starts_at`         | `timestamptz`      | instante planificado obligatorio                                                   |
+| `ends_at`           | `timestamptz null` | `null` o instante mayor/igual que `starts_at`                                      |
+| `location_text`     | `text null`        | vacío a `null`; ubicación no estructurada; máximo 200                              |
+| `status`            | `text`             | `scheduled`, `completed` o `cancelled`; servidor decide creación/transiciones      |
+| `status_changed_at` | `timestamptz`      | servidor; nace con `scheduled`, estable al editar y cambia una vez al terminalizar |
+| `created_at`        | `timestamptz`      | servidor, inmutable                                                                |
+| `updated_at`        | `timestamptz`      | trigger de servidor en edición/transición                                          |
+
+El índice `(project_id, starts_at, id)` ordena el listado y el índice parcial `(project_id) where status = 'scheduled'` sirve al guard de cierre. RLS está habilitada sin policies permisivas ni grants de tabla a cliente; listado, detalle, alta, edición, completar y cancelar son RPC separadas. No existen `responsible_user_id`, relación Activity–Volunteer, attendance, RSVP, recurrence ni DELETE RPC.
+
 ## `profiles`
 
 | Columna            | Tipo               | Regla                               |

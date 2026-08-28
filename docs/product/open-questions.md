@@ -28,6 +28,13 @@
 - El cierre no finaliza scopes previos: `closed + active manager scope` es válido, mientras `closed + active volunteer assignment` sigue prohibido.
 - Suspensión, archivo, pérdida de rol/permiso o finalización del scope corta la autoridad dinámicamente sin borrar el histórico.
 
+## Resueltas en el hito 0006
+
+- Project Activity pertenece exactamente a un Project y usa `scheduled`, `completed` y `cancelled`; solo `scheduled` es mutable y ambos terminales son irreversibles.
+- Una Activity solo se crea o muta en Project `active`; cualquier Activity `scheduled` impide el cierre sin ser completada, cancelada, eliminada ni retimestamped automáticamente.
+- Administrator usa `project.manage`; project manager hereda `project.read_assigned`/`project.manage_assigned` junto con su scope dinámico. Los placeholders `activity.create`/`activity.join` no autorizan esta V1.
+- Activity Participation, attendance, RSVP, responsables individuales, Tasks, recurrencia, notificaciones y calendarios externos quedan deliberadamente fuera de alcance.
+
 ## Pendientes
 
 1. ¿Se separarán nombre legal, preferido y de presentación?

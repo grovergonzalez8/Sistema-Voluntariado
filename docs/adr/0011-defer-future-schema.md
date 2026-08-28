@@ -15,6 +15,8 @@ El hito 0003 aplicó esta regla al padrón administrativo: incorporó únicament
 
 El hito 0004 aplica la misma regla a Projects: incorpora solo `projects` y `project_volunteer_assignments` después de definir sujeto institucional, lifecycle mínimo, acceso exclusivo, histórico, cierre y concurrencia. Scopes, project_manager, capacidad, calendario, aprobación, actividades y demás entidades de proyecto continúan diferidos.
 
+Los hitos 0005 y 0006 aplicaron después la misma decisión incremental: 0005 incorporó únicamente el scope histórico de project manager y 0006 únicamente `project_activities` con lifecycle terminal, agenda mínima y cierre/concurrencia definidos. Participación/asistencia por Activity, Tasks, recurrencia, calendarios, capacidad y aprobación continúan diferidos.
+
 ## Alternativas
 
 Crear tablas vacías o anticipar reglas.

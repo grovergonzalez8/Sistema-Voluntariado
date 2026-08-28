@@ -132,3 +132,25 @@ sequenceDiagram
 ```
 
 Listado, búsqueda, orden y exportación se ejecutan paginados en PostgreSQL. En importación, el navegador acepta un `.xlsx` de hasta 5 MiB y 1.000 filas. Antes del parser principal, `zip.js` lee el ZIP en modo estricto: rechaza nombres duplicados o inseguros, diferencias entre directorio central y header local, entradas solapadas, cifrado, symlinks, directorios, ZIP64 y métodos distintos de STORE/DEFLATE. La V1 admite como máximo 100 entries del directorio central, 20 MiB expandidos en total, 10 MiB por entry, 5 MiB para la worksheet y ratio 250:1 para entries de al menos 64 KiB. Cada entry se descomprime secuencialmente hacia un stream que cuenta bytes realmente emitidos y aborta al superar los límites; solo conserva `workbook.xml`, `xl/_rels/workbook.xml.rels` y la única worksheet, con 1 MiB para workbook/relationships. `DOMParser` valida XML por namespace URI y nombre local, exige una hoja lógica, una sola relationship interna de tipo worksheet y una única worksheet correspondiente dentro de `xl/worksheets`; luego limita las coordenadas a 16 columnas y a la fila efectiva 1.001. Tras el parser principal, aplicación limita el conjunto a 1.000 filas de datos. Estructuras ambiguas o variantes no soportadas se rechazan antes de `read-excel-file`. Finalmente la UI muestra errores y coincidencias y envía solo las filas elegidas. La RPC vuelve a validar datos y duplicados bajo un advisory lock; todo el lote se confirma o revierte. El archivo no se persiste y ninguna operación toca Supabase Auth, `accounts`, invitaciones o perfiles.
+
+## Project Activities
+
+```mermaid
+sequenceDiagram
+  participant UI as Project Activities UI
+  participant UC as ProjectActivityService
+  participant RPC as Activity RPC
+  participant P as Project row
+  participant A as Activity row
+  UI->>UC: create/update/complete/cancel
+  UC->>RPC: campos editables + Project/Activity IDs
+  RPC->>RPC: auth.uid + autoridad global/contextual
+  RPC->>P: FOR UPDATE; releer active
+  opt Activity existente
+    RPC->>A: FOR UPDATE; releer scheduled
+  end
+  RPC->>A: mutación + auditoría atómica
+  RPC-->>UI: proyección validada o error tipado
+```
+
+Para manager contextual el prefijo de locks es `account FOR SHARE → active scope FOR SHARE`; administrator comienza en Project. Create mantiene Project bloqueado hasta insertar. Cerrar toma el mismo Project y el trigger rechaza primero participaciones activas y después Activities `scheduled`. Complete/cancel toman Project antes de Activity, por lo que una sola transición terminal gana. La revocación de scope usa `scope FOR UPDATE` y serializa frente al lock compartido de toda mutación contextual.
