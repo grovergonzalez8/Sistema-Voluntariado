@@ -184,3 +184,32 @@ mutaciones frente a scope removal; pgTAP ejecuta DML denegado y valida actor de
 auditoría; E2E espera terminalización antes de cerrar. El polling de locks usa
 una sesión `psql` persistente después de detectar un timeout de `docker exec`
 en una repetición extendida.
+
+## Activity Participation V1 0012 — fase de diseño
+
+- Objetivo: diseñar la relación histórica Activity–Volunteer, su elegibilidad,
+  autorización, lifecycle, integración con Project Assignment y concurrencia
+  antes de cualquier implementación.
+- Herramienta: agente principal de Codex; revisiones especializadas de solo
+  lectura.
+- Rama y base: `feat/activity-participation-v1` desde `main@fdc05c1`.
+- Prompt: `docs/ai/prompts/0012-activity-participation-v1.md`.
+- Plan: `docs/exec-plans/0007-activity-participation-v1.md`.
+- Integración y escritura: exclusivamente el agente principal.
+- Revisión inicial: `architect`, `domain_modeler`,
+  `database_security_reviewer`, `qa_reviewer` y `docs_governor`.
+- Resultado de revisión: arquitectura y dominio emitieron PASS; los NO-GO
+  temporales de database security y documentación, y las condiciones de QA, se
+  integraron. Sus rechecks finales emitieron GO sin contradicción material.
+- Validación: runtime exacto Node 22.18.0/pnpm 11.9.0, frozen install,
+  `pnpm verify`, reset/lint DB, 406 pgTAP, 24 carreras, 21 Functions y 15 E2E.
+- Estado: diseño y baseline documentados; detenido para revisión humana, sin
+  migración, RPC, código productivo, UI, pruebas productivas, push, merge,
+  rebase, amend, despliegue, modificación de `main` ni Supabase remoto.
+
+Decisiones materiales: ownership en Projects; sujeto exclusivo `volunteers`;
+relación histórica sin DELETE; add condicionado a Assignment activa del Project
+exacto; Activity terminal read-only sin auto-finalización; guard forward-only de
+finish Assignment; locks
+account–scope–Project–Assignment–Activity–Participation; RLS default-deny,
+cuatro RPC mínimas y auditoría sin PII.

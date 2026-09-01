@@ -13,6 +13,7 @@
 | 0009 | 2026-08-25 | Scope contextual de project manager V1           | Codex       | Completado; gates locales aprobados | `daeedd1`, `749da5e`, `3b4c282`, `0a9fe2f`, `fd2706c`, `0a10b65` y cierre documental |
 | 0010 | 2026-08-26 | Diseñar Project Activities V1                    | Codex       | Diseño inicial; baseline aprobada   | `d13e73c`                                                                            |
 | 0011 | 2026-08-26 | Implementar Project Activities V1                | Codex       | Completado; gates locales aprobados | `21db0cd`, `bb1a16a` y cierre documental                                             |
+| 0012 | 2026-09-01 | Diseñar Activity Participation V1                | Codex       | Diseño inicial; baseline aprobada   | commit documental de esta ejecución                                                  |
 
 Detalle: `docs/ai/prompts/0001-bootstrap-foundation.md`.
 
@@ -63,3 +64,10 @@ tanto normal como con `CI=true`. Los tres mutation checks fallaron bajo la
 degradación dirigida y la restauración recuperó el hash revisado. Arquitectura,
 dominio, database security, QA y documentación emitieron GO final de solo
 lectura. GitHub Actions remoto queda pendiente de la revisión pre-merge.
+
+Activity Participation V1 0012:
+`docs/ai/prompts/0012-activity-participation-v1.md`. La primera fase se limita a
+inspección, baseline, diseño SQL/RLS/concurrencia, ExecPlan, gobernanza IA y
+revisiones de solo lectura. El resultado se conserva en
+`docs/exec-plans/0007-activity-participation-v1.md`; no se creó migración, RPC,
+código productivo, UI, pgTAP, harness ni E2E nuevo.
