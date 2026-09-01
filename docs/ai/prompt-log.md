@@ -11,6 +11,8 @@
 | 0007 | 2026-08-24 | Implementar proyectos y asignaciones V1          | Codex       | Completado; gates locales aprobados | `625708b`, `64affd8` y cierre documental                                             |
 | 0008 | 2026-08-24 | Probar concurrencia assign/close                 | Codex       | Completado; gates locales aprobados | `98a615f` y cierre documental                                                        |
 | 0009 | 2026-08-25 | Scope contextual de project manager V1           | Codex       | Completado; gates locales aprobados | `daeedd1`, `749da5e`, `3b4c282`, `0a9fe2f`, `fd2706c`, `0a10b65` y cierre documental |
+| 0010 | 2026-08-26 | Diseñar Project Activities V1                    | Codex       | Diseño inicial; baseline aprobada   | `d13e73c`                                                                            |
+| 0011 | 2026-08-26 | Implementar Project Activities V1                | Codex       | Completado; gates locales aprobados | `21db0cd`, `bb1a16a` y cierre documental                                             |
 
 Detalle: `docs/ai/prompts/0001-bootstrap-foundation.md`.
 
@@ -41,3 +43,23 @@ El cierre 0008 aprobó `pnpm install --frozen-lockfile`, `pnpm verify`, `pnpm ac
 Project Manager Contextual Scope V1 0009: `docs/ai/prompts/0009-project-manager-contextual-scope-v1.md`. El diseño, riesgos y matriz de autorización se conservan en `docs/exec-plans/0005-project-manager-contextual-scope-v1.md`. Producto confirmó altas solo en proyectos activos y scopes previos independientes del cierre; las revisiones especializadas emitieron GO antes de iniciar la migración.
 
 El cierre 0009 aprobó frozen install, `pnpm verify`, DB reset/lint, 309 pgTAP, 21 Functions, 176 unitarias, 2 integración, 13 orquestación, cinco repeticiones 7/7 de concurrencia y 11 E2E tanto local como con `CI=true`. La mutación temporal de ambos locks de alta hizo fallar close-first y la restauración devolvió PASS. Arquitectura, database security, QA y documentación emitieron GO final de solo lectura.
+
+Project Activities V1 0010: `docs/ai/prompts/0010-project-activities-v1.md`. La
+primera fase se limitó a inspección, baseline, diseño SQL/RLS/concurrencia,
+ExecPlan y revisiones de solo lectura. El resultado se conserva en
+`docs/exec-plans/0006-project-activities-v1.md`; no se creó migración, RPC,
+código productivo, UI ni pruebas productivas.
+
+Implementación Project Activities V1 0011:
+`docs/ai/prompts/0011-project-activities-v1-implementation.md`. Ejecuta el
+diseño aprobado sin reinterpretar permisos placeholders ni introducir
+Participation/Tasks. El resultado técnico, las carreras, mutation checks,
+revisiones y gates finales se conservan en el ExecPlan 0006.
+
+El cierre 0011 aprobó frozen install y `pnpm verify` con Node 22.18.0/pnpm
+11.9.0, 202 unitarias, 2 integración, 13 orquestación, 21 Functions, reset/lint,
+406 pgTAP, 24 carreras combinadas, cinco repeticiones Activity 85/85 y 15 E2E
+tanto normal como con `CI=true`. Los tres mutation checks fallaron bajo la
+degradación dirigida y la restauración recuperó el hash revisado. Arquitectura,
+dominio, database security, QA y documentación emitieron GO final de solo
+lectura. GitHub Actions remoto queda pendiente de la revisión pre-merge.

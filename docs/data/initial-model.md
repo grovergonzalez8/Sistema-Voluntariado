@@ -18,6 +18,7 @@ erDiagram
   VOLUNTEERS ||--o{ PROJECT_VOLUNTEER_ASSIGNMENTS : participates
   PROJECTS ||--o{ PROJECT_MANAGER_ASSIGNMENTS : scopes
   ACCOUNTS ||--o{ PROJECT_MANAGER_ASSIGNMENTS : manages
+  PROJECTS ||--o{ PROJECT_ACTIVITIES : contains
 
   ACCOUNTS {
     uuid id PK
@@ -78,6 +79,19 @@ erDiagram
     timestamptz created_at
     timestamptz updated_at
   }
+  PROJECT_ACTIVITIES {
+    uuid id PK
+    uuid project_id FK
+    text name
+    text description
+    timestamptz starts_at
+    timestamptz ends_at
+    text location_text
+    text status
+    timestamptz status_changed_at
+    timestamptz created_at
+    timestamptz updated_at
+  }
 ```
 
 `profiles.id` coincide con `auth.users.id`; la cuenta no duplica correo. Una cuenta `invited` puede preceder a Auth y por eso `accounts.auth_user_id` es inicialmente anulable. La invitación conserva correo canónico y un snapshot inmutable del enlace Auth; constraints diferidos exigen consistencia bilateral al commit.
@@ -87,6 +101,8 @@ erDiagram
 `project_volunteer_assignments` referencia exclusivamente `projects` y `volunteers` con borrado restringido. No enlaza Auth, cuentas o perfiles. Inicio y finalización se fijan por PostgreSQL; `ended_at is null` es la única definición de participación activa.
 
 `project_manager_assignments` pertenece a Projects y enlaza `projects` con `accounts` mediante borrado restringido. Solo se concede sobre proyectos activos a cuentas activas con rol/permisos vigentes. `ended_at is null` define el scope activo; el cierre del proyecto no lo finaliza ni invalida por sí mismo.
+
+`project_activities` pertenece a Projects y solo referencia `projects` con borrado restringido. No enlaza voluntarios, cuentas, perfiles ni Auth. Conserva instantes `timestamptz`, sin timezone propia; nombre/descripción/ubicación textual se normalizan y los timestamps técnicos se fijan por servidor.
 
 ## Ciclo de vida
 
@@ -115,10 +131,12 @@ No se admite otra transición. `authority_version` aumenta cuando cambia estado 
 - Auditoría guarda actor/target, acción, entidad, correlación, estados técnicos y nombres de campos; metadata solo admite códigos seguros.
 - Un voluntario exige nombre; correo y celular son opcionales. Correo se almacena canónico en minúsculas y celular como texto visible, preservando `+`, ceros y separadores.
 - Correo exacto canónico o teléfono comparado solo por dígitos producen una advertencia, nunca unicidad. Nombre por sí solo no implica duplicado.
-- Un proyecto nace `active`, solo puede pasar a `closed` y no se reabre. El cierre falla mientras exista una participación activa.
+- Un proyecto nace `active`, solo puede pasar a `closed` y no se reabre. El cierre falla mientras exista una participación activa o una Project Activity `scheduled`.
 - Un voluntario puede participar en varios proyectos, pero un índice único parcial impide dos participaciones activas del mismo par. Una finalizada permite una nueva ocurrencia histórica.
 - Una cuenta manager puede tener varios proyectos y un proyecto varios managers. Solo existe un scope activo por par; el histórico finalizado permite una nueva asignación cuando el proyecto siga activo.
 - Un scope activo solo concede autoridad junto con cuenta activa, rol `project_manager` y permiso contextual vigente. El corte de cualquiera de esas condiciones es inmediato y no modifica el histórico.
+- Una Project Activity nace `scheduled`; solo puede editarse mientras siga programada y transicionar una vez a `completed` o `cancelled`. Ambos estados son terminales, no hay reapertura ni DELETE cliente.
+- Project `closed` conserva Activities consultables y no admite alta ni mutación. Cerrar no completa, cancela, elimina ni cambia timestamps Activity.
 
 ## Invariantes de invitación
 
@@ -132,7 +150,7 @@ No se admite otra transición. `authority_version` aumenta cuando cambia estado 
 
 ## Entidades futuras no implementadas
 
-`volunteer_groups`, `group_members`, `houses`, `rooms`, `host_families`, `accommodation_rates`, `accommodation_assignments`, `project_schedules`, `events`, `event_participants`, `tasks`, `task_assignments`, `assignment_requests`, `assignment_approvals`, `notifications`, `incidents`, `charges` y `payments`.
+`volunteer_groups`, `group_members`, `houses`, `rooms`, `host_families`, `accommodation_rates`, `accommodation_assignments`, `project_schedules`, `activity_participants`, `activity_volunteers`, `attendance`, `events`, `event_participants`, `tasks`, `task_assignments`, `assignment_requests`, `assignment_approvals`, `notifications`, `incidents`, `charges` y `payments`.
 
 No se fijan todavía sus columnas, cardinalidades ni estados.
 
@@ -144,6 +162,7 @@ No se fijan todavía sus columnas, cardinalidades ni estados.
 - Padrón: alta, edición e importación comparten un advisory lock y recalculan coincidencias dentro de la transacción; la importación es atómica.
 - Proyectos: asignar voluntarios y cerrar bloquean la misma fila de proyecto; un índice único parcial protege el duplicado activo y la finalización es monotónica.
 - Scope manager: alta y cierre bloquean la misma fila de proyecto. Si el alta gana, el cierre conserva el scope activo; si el cierre gana, el alta relee `closed` y falla. Revocación y mutación contextual serializan la fila del scope.
+- Project Activities: las mutaciones siguen `account SHARE → scope SHARE → project UPDATE → activity UPDATE` para manager y `project UPDATE → activity UPDATE` para administrator. Create/close comparten Project; complete/cancel serializan Project y Activity; el guard de cierre relee Activities programadas bajo el lock de Project.
 - Alojamiento futuro: usar rangos temporales, restricciones de exclusión y bloqueo transaccional para evitar solapamientos.
 - Capacidades futuras: serializar asignación relevante y validar capacidad dentro de la misma transacción.
 - Aprobaciones futuras: transiciones condicionales por versión/estado para impedir doble confirmación.

@@ -16,3 +16,4 @@
 | R-012 | PII del padrón se exporta indebidamente | media/crítico        | permisos exclusivos, RPC proyectada, auditoría, MFA futuro                                    |
 | R-013 | Excel no confiable agota o altera datos | media/alto           | 5 MiB/1.000 filas, ZIP estricto, límites reales/ratio/dimensiones, una hoja y archivo efímero |
 | R-014 | Históricos se duplican o fusionan mal   | media/alto           | advertencia confirmable, sin unique/merge y lock transaccional                                |
+| R-015 | Activity rompe cierre o revocación      | baja/crítico         | orden account–scope–Project–Activity, guard central, pgTAP, mutation checks y harness real    |

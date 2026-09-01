@@ -41,6 +41,7 @@ const errorCodes: Readonly<Record<string, AppErrorCode>> = {
   project_already_closed: 'conflict',
   project_closed: 'conflict',
   project_has_active_assignments: 'conflict',
+  project_has_scheduled_activities: 'conflict',
   project_not_found: 'not-found',
   account_not_found: 'not-found',
   volunteer_not_found: 'not-found',
@@ -56,6 +57,8 @@ const specificMessages: Readonly<Record<string, string>> = {
   project_closed: 'El proyecto cerrado no admite nuevas asignaciones.',
   project_has_active_assignments:
     'Finaliza todas las asignaciones activas antes de cerrar el proyecto.',
+  project_has_scheduled_activities:
+    'Completa o cancela todas las actividades programadas antes de cerrar el proyecto.',
   project_not_found: 'No se encontró el proyecto solicitado.',
   project_manager_assignment_already_active:
     'La cuenta ya tiene una asignación activa a este proyecto.',

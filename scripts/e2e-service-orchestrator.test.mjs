@@ -267,7 +267,7 @@ test('keeps process ownership aligned across scripts, Playwright, and Actions', 
   );
   assert.equal(
     rootPackage.scripts['projects:test:concurrency'],
-    'node --test scripts/project-volunteer-assignments-concurrency.test.mjs',
+    'node --test scripts/project-volunteer-assignments-concurrency.test.mjs scripts/project-activities-concurrency.test.mjs',
   );
   assert.match(
     rootPackage.scripts['account-lifecycle:test'],

@@ -1,6 +1,6 @@
 # Sistema-Voluntariado
 
-Monolito modular para gestionar progresivamente la operación de voluntariado. El alcance actual incluye autenticación, perfil propio, invitaciones, onboarding, ciclo de vida de cuentas, administración segura de roles, un padrón administrativo independiente con importación/exportación Excel y proyectos con participación histórica de voluntarios y alcance contextual explícito para project managers.
+Monolito modular para gestionar progresivamente la operación de voluntariado. El alcance actual incluye autenticación, perfil propio, invitaciones, onboarding, ciclo de vida de cuentas, administración segura de roles, un padrón administrativo independiente con importación/exportación Excel y proyectos con participación histórica, alcance contextual de project managers y Activities con lifecycle terminal.
 
 ## Estado
 
@@ -55,6 +55,6 @@ corepack pnpm test:e2e
 corepack pnpm account-lifecycle:test
 ```
 
-`verify` no exige Docker; las pruebas de funciones, PostgreSQL, concurrencia, Auth, Mailpit y E2E sí requieren Supabase local. `projects:test:concurrency` presupone `db:start` y `db:reset`, usa conexiones PostgreSQL reales y limpia sus fixtures. Cubre tanto participaciones como scopes de project managers. Consulte `docs/deployment/local-development.md` para el recorrido completo. Alojamiento, actividades, tareas, finanzas y los demás contextos operativos siguen fuera de alcance. El alcance de project manager es una relación explícita por proyecto, no un framework genérico de scopes.
+`verify` y `test:functions` no exigen Docker; PostgreSQL, concurrencia, Auth, Mailpit y E2E sí requieren Supabase local. `projects:test:concurrency` presupone `db:start` y `db:reset`, usa conexiones PostgreSQL reales y limpia sus fixtures. Cubre participaciones, scopes de project managers y Project Activities, incluidos cierre, transiciones terminales y revocación contextual. Consulte `docs/deployment/local-development.md` para el recorrido completo. Alojamiento, Activity Participation/attendance, tareas, finanzas y los demás contextos operativos siguen fuera de alcance. El alcance de project manager es una relación explícita por proyecto, no un framework genérico de scopes.
 
 La propiedad de procesos y el comando Linux equivalente al job `Quality` se documentan en `docs/deployment/continuous-integration.md`.

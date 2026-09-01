@@ -64,7 +64,9 @@ test.describe.serial('project volunteer assignments v1', () => {
     page.once('dialog', (dialog) => void dialog.accept());
     await page.getByRole('button', { name: 'Finalizar asignación' }).click();
     await expect(page.getByText('Asignación finalizada.')).toBeVisible();
-    await expect(page.getByText('Histórica')).toBeVisible();
+    await expect(
+      page.getByRole('cell', { exact: true, name: 'Histórica' }),
+    ).toBeVisible();
 
     page.once('dialog', (dialog) => void dialog.accept());
     await page.getByRole('button', { name: 'Cerrar proyecto' }).click();
@@ -118,7 +120,10 @@ test.describe.serial('project volunteer assignments v1', () => {
     await signIn(page, 'project-manager@example.invalid');
     await page.getByRole('link', { exact: true, name: 'Proyectos' }).click();
     await expect(page.getByRole('cell', { name: projectName })).toBeVisible();
-    await page.getByRole('link', { name: 'Ver detalle' }).click();
+    await page
+      .getByRole('row', { name: new RegExp(projectName, 'u') })
+      .getByRole('link', { name: 'Ver detalle' })
+      .click();
     await expect(
       page.getByRole('button', { name: 'Cerrar proyecto' }),
     ).toHaveCount(0);
