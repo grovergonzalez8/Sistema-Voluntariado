@@ -202,6 +202,11 @@ test.describe.serial('project activities v1', () => {
     await expect(
       page.getByRole('button', { name: 'Crear actividad' }),
     ).toHaveCount(0);
-    await expect(row.getByRole('button')).toHaveCount(0);
+    await expect(
+      row.getByRole('button', { name: 'Participantes' }),
+    ).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Editar' })).toHaveCount(0);
+    await expect(row.getByRole('button', { name: 'Completar' })).toHaveCount(0);
+    await expect(row.getByRole('button', { name: 'Cancelar' })).toHaveCount(0);
   });
 });
