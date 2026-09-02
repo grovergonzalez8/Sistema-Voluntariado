@@ -86,7 +86,8 @@ harness Participation aprobó cinco repeticiones (60/60). Los tres mutation chec
 dirigidos fallaron y la restauración recuperó el diff original. Los cinco revisores
 emitieron GO. GitHub Actions remoto queda pendiente de PRE-MERGE REVIEW.
 
-El recheck limpio detectó y corrigió en `8162d39` una aserción histórica no aislada:
-el harness Assignment contaba auditoría global mientras los tres archivos corrían
-en paralelo. El archivo aislado aprobó 7/7 y, tras limitar la aserción al estado y
-auditoría del Project propio, la suite combinada regresó a 36/36 sin cambios SQL.
+El recheck limpio detectó aserciones históricas no aisladas: el harness Assignment
+contaba auditoría global de Volunteer y Manager Assignment mientras los tres archivos
+corrían en paralelo. El archivo aislado aprobó 7/7 y, tras limitar las aserciones al
+estado y auditoría del Project propio, la suite combinada regresó a 36/36 sin cambios
+SQL.

@@ -53,6 +53,7 @@ y se restauraron antes de continuar. Architect, domain modeler, database securit
 QA y docs governor emitieron GO tras integrar hallazgos. Evidencia, commits e higiene
 se conservan en el ExecPlan 0007 y en `docs/ai/change-attribution.md`.
 
-La validación limpia posterior corrigió además una aserción histórica global del
-harness Assignment que interfería con la ejecución paralela de los tres archivos;
-el archivo aislado aprobó 7/7 y el combinado restaurado aprobó 36/36 sin cambios SQL.
+La validación limpia posterior corrigió además dos aserciones históricas globales
+del harness Assignment que interferían con la ejecución paralela de los tres
+archivos; el archivo aislado aprobó 7/7 y el combinado restaurado aprobó 36/36 sin
+cambios SQL.

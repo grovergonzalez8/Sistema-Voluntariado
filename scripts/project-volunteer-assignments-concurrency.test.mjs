@@ -606,10 +606,6 @@ test(
     const suffix = randomUUID();
     const prefix = `manager-close-concurrency-${suffix}`;
     const fixture = createFixture(containerId, suffix);
-    const managerAuditBefore = runSql(
-      containerId,
-      `select count(*) from public.audit_logs where action = 'project_manager_assignment.created';`,
-    );
     const closeSession = new PsqlSession(containerId);
     const assignSession = new PsqlSession(containerId);
     try {
@@ -653,12 +649,10 @@ select
   (select count(*) from public.audit_logs
     where action = 'project.closed'
       and entity_id = '${fixture.projectId}'::uuid
-      and actor_user_id = '${adminUserId}'::uuid) || '|' ||
-  (select count(*) from public.audit_logs
-    where action = 'project_manager_assignment.created');
+      and actor_user_id = '${adminUserId}'::uuid);
 `,
       );
-      assert.equal(finalState, `closed|0|1|${managerAuditBefore}`);
+      assert.equal(finalState, 'closed|0|1');
     } finally {
       await Promise.all([
         closeSession.rollbackAndClose(),
