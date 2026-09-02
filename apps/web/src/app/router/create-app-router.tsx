@@ -178,6 +178,9 @@ export function createAppRouter(
                         {
                           element: (
                             <ProjectDetailPage
+                              activityParticipationService={
+                                services.projectActivityParticipations
+                              }
                               activityService={services.projectActivities}
                               service={services.projects}
                             />

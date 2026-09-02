@@ -8,6 +8,7 @@ import { Button, Field } from '@sistema-voluntariado/ui';
 
 import type { ProjectManagementService } from '../application/project-management-service';
 import type { ProjectActivityService } from '../application/project-activity-service';
+import type { ProjectActivityParticipationService } from '../application/project-activity-participation-service';
 import type {
   ProjectManagerAssignment,
   ProjectManagerCandidate,
@@ -19,9 +20,11 @@ import type { ProjectCapabilities } from '../application/project-authorization-p
 import { ProjectActivitiesSection } from './project-activities-section';
 
 export function ProjectDetailPage({
+  activityParticipationService,
   activityService,
   service,
 }: {
+  readonly activityParticipationService: ProjectActivityParticipationService;
   readonly activityService: ProjectActivityService;
   readonly service: ProjectManagementService;
 }) {
@@ -242,6 +245,7 @@ export function ProjectDetailPage({
             : capabilities?.manageAssigned === true
         }
         key={id}
+        participationService={activityParticipationService}
         projectId={id}
         projectStatus={project.status}
         service={activityService}

@@ -43,6 +43,7 @@ const errorCodes: Readonly<Record<string, AppErrorCode>> = {
   project_has_active_assignments: 'conflict',
   project_has_scheduled_activities: 'conflict',
   project_not_found: 'not-found',
+  volunteer_has_scheduled_activity_participations: 'conflict',
   account_not_found: 'not-found',
   volunteer_not_found: 'not-found',
 };
@@ -60,6 +61,8 @@ const specificMessages: Readonly<Record<string, string>> = {
   project_has_scheduled_activities:
     'Completa o cancela todas las actividades programadas antes de cerrar el proyecto.',
   project_not_found: 'No se encontró el proyecto solicitado.',
+  volunteer_has_scheduled_activity_participations:
+    'Finaliza primero las participaciones activas en actividades programadas.',
   project_manager_assignment_already_active:
     'La cuenta ya tiene una asignación activa a este proyecto.',
   project_manager_assignment_already_ended:

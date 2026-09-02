@@ -4,25 +4,32 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@sistema-voluntariado/ui';
 
 import type { ProjectActivityService } from '../application/project-activity-service';
+import type { ProjectActivityParticipationService } from '../application/project-activity-participation-service';
 import {
   isScheduledProjectActivity,
   type ProjectActivity,
 } from '../domain/project-activity';
 import type { ProjectStatus } from '../domain/project';
 import { ProjectActivityForm } from './project-activity-form';
+import { ProjectActivityParticipantsSection } from './project-activity-participants-section';
 
 export function ProjectActivitiesSection({
   canManage,
+  participationService,
   projectId,
   projectStatus,
   service,
 }: {
   readonly canManage: boolean;
+  readonly participationService: ProjectActivityParticipationService;
   readonly projectId: string;
   readonly projectStatus: ProjectStatus;
   readonly service: ProjectActivityService;
 }) {
   const [activities, setActivities] = useState<readonly ProjectActivity[]>([]);
+  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(
+    null,
+  );
   const [editing, setEditing] = useState<ProjectActivity | 'create' | null>(
     null,
   );
@@ -81,6 +88,9 @@ export function ProjectActivitiesSection({
   };
 
   const mutable = canManage && projectStatus === 'active';
+  const selectedActivity = activities.find(
+    (activity) => activity.id === selectedActivityId,
+  );
 
   return (
     <section aria-labelledby="project-activities-title">
@@ -152,36 +162,47 @@ export function ProjectActivitiesSection({
                     </td>
                     <td>{activity.locationText ?? t('common.notProvided')}</td>
                     <td>
-                      {canMutate ? (
-                        <div className="button-row">
-                          <Button
-                            disabled={busy}
-                            onClick={() => {
-                              setEditing(activity);
-                            }}
-                          >
-                            {t('projects.activities.editAction')}
-                          </Button>
-                          <Button
-                            disabled={busy}
-                            onClick={() =>
-                              void transition(activity, 'completed')
-                            }
-                          >
-                            {t('projects.activities.completeAction')}
-                          </Button>
-                          <Button
-                            disabled={busy}
-                            onClick={() =>
-                              void transition(activity, 'cancelled')
-                            }
-                          >
-                            {t('projects.activities.cancelAction')}
-                          </Button>
-                        </div>
-                      ) : (
-                        t('projects.activities.readOnly')
-                      )}
+                      <div className="button-row">
+                        <Button
+                          onClick={() => {
+                            setSelectedActivityId((current) =>
+                              current === activity.id ? null : activity.id,
+                            );
+                          }}
+                        >
+                          {t('projects.activities.participants.viewAction')}
+                        </Button>
+                        {canMutate ? (
+                          <>
+                            <Button
+                              disabled={busy}
+                              onClick={() => {
+                                setEditing(activity);
+                              }}
+                            >
+                              {t('projects.activities.editAction')}
+                            </Button>
+                            <Button
+                              disabled={busy}
+                              onClick={() =>
+                                void transition(activity, 'completed')
+                              }
+                            >
+                              {t('projects.activities.completeAction')}
+                            </Button>
+                            <Button
+                              disabled={busy}
+                              onClick={() =>
+                                void transition(activity, 'cancelled')
+                              }
+                            >
+                              {t('projects.activities.cancelAction')}
+                            </Button>
+                          </>
+                        ) : (
+                          <span>{t('projects.activities.readOnly')}</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -189,6 +210,16 @@ export function ProjectActivitiesSection({
             </tbody>
           </table>
         </div>
+      ) : null}
+      {selectedActivity ? (
+        <ProjectActivityParticipantsSection
+          activity={selectedActivity}
+          canManage={canManage}
+          key={`${projectId}:${selectedActivity.id}`}
+          projectId={projectId}
+          projectStatus={projectStatus}
+          service={participationService}
+        />
       ) : null}
     </section>
   );
