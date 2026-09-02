@@ -901,7 +901,12 @@ como follow-up fuera del cambio aprobado de contrato y no fue introducido por 00
   La invocación correcta pasó y dos ejecuciones completas posteriores aprobaron el
   mismo test (4,72 s en la validación pre-commit); no se ocultó ni amplió timeout.
 - 2026-09-02: commits técnicos `4fecd5c` y `a1264d4` separaron el slice vertical de
-  sus harness/E2E/CI. El cierre documental se crea sin amend ni reescritura.
+  sus harness/E2E/CI; `1c88cc6` cerró documentación sin amend ni reescritura.
+- 2026-09-02: la validación limpia posterior al cierre expuso que el harness
+  histórico Assignment comparaba un contador global de auditoría mientras Node
+  ejecutaba tres archivos en paralelo. El archivo aislado aprobó 7/7; se sustituyó
+  únicamente esa aserción no aislada por estado y auditoría del Project propio. El
+  combinado volvió a 36/36 en `8162d39`, sin cambiar SQL ni reglas de producto.
 
 ## Descubrimientos
 

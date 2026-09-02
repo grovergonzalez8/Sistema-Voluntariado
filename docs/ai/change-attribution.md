@@ -240,7 +240,12 @@ cuatro RPC mínimas y auditoría sin PII.
   orquestación, 226 unitarias, 4 integración, build 472, reset/lint, 530 pgTAP, 36
   carreras, 21 Functions y 19 E2E normal/`CI=true`; cinco repeticiones del harness
   Participation aprobaron 60/60.
-- Commits: `4fecd5c` (slice vertical), `a1264d4` (concurrencia/E2E/CI) y cierre
-  documental de esta ejecución.
+- Commits: `4fecd5c` (slice vertical), `a1264d4` (concurrencia/E2E/CI), `1c88cc6`
+  (cierre documental) y `8162d39` (aislamiento de la aserción histórica del harness
+  combinado).
+- Recheck post-commit: el combinado detectó que una aserción previa de Assignment
+  contaba auditoría global durante la ejecución paralela. El archivo aislado aprobó
+  7/7; el contador global se retiró y el combinado regresó a 36/36 sin modificar la
+  protección autoritativa ni su cobertura pgTAP.
 - Estado: completo y listo para PRE-MERGE REVIEW; sin push, merge, rebase, amend,
   despliegue, cambio en main ni operación Supabase remota.

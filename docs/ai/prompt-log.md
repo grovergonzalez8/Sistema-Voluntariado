@@ -14,7 +14,7 @@
 | 0010 | 2026-08-26 | Diseñar Project Activities V1                    | Codex       | Diseño inicial; baseline aprobada   | `d13e73c`                                                                            |
 | 0011 | 2026-08-26 | Implementar Project Activities V1                | Codex       | Completado; gates locales aprobados | `21db0cd`, `bb1a16a` y cierre documental                                             |
 | 0012 | 2026-09-01 | Diseñar Activity Participation V1                | Codex       | Diseño inicial; baseline aprobada   | `0457cbb`                                                                            |
-| 0013 | 2026-09-02 | Implementar Activity Participation V1            | Codex       | Completado; gates locales aprobados | `4fecd5c`, `a1264d4` y cierre documental                                             |
+| 0013 | 2026-09-02 | Implementar Activity Participation V1            | Codex       | Completado; gates locales aprobados | `4fecd5c`, `a1264d4`, `1c88cc6`, `8162d39` y cierre de trazabilidad                  |
 
 Detalle: `docs/ai/prompts/0001-bootstrap-foundation.md`.
 
@@ -85,3 +85,8 @@ carreras combinadas, 21 Functions y 19 E2E tanto normal como con `CI=true`. El
 harness Participation aprobó cinco repeticiones (60/60). Los tres mutation checks
 dirigidos fallaron y la restauración recuperó el diff original. Los cinco revisores
 emitieron GO. GitHub Actions remoto queda pendiente de PRE-MERGE REVIEW.
+
+El recheck limpio detectó y corrigió en `8162d39` una aserción histórica no aislada:
+el harness Assignment contaba auditoría global mientras los tres archivos corrían
+en paralelo. El archivo aislado aprobó 7/7 y, tras limitar la aserción al estado y
+auditoría del Project propio, la suite combinada regresó a 36/36 sin cambios SQL.
