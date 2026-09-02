@@ -10,6 +10,7 @@
 | TD-007 | Reconciliación Auth/DB sin panel operativo            | Hito local expone estado/auditoría pero no runbook automatizado                                                                  | observabilidad y operación productiva                 |
 | TD-008 | Scope coordinator basado solo en actor origen         | Projects V1 ya tiene scope explícito para managers; `project.manage` sigue global y faltan límites contextuales para otros roles | modelar scopes adicionales solo con requisitos reales |
 | TD-009 | TTL/rate limit de invitación son locales              | Falta política de entrega productiva                                                                                             | aprobar SMTP, retención, cuota y expiración           |
-| TD-010 | Project Detail conserva secciones históricas extensas | Activities quedó extraída, pero participaciones/managers mantienen la página cerca de su límite de revisión                      | extraer por slice solo cuando vuelva a crecer         |
+| TD-010 | Project Detail conserva secciones históricas extensas | Activities y Participants tienen secciones propias, pero assignments/managers mantienen la página cerca de su límite de revisión | extraer por slice solo cuando vuelva a crecer         |
+| TD-011 | Finish Assignment conserva prelookup por ID           | Contrato histórico localiza Assignment antes de autorizar Project y puede distinguir UUID real fuera de scope                    | diseñar firma acotada por Project en un hito aprobado |
 
 La deuda no autoriza pantallas falsas ni controles de seguridad incompletos.

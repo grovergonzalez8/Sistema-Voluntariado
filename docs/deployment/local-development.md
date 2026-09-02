@@ -63,10 +63,10 @@ El listener distingue refresh de token o `SIGNED_IN` repetido para el mismo `use
 
 ```powershell
 corepack pnpm verify
-corepack pnpm test:functions
 corepack pnpm exec supabase db lint --local --level warning
 corepack pnpm db:test
 corepack pnpm projects:test:concurrency
+corepack pnpm test:functions
 corepack pnpm --filter @sistema-voluntariado/web exec playwright install chromium
 corepack pnpm test:e2e
 corepack pnpm account-lifecycle:test
@@ -76,7 +76,7 @@ corepack pnpm account-lifecycle:test
 
 No se usa `OPTIONS` como readiness porque Kong devuelve 200 incluso para rutas inexistentes. La comprobación envía un `POST` sin JWT con origen permitido y exige la respuesta JSON propia del handler. Un 502/503 firmado por Kong solo significa que el gateway está disponible y la Function aún no; una respuesta inesperada o un contenedor previo aborta con diagnóstico. Si aparece ese diagnóstico, ejecute `corepack pnpm db:stop`, luego `db:start` y `db:reset`; no active `reuseExistingServer` para ocultarlo.
 
-`verify` es el gate estático y no requiere Docker. `test:functions` prueba el handler puro; DB, concurrencia y E2E requieren Supabase local. `projects:test:concurrency` se ejecuta después de `db:reset` y agrupa los harness de participaciones/scopes y Activities. Ambos controlan conexiones PostgreSQL independientes mediante `pg_blocking_pids`; Activities cubre create/close, terminal/close, complete/cancel, create/update/complete/cancel frente a revocación de scope, creates independientes y update/terminal. Cada escenario elimina fixtures, sesiones y locks. `account-lifecycle:test` ejecuta funciones, reconstruye la base local, aplica lint SQL, corre pgTAP, prueba la concurrencia de Projects y finaliza con E2E; no depende del estado residual de una ejecución anterior.
+`verify` es el gate estático y no requiere Docker. `test:functions` prueba el handler puro; DB, concurrencia y E2E requieren Supabase local. `projects:test:concurrency` se ejecuta después de `db:reset` y agrupa tres harness: Assignments/scopes, Activities y Activity Participation. Todos controlan conexiones PostgreSQL independientes mediante PID conocido, `application_name`, `pg_stat_activity` y `pg_blocking_pids`, sin sleeps para sincronizar carreras. Participation cubre add frente a finish Assignment y complete/cancel en ambos órdenes, duplicate add, double finish y add/finish frente a scope removal. Cada escenario elimina fixtures, sesiones y locks. `account-lifecycle:test` ejecuta funciones, reconstruye la base local, aplica lint SQL, corre pgTAP, prueba la concurrencia de Projects y finaliza con E2E; no depende del estado residual de una ejecución anterior.
 
 La URL del navegador, `site_url`, los redirects de Auth y la allowlist de Functions usan el mismo origen exacto `http://localhost:5173`. No mezcle `localhost` con `127.0.0.1`: para CORS y redirects son orígenes distintos.
 

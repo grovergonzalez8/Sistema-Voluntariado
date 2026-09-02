@@ -13,7 +13,8 @@
 | 0009 | 2026-08-25 | Scope contextual de project manager V1           | Codex       | Completado; gates locales aprobados | `daeedd1`, `749da5e`, `3b4c282`, `0a9fe2f`, `fd2706c`, `0a10b65` y cierre documental |
 | 0010 | 2026-08-26 | Diseñar Project Activities V1                    | Codex       | Diseño inicial; baseline aprobada   | `d13e73c`                                                                            |
 | 0011 | 2026-08-26 | Implementar Project Activities V1                | Codex       | Completado; gates locales aprobados | `21db0cd`, `bb1a16a` y cierre documental                                             |
-| 0012 | 2026-09-01 | Diseñar Activity Participation V1                | Codex       | Diseño inicial; baseline aprobada   | commit documental de esta ejecución                                                  |
+| 0012 | 2026-09-01 | Diseñar Activity Participation V1                | Codex       | Diseño inicial; baseline aprobada   | `0457cbb`                                                                            |
+| 0013 | 2026-09-02 | Implementar Activity Participation V1            | Codex       | Completado; gates locales aprobados | `4fecd5c`, `a1264d4` y cierre documental                                             |
 
 Detalle: `docs/ai/prompts/0001-bootstrap-foundation.md`.
 
@@ -71,3 +72,16 @@ inspección, baseline, diseño SQL/RLS/concurrencia, ExecPlan, gobernanza IA y
 revisiones de solo lectura. El resultado se conserva en
 `docs/exec-plans/0007-activity-participation-v1.md`; no se creó migración, RPC,
 código productivo, UI, pgTAP, harness ni E2E nuevo.
+
+Implementación Activity Participation V1 0013:
+`docs/ai/prompts/0013-activity-participation-v1-implementation.md`. Ejecuta el
+diseño aprobado sin reinterpretar permisos placeholder ni introducir attendance,
+RSVP o Tasks. La evidencia técnica, carreras, mutation checks, revisiones y gates se
+conserva en el ExecPlan 0007.
+
+El cierre 0013 aprobó frozen install, formato, lint, typecheck, 226 unitarias, 4
+integración, 13 orquestación, build de 472 módulos, reset/lint DB, 530 pgTAP, 36
+carreras combinadas, 21 Functions y 19 E2E tanto normal como con `CI=true`. El
+harness Participation aprobó cinco repeticiones (60/60). Los tres mutation checks
+dirigidos fallaron y la restauración recuperó el diff original. Los cinco revisores
+emitieron GO. GitHub Actions remoto queda pendiente de PRE-MERGE REVIEW.

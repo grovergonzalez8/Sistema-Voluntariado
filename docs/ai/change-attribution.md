@@ -213,3 +213,34 @@ exacto; Activity terminal read-only sin auto-finalización; guard forward-only d
 finish Assignment; locks
 account–scope–Project–Assignment–Activity–Participation; RLS default-deny,
 cuatro RPC mínimas y auditoría sin PII.
+
+## Activity Participation V1 0013 — implementación
+
+- Objetivo: completar el slice vertical aprobado y dejar la rama lista para
+  revisión pre-merge.
+- Herramienta: agente principal de Codex como único escritor; revisiones
+  especializadas de solo lectura.
+- Rama/base/HEAD inicial: `feat/activity-participation-v1`, `main@fdc05c1`,
+  `0457cbb`.
+- Prompt: `docs/ai/prompts/0013-activity-participation-v1-implementation.md`.
+- Plan: `docs/exec-plans/0007-activity-participation-v1.md`.
+- Cambios: migración/RPC/RLS/auditoría y guard Assignment; dominio, servicio,
+  gateway, composición y Participants UI; pgTAP, harness PostgreSQL, E2E, CI y
+  documentación.
+- Mutation testing: degradaciones temporales de eligibility Assignment, lock de
+  scope y guard de finish Assignment hicieron fallar sus regresiones dirigidas; el
+  diff original se restauró exactamente antes de continuar.
+- Hallazgos integrados: UI stale en transición terminal; oráculo global de
+  Volunteer en create; orden Functions/DB en CI; audit pgTAP global; grants y
+  candidates incompletos; guard cross-Project, timestamps owner y aserción E2E
+  histórica.
+- Revisión: architect, domain modeler, database security, QA y docs governor
+  emitieron GO final de solo lectura.
+- Validación: Node 22.18.0/pnpm 11.9.0, frozen install, formato, lint, typecheck, 13
+  orquestación, 226 unitarias, 4 integración, build 472, reset/lint, 530 pgTAP, 36
+  carreras, 21 Functions y 19 E2E normal/`CI=true`; cinco repeticiones del harness
+  Participation aprobaron 60/60.
+- Commits: `4fecd5c` (slice vertical), `a1264d4` (concurrencia/E2E/CI) y cierre
+  documental de esta ejecución.
+- Estado: completo y listo para PRE-MERGE REVIEW; sin push, merge, rebase, amend,
+  despliegue, cambio en main ni operación Supabase remota.

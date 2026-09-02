@@ -153,4 +153,52 @@ sequenceDiagram
   RPC-->>UI: proyección validada o error tipado
 ```
 
-Para manager contextual el prefijo de locks es `account FOR SHARE → active scope FOR SHARE`; administrator comienza en Project. Create mantiene Project bloqueado hasta insertar. Cerrar toma el mismo Project y el trigger rechaza primero participaciones activas y después Activities `scheduled`. Complete/cancel toman Project antes de Activity, por lo que una sola transición terminal gana. La revocación de scope usa `scope FOR UPDATE` y serializa frente al lock compartido de toda mutación contextual.
+Para manager contextual el prefijo de locks es `account FOR SHARE → active scope FOR SHARE`; administrator comienza en Project. Create mantiene Project bloqueado hasta insertar. Cerrar toma el mismo Project y el trigger rechaza primero Project Volunteer Assignments activos y después Activities `scheduled`. Complete/cancel toman Project antes de Activity, por lo que una sola transición terminal gana. La revocación de scope usa `scope FOR UPDATE` y serializa frente al lock compartido de toda mutación contextual.
+
+## Activity Participation
+
+```mermaid
+sequenceDiagram
+  participant UI as Participants UI
+  participant UC as ProjectActivityParticipationService
+  participant RPC as Participation RPC
+  participant DB as PostgreSQL
+  UI->>UC: list
+  UC->>RPC: Project + Activity
+  RPC->>DB: autoridad de lectura + tupla Project/Activity
+  DB-->>UI: histórico mínimo, incluido contexto terminal
+  UI->>UC: search candidates
+  UC->>RPC: Project + Activity + query limitada
+  RPC->>DB: autoridad de mutación + lifecycle + Assignment activa
+  DB-->>UI: Volunteer ID + nombre, sin PII de contacto
+```
+
+List no toma locks de mutación ni exige lifecycle abierto. Candidate search valida
+Project activo, Activity programada y Assignment activa en el snapshot de la
+consulta; no sustituye la revalidación transaccional del add.
+
+```mermaid
+sequenceDiagram
+  participant UI as Participants UI
+  participant UC as ProjectActivityParticipationService
+  participant RPC as Participation mutation RPC
+  participant P as Project row
+  participant PA as Project Assignment row
+  participant A as Activity row
+  participant AP as Participation row
+  UI->>UC: add/finish
+  UC->>RPC: Project + Activity + Volunteer/Participation IDs
+  RPC->>RPC: auth.uid + autoridad global/contextual
+  RPC->>P: FOR UPDATE; releer active
+  opt Add
+    RPC->>PA: FOR SHARE; releer Assignment activa
+  end
+  RPC->>A: FOR UPDATE; releer scheduled
+  opt Finish
+    RPC->>AP: FOR UPDATE; releer ended_at IS NULL
+  end
+  RPC->>AP: insert/update + auditoría atómica
+  RPC-->>UI: proyección mínima o error tipado
+```
+
+En mutaciones, manager antepone `account FOR SHARE → active scope FOR SHARE`; administrator comienza en Project. El orden global es `account → scope → Project → Project Assignment → Activity → Participation`, omitiendo solo filas innecesarias. Add y finish Assignment comparten Project/Assignment y releen elegibilidad; add y complete/cancel comparten Project/Activity. Una Activity terminal o Project cerrado convierte el histórico en read-only sin cambiar `ended_at`.

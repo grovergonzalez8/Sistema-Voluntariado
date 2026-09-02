@@ -28,15 +28,17 @@ Para Excel, administrator descarga una plantilla, selecciona un `.xlsx`, revisa 
 
 ## Proyectos administrativos
 
-Administrator crea un proyecto activo con nombre y descripción opcional, busca una persona del padrón y la asigna directamente. Un mismo voluntario puede participar simultáneamente en varios proyectos, pero no puede tener dos participaciones activas en el mismo. Al finalizar, el timestamp de servidor cierra esa ocurrencia sin borrarla y permite una participación futura nueva.
+Administrator crea un proyecto activo con nombre y descripción opcional, busca una persona del padrón y la asigna directamente. Un mismo voluntario puede pertenecer simultáneamente a varios proyectos, pero no puede tener dos Project Volunteer Assignments activos en el mismo. Al finalizar, el timestamp de servidor cierra esa ocurrencia sin borrarla y permite una asignación futura nueva.
 
-Un proyecto con participaciones activas o Activities `scheduled` no puede cerrarse: la interfaz explica qué lifecycle debe terminalizarse primero y preserva la precedencia del error de participación. El proyecto cerrado sigue visible con todo su histórico y no admite nuevas participaciones ni mutaciones Activity.
+Un proyecto con Project Volunteer Assignments activos o Activities `scheduled` no puede cerrarse: la interfaz explica qué lifecycle debe terminalizarse primero y preserva la precedencia del error de Assignment. El proyecto cerrado sigue visible con todo su histórico y no admite nuevos Assignments ni mutaciones Activity.
 
-Administrator puede buscar cuentas activas con rol `project_manager`, asignarlas a un proyecto activo, consultar el histórico y finalizar el scope. Un manager ve únicamente proyectos con scope activo. En ellos consulta detalle y participantes, edita nombre/descripción y gestiona participaciones mientras el proyecto esté activo. Si el proyecto se cierra, conserva lectura histórica y edición descriptiva, pero no puede crear participaciones ni administrar lifecycle o managers. Suspensión, archivo, pérdida de rol/permiso o finalización del scope corta el acceso en la siguiente operación.
+Administrator puede buscar cuentas activas con rol `project_manager`, asignarlas a un proyecto activo, consultar el histórico y finalizar el scope. Un manager ve únicamente proyectos con scope activo. En ellos consulta detalle y Volunteers asignados, edita nombre/descripción y gestiona Assignments mientras el proyecto esté activo. Si el proyecto se cierra, conserva lectura histórica y edición descriptiva, pero no puede crear Assignments ni administrar lifecycle o managers. Suspensión, archivo, pérdida de rol/permiso o finalización del scope corta el acceso en la siguiente operación.
 
 Administrator y manager contextual pueden crear Activities en Project activo, editar únicamente las programadas y completarlas o cancelarlas de forma irreversible. El listado muestra nombre, agenda, estado y ubicación opcional. Las terminales y todas las Activities de Project cerrado son históricas de solo lectura; el cierre no las completa, cancela, elimina ni modifica.
 
-No existe Activity Participation, attendance, RSVP, responsable individual, recurrencia, calendario externo, aprobación, capacidad, autoinscripción, scope genérico ni acceso para coordinator o voluntarios.
+Dentro de una Activity, administrator y manager contextual ven Participants actuales e históricos, buscan solo Volunteers con Assignment activa al Project exacto, agregan una Participation y la finalizan explícitamente. Una Participation no finalizada en Activity programada bloquea finalizar el Assignment correspondiente. Activity terminal o Project cerrado mantiene incluso `ended_at is null` como histórico read-only, sin mutación automática.
+
+No existe attendance, RSVP, responsable individual, recurrencia, calendario externo, aprobación, capacidad, autoinscripción, scope genérico ni acceso para coordinator o voluntarios.
 
 ## Estados observables
 
@@ -45,6 +47,6 @@ No existe Activity Participation, attendance, RSVP, responsable individual, recu
 - Cambio de identidad, estado o versión de autoridad: limpia toda caché sensible y vuelve a resolver el contexto.
 - Cierre de sesión: limpia estado/caché y vuelve a `/login`.
 - Padrón: carga, vacío orientado a alta/importación, sin resultados, error, éxito, paginación y preview/importación en proceso.
-- Proyectos: carga, vacío, sin resultados, error, éxito, participantes/managers activos e históricos, Activities programadas/terminales, formularios accesibles, confirmaciones irreversibles, revocación de scope y cierre bloqueado con participaciones activas o Activities programadas.
+- Proyectos: carga, vacío, sin resultados, error, éxito, Assignments/managers/Activity Participants activos e históricos, Activities programadas/terminales, formularios accesibles, confirmaciones irreversibles, revocación de scope y cierre bloqueado con Assignments activos o Activities programadas.
 
 La interfaz nunca promete alta pública ni módulos futuros.
