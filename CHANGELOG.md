@@ -28,7 +28,7 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 - Onboarding por invitación, definición de contraseña en Auth y activación atómica con rol inicial protegido.
 - Panel bilingüe de invitaciones, cuentas, roles, estados e historial/auditoría autorizada.
 - Matriz explícita de concesión de roles y protección concurrente del último administrador activo.
-- Pruebas de Edge Function, 212 comprobaciones pgTAP y recorridos E2E reales con Mailpit local.
+- Pruebas de Edge Function, pgTAP y recorridos E2E reales con Mailpit local.
 - Padrón administrativo independiente de Auth/cuentas con alta, detalle, edición, búsqueda y orden paginados, advertencias de duplicados y auditoría sin snapshots de PII.
 - Preview e importación atómica `.xlsx`, plantilla y exportación del conjunto filtrado, protegidas por permisos exclusivos de administrator y límites de 5 MiB/1.000 filas.
 - Proyectos administrativos mínimos con alta, listado/búsqueda, detalle, edición y cierre histórico sin eliminación física.
@@ -37,3 +37,6 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 - Regresiones PostgreSQL deterministas para alta/cierre de scopes, duplicados concurrentes y revocación concurrente frente a mutaciones contextuales.
 - Project Activities V1 dentro de Projects, con agenda mínima, estados `scheduled|completed|cancelled`, histórico de solo lectura, autorización global/contextual, RLS default-deny y auditoría mínima.
 - Guard forward-only que impide cerrar un proyecto con actividades programadas, más regresiones deterministas para create/close, terminal/close, complete/cancel y revocación de scope frente a mutaciones Activity.
+- Activity Participation V1 como relación histórica Activity–Volunteer, con candidatos limitados a assignments activos del Project exacto, histórico terminal de solo lectura, cuatro RPC mínimas, RLS default-deny y auditoría sin PII.
+- Guard forward-only que impide finalizar un Project Volunteer Assignment mientras exista una Participation no finalizada en una Activity programada del mismo Project, sin modificar participaciones automáticamente.
+- Regresiones PostgreSQL deterministas para add frente a finish Assignment, complete/cancel, add duplicado, finish doble y revocación de scope frente a add/finish Participation.

@@ -18,8 +18,8 @@
 - La asignación de proyecto referencia exclusivamente el padrón `volunteers`, no Auth, cuentas o perfiles.
 - Projects V1 es solo para administrator mediante `project.manage`; no introduce scopes ni activa project_manager/coordinator.
 - El proyecto mínimo usa nombre, descripción opcional y estado `active|closed`; no hay capacidad ni calendario.
-- La participación es directa, activa por `ended_at is null`, histórica al finalizar y sin aprobación o eliminación.
-- Cerrar falla mientras existan participaciones activas y nunca las finaliza automáticamente.
+- La asignación Project–Volunteer es directa, activa por `ended_at is null`, histórica al finalizar y sin aprobación o eliminación.
+- Cerrar falla mientras existan Project Volunteer Assignments activos y nunca los finaliza automáticamente.
 
 ## Resueltas en el hito 0005
 
@@ -33,7 +33,15 @@
 - Project Activity pertenece exactamente a un Project y usa `scheduled`, `completed` y `cancelled`; solo `scheduled` es mutable y ambos terminales son irreversibles.
 - Una Activity solo se crea o muta en Project `active`; cualquier Activity `scheduled` impide el cierre sin ser completada, cancelada, eliminada ni retimestamped automáticamente.
 - Administrator usa `project.manage`; project manager hereda `project.read_assigned`/`project.manage_assigned` junto con su scope dinámico. Los placeholders `activity.create`/`activity.join` no autorizan esta V1.
-- Activity Participation, attendance, RSVP, responsables individuales, Tasks, recurrencia, notificaciones y calendarios externos quedan deliberadamente fuera de alcance.
+- Attendance, RSVP, responsables individuales, Tasks, recurrencia, notificaciones y calendarios externos quedan deliberadamente fuera de alcance.
+
+## Resueltas en el hito 0007
+
+- Activity Participation es una relación histórica entre `project_activities` y el padrón `volunteers`; no usa cuentas/Auth ni copia contacto o metadata.
+- Solo una Activity `scheduled` de un Project `active` admite alta/finalización, y el Volunteer necesita un Project Volunteer Assignment activo hacia ese Project exacto.
+- `ended_at is null` significa que no se finalizó explícitamente; Activity terminal o Project cerrado vuelve la fila histórica read-only sin completar ese timestamp automáticamente.
+- Una Participation no finalizada en Activity `scheduled` bloquea finalizar el Assignment correspondiente. Una Participation finalizada o una Activity terminal no bloquea.
+- Administrator usa `project.manage`; project manager usa lectura/mutación asignada con cuenta, rol, permiso y scope vigentes. Attendance, RSVP, self-join y Tasks no forman parte de esta V1.
 
 ## Pendientes
 

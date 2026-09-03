@@ -12,6 +12,8 @@ import type { ProjectAuthorizationPort } from '../application/project-authorizat
 import type { ProjectManagementGateway } from '../application/project-management-gateway';
 import { ProjectManagementService } from '../application/project-management-service';
 import type { ProjectActivityGateway } from '../application/project-activity-gateway';
+import type { ProjectActivityParticipationGateway } from '../application/project-activity-participation-gateway';
+import { ProjectActivityParticipationService } from '../application/project-activity-participation-service';
 import { ProjectActivityService } from '../application/project-activity-service';
 import type { ProjectVolunteerAssignment } from '../domain/project-assignment';
 import type { Project } from '../domain/project';
@@ -138,6 +140,18 @@ function createActivityService(): ProjectActivityService {
   return new ProjectActivityService(authorization, gateway);
 }
 
+function createActivityParticipationService(): ProjectActivityParticipationService {
+  const gateway: ProjectActivityParticipationGateway = {
+    createParticipation: () =>
+      Promise.reject(new Error('Unexpected participation mutation')),
+    finishParticipation: () =>
+      Promise.reject(new Error('Unexpected participation mutation')),
+    listParticipations: () => Promise.resolve(success([])),
+    searchEligibleCandidates: () => Promise.resolve(success([])),
+  };
+  return new ProjectActivityParticipationService(authorization, gateway);
+}
+
 async function renderWithI18n(node: ReactNode) {
   const i18n = await createI18n();
   return render(<I18nextProvider i18n={i18n}>{node}</I18nextProvider>);
@@ -247,6 +261,7 @@ describe('project administration pages', () => {
           <Route
             element={
               <ProjectDetailPage
+                activityParticipationService={createActivityParticipationService()}
                 activityService={createActivityService()}
                 service={service}
               />
@@ -341,6 +356,7 @@ describe('project administration pages', () => {
           <Route
             element={
               <ProjectDetailPage
+                activityParticipationService={createActivityParticipationService()}
                 activityService={createActivityService()}
                 service={service}
               />

@@ -267,7 +267,7 @@ test('keeps process ownership aligned across scripts, Playwright, and Actions', 
   );
   assert.equal(
     rootPackage.scripts['projects:test:concurrency'],
-    'node --test scripts/project-volunteer-assignments-concurrency.test.mjs scripts/project-activities-concurrency.test.mjs',
+    'node --test scripts/project-volunteer-assignments-concurrency.test.mjs scripts/project-activities-concurrency.test.mjs scripts/project-activity-participations-concurrency.test.mjs',
   );
   assert.match(
     rootPackage.scripts['account-lifecycle:test'],
@@ -292,7 +292,10 @@ test('keeps process ownership aligned across scripts, Playwright, and Actions', 
   );
   assert.ok(
     workflow.indexOf('pnpm projects:test:concurrency') <
-      workflow.indexOf('pnpm test:e2e'),
+      workflow.indexOf('pnpm test:functions'),
+  );
+  assert.ok(
+    workflow.indexOf('pnpm test:functions') < workflow.indexOf('pnpm test:e2e'),
   );
   assert.ok(
     workflow.indexOf('pnpm test:e2e') < workflow.indexOf('pnpm db:stop'),

@@ -78,6 +78,17 @@ interface ProjectActivityProjectionRow {
   updated_at: string;
 }
 
+interface ProjectActivityParticipationProjectionRow {
+  activity_id: string;
+  created_at: string;
+  ended_at: string | null;
+  participation_id: string;
+  started_at: string;
+  updated_at: string;
+  volunteer_id: string;
+  volunteer_name: string;
+}
+
 export interface Database {
   public: {
     CompositeTypes: Record<string, never>;
@@ -154,6 +165,22 @@ export interface Database {
           requested_starts_at: string;
         };
         Returns: ProjectActivityProjectionRow[];
+      };
+      create_project_activity_participation: {
+        Args: {
+          requested_activity_id: string;
+          requested_project_id: string;
+          requested_volunteer_id: string;
+        };
+        Returns: ProjectActivityParticipationProjectionRow[];
+      };
+      finish_project_activity_participation: {
+        Args: {
+          requested_activity_id: string;
+          requested_participation_id: string;
+          requested_project_id: string;
+        };
+        Returns: ProjectActivityParticipationProjectionRow[];
       };
       finish_project_volunteer_assignment: {
         Args: { requested_assignment_id: string };
@@ -259,6 +286,13 @@ export interface Database {
       list_project_activities: {
         Args: { requested_project_id: string };
         Returns: ProjectActivityProjectionRow[];
+      };
+      list_project_activity_participations: {
+        Args: {
+          requested_activity_id: string;
+          requested_project_id: string;
+        };
+        Returns: ProjectActivityParticipationProjectionRow[];
       };
       list_project_manager_assignments: {
         Args: { requested_project_id: string };
@@ -381,6 +415,15 @@ export interface Database {
         };
         Returns: { full_name: string; volunteer_id: string }[];
       };
+      search_project_activity_volunteer_candidates: {
+        Args: {
+          requested_activity_id: string;
+          requested_limit?: number;
+          requested_project_id: string;
+          requested_query?: string;
+        };
+        Returns: { volunteer_id: string; volunteer_name: string }[];
+      };
       manage_account_role: {
         Args: {
           requested_account_id: string;
@@ -421,6 +464,36 @@ export interface Database {
       };
     };
     Tables: {
+      project_activity_participations: {
+        Insert: {
+          activity_id: string;
+          created_at?: string;
+          ended_at?: string | null;
+          id?: string;
+          started_at?: string;
+          updated_at?: string;
+          volunteer_id: string;
+        };
+        Relationships: [];
+        Row: {
+          activity_id: string;
+          created_at: string;
+          ended_at: string | null;
+          id: string;
+          started_at: string;
+          updated_at: string;
+          volunteer_id: string;
+        };
+        Update: {
+          activity_id?: string;
+          created_at?: string;
+          ended_at?: string | null;
+          id?: string;
+          started_at?: string;
+          updated_at?: string;
+          volunteer_id?: string;
+        };
+      };
       project_activities: {
         Insert: {
           created_at?: string;

@@ -20,7 +20,7 @@ flowchart TB
 - `identity`: sesión, contexto de cuenta, invitaciones, onboarding, estados, administración de roles y cuentas.
 - `volunteer-profile`: perfil, consulta propia y actualización de campos permitidos.
 - `volunteers`: padrón administrativo de personas voluntarias actuales e históricas, independiente de cuentas y Auth.
-- `projects`: proyectos administrativos, participaciones históricas del padrón, scopes contextuales históricos de cuentas `project_manager` y Project Activities con lifecycle terminal; dominio y aplicación representan referencias por IDs/read models mínimos sin importar Identity, Auth, Volunteers ni perfiles.
+- `projects`: proyectos administrativos, Project Volunteer Assignments históricas, scopes contextuales históricos de cuentas `project_manager`, Project Activities con lifecycle terminal y Activity Participations históricas; dominio y aplicación representan referencias por IDs/read models mínimos sin importar Identity, Auth, Volunteers ni perfiles.
 
 ## Capas
 

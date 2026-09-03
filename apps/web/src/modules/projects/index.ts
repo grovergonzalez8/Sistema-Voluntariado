@@ -7,6 +7,8 @@ export type {
   ProjectActivityGateway,
   ProjectActivityUpdateCommand,
 } from './application/project-activity-gateway';
+export type { ProjectActivityParticipationGateway } from './application/project-activity-participation-gateway';
+export { ProjectActivityParticipationService } from './application/project-activity-participation-service';
 export { ProjectActivityService } from './application/project-activity-service';
 export type {
   ProjectAuthorizationPort,
@@ -34,6 +36,11 @@ export {
   validateProjectActivityInput,
 } from './domain/project-activity';
 export type {
+  ProjectActivityParticipation,
+  ProjectActivityVolunteerCandidate,
+} from './domain/project-activity-participation';
+export { isActiveProjectActivityParticipation } from './domain/project-activity-participation';
+export type {
   ProjectManagerAssignment,
   ProjectManagerCandidate,
   ProjectVolunteerAssignment,
@@ -51,6 +58,7 @@ export type {
 export { projectStatuses, validateProjectInput } from './domain/project';
 export { SupabaseProjectManagementGateway } from './infrastructure/supabase-project-management-gateway';
 export { SupabaseProjectActivityGateway } from './infrastructure/supabase-project-activity-gateway';
+export { SupabaseProjectActivityParticipationGateway } from './infrastructure/supabase-project-activity-participation-gateway';
 export { ProjectCreatePage } from './presentation/project-create-page';
 export { ProjectDetailPage } from './presentation/project-detail-page';
 export { ProjectEditPage } from './presentation/project-edit-page';

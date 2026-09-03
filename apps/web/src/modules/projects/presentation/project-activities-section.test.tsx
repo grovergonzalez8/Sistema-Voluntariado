@@ -8,6 +8,8 @@ import { failure, success } from '@sistema-voluntariado/shared-kernel';
 import { createI18n } from '../../../app/providers/i18n';
 import type { ProjectAuthorizationPort } from '../application/project-authorization-port';
 import type { ProjectActivityGateway } from '../application/project-activity-gateway';
+import type { ProjectActivityParticipationGateway } from '../application/project-activity-participation-gateway';
+import { ProjectActivityParticipationService } from '../application/project-activity-participation-service';
 import { ProjectActivityService } from '../application/project-activity-service';
 import type { ProjectActivity } from '../domain/project-activity';
 import { ProjectActivitiesSection } from './project-activities-section';
@@ -30,6 +32,19 @@ const activity: ProjectActivity = {
 const authorization: ProjectAuthorizationPort = {
   hasPermission: () => Promise.resolve(success(true)),
 };
+
+const participationGateway: ProjectActivityParticipationGateway = {
+  createParticipation: () =>
+    Promise.reject(new Error('Unexpected participation mutation')),
+  finishParticipation: () =>
+    Promise.reject(new Error('Unexpected participation mutation')),
+  listParticipations: () => Promise.resolve(success([])),
+  searchEligibleCandidates: () => Promise.resolve(success([])),
+};
+const participationService = new ProjectActivityParticipationService(
+  authorization,
+  participationGateway,
+);
 
 function createGateway(
   overrides: Partial<ProjectActivityGateway> = {},
@@ -56,6 +71,7 @@ async function renderSection(
     <I18nextProvider i18n={i18n}>
       <ProjectActivitiesSection
         canManage={options.canManage ?? true}
+        participationService={participationService}
         projectId={projectId}
         projectStatus={options.closed ? 'closed' : 'active'}
         service={new ProjectActivityService(authorization, gateway)}
@@ -171,6 +187,7 @@ describe('ProjectActivitiesSection', () => {
       <I18nextProvider i18n={i18n}>
         <ProjectActivitiesSection
           canManage
+          participationService={participationService}
           projectId={projectId}
           projectStatus="closed"
           service={

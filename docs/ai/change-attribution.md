@@ -184,3 +184,68 @@ mutaciones frente a scope removal; pgTAP ejecuta DML denegado y valida actor de
 auditoría; E2E espera terminalización antes de cerrar. El polling de locks usa
 una sesión `psql` persistente después de detectar un timeout de `docker exec`
 en una repetición extendida.
+
+## Activity Participation V1 0012 — fase de diseño
+
+- Objetivo: diseñar la relación histórica Activity–Volunteer, su elegibilidad,
+  autorización, lifecycle, integración con Project Assignment y concurrencia
+  antes de cualquier implementación.
+- Herramienta: agente principal de Codex; revisiones especializadas de solo
+  lectura.
+- Rama y base: `feat/activity-participation-v1` desde `main@fdc05c1`.
+- Prompt: `docs/ai/prompts/0012-activity-participation-v1.md`.
+- Plan: `docs/exec-plans/0007-activity-participation-v1.md`.
+- Integración y escritura: exclusivamente el agente principal.
+- Revisión inicial: `architect`, `domain_modeler`,
+  `database_security_reviewer`, `qa_reviewer` y `docs_governor`.
+- Resultado de revisión: arquitectura y dominio emitieron PASS; los NO-GO
+  temporales de database security y documentación, y las condiciones de QA, se
+  integraron. Sus rechecks finales emitieron GO sin contradicción material.
+- Validación: runtime exacto Node 22.18.0/pnpm 11.9.0, frozen install,
+  `pnpm verify`, reset/lint DB, 406 pgTAP, 24 carreras, 21 Functions y 15 E2E.
+- Estado: diseño y baseline documentados; detenido para revisión humana, sin
+  migración, RPC, código productivo, UI, pruebas productivas, push, merge,
+  rebase, amend, despliegue, modificación de `main` ni Supabase remoto.
+
+Decisiones materiales: ownership en Projects; sujeto exclusivo `volunteers`;
+relación histórica sin DELETE; add condicionado a Assignment activa del Project
+exacto; Activity terminal read-only sin auto-finalización; guard forward-only de
+finish Assignment; locks
+account–scope–Project–Assignment–Activity–Participation; RLS default-deny,
+cuatro RPC mínimas y auditoría sin PII.
+
+## Activity Participation V1 0013 — implementación
+
+- Objetivo: completar el slice vertical aprobado y dejar la rama lista para
+  revisión pre-merge.
+- Herramienta: agente principal de Codex como único escritor; revisiones
+  especializadas de solo lectura.
+- Rama/base/HEAD inicial: `feat/activity-participation-v1`, `main@fdc05c1`,
+  `0457cbb`.
+- Prompt: `docs/ai/prompts/0013-activity-participation-v1-implementation.md`.
+- Plan: `docs/exec-plans/0007-activity-participation-v1.md`.
+- Cambios: migración/RPC/RLS/auditoría y guard Assignment; dominio, servicio,
+  gateway, composición y Participants UI; pgTAP, harness PostgreSQL, E2E, CI y
+  documentación.
+- Mutation testing: degradaciones temporales de eligibility Assignment, lock de
+  scope y guard de finish Assignment hicieron fallar sus regresiones dirigidas; el
+  diff original se restauró exactamente antes de continuar.
+- Hallazgos integrados: UI stale en transición terminal; oráculo global de
+  Volunteer en create; orden Functions/DB en CI; audit pgTAP global; grants y
+  candidates incompletos; guard cross-Project, timestamps owner y aserción E2E
+  histórica.
+- Revisión: architect, domain modeler, database security, QA y docs governor
+  emitieron GO final de solo lectura.
+- Validación: Node 22.18.0/pnpm 11.9.0, frozen install, formato, lint, typecheck, 13
+  orquestación, 226 unitarias, 4 integración, build 472, reset/lint, 530 pgTAP, 36
+  carreras, 21 Functions y 19 E2E normal/`CI=true`; cinco repeticiones del harness
+  Participation aprobaron 60/60.
+- Commits: `4fecd5c` (slice vertical), `a1264d4` (concurrencia/E2E/CI), `1c88cc6`
+  (cierre documental) y `8162d39` (aislamiento de la aserción histórica del harness
+  combinado).
+- Recheck post-commit: el combinado detectó que aserciones previas de Volunteer y
+  Manager Assignment contaban auditoría global durante la ejecución paralela. El
+  archivo aislado aprobó 7/7; los contadores globales se retiraron y el combinado
+  regresó a 36/36 sin modificar la protección autoritativa ni su cobertura pgTAP.
+- Estado: completo y listo para PRE-MERGE REVIEW; sin push, merge, rebase, amend,
+  despliegue, cambio en main ni operación Supabase remota.
