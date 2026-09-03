@@ -294,6 +294,73 @@ commit;
   return parseMarker(output, '__PARTICIPATION__');
 }
 
+function createAuthorityAdministrator(containerId, suffix) {
+  const accountId = randomUUID();
+  const userId = randomUUID();
+  runSql(
+    containerId,
+    `
+insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+  confirmation_token, email_change, email_change_token_new, recovery_token
+)
+values (
+  '00000000-0000-0000-0000-000000000000',
+  '${userId}'::uuid,
+  'authenticated',
+  'authenticated',
+  ${sqlLiteral(`authority-${suffix}@example.invalid`)},
+  extensions.crypt('local-test-only-not-a-secret', extensions.gen_salt('bf')),
+  statement_timestamp(),
+  '{"provider":"email","providers":["email"]}',
+  '{}',
+  statement_timestamp(),
+  statement_timestamp(),
+  '',
+  '',
+  '',
+  ''
+);
+insert into public.accounts (id, auth_user_id, status)
+values ('${accountId}'::uuid, '${userId}'::uuid, 'active');
+insert into public.user_roles (user_id, role_id, granted_by)
+select '${userId}'::uuid, role.id, '${adminUserId}'::uuid
+from public.roles as role
+where role.code = 'administrator';
+`,
+  );
+  return { accountId, userId };
+}
+
+function cleanupAuthorityAdministrator(containerId, authorityAdministrator) {
+  runSql(
+    containerId,
+    `
+begin;
+set local session_replication_role = replica;
+delete from public.audit_logs
+where actor_user_id = '${authorityAdministrator.userId}'::uuid
+   or target_user_id = '${authorityAdministrator.userId}'::uuid
+   or (
+     entity_type = 'account'
+     and entity_id = '${authorityAdministrator.accountId}'::uuid
+   );
+delete from public.account_status_history
+where account_id = '${authorityAdministrator.accountId}'::uuid;
+delete from public.user_roles
+where user_id = '${authorityAdministrator.userId}'::uuid;
+delete from public.accounts
+where id = '${authorityAdministrator.accountId}'::uuid;
+delete from public.profiles
+where id = '${authorityAdministrator.userId}'::uuid;
+delete from auth.users
+where id = '${authorityAdministrator.userId}'::uuid;
+commit;
+`,
+  );
+}
+
 function cleanupFixture(containerId, fixture) {
   runSql(
     containerId,
@@ -497,6 +564,21 @@ async function runScenario(label, callback) {
     ]);
     cleanupFixture(containerId, fixture);
     assertNoResidualState(containerId, prefix);
+  }
+}
+
+async function runAuthorityScenario(label, callback) {
+  const containerId = findDatabaseContainer();
+  const authorityAdministrator = createAuthorityAdministrator(
+    containerId,
+    `${label}-${randomUUID()}`,
+  );
+  try {
+    await runScenario(label, (context) =>
+      callback({ ...context, authorityAdministrator }),
+    );
+  } finally {
+    cleanupAuthorityAdministrator(containerId, authorityAdministrator);
   }
 }
 
@@ -919,4 +1001,94 @@ test('manager finish wins before scope removal', async () => {
 
 test('scope removal wins before manager finish', async () => {
   await scopeRemovalWinsManagerMutation('finish');
+});
+
+test('administrator suspension wins before participation mutation', async () => {
+  await runAuthorityScenario('suspension-wins-admin-add', async (context) => {
+    const holderPid = await beginSession(
+      context.holder,
+      adminUserId,
+      `${context.prefix}-suspension`,
+    );
+    await runHolder(
+      context.holder,
+      `select * from public.change_account_status(
+        '${context.authorityAdministrator.accountId}'::uuid,
+        'suspended',
+        'Suspensión concurrente autorizada'
+      );`,
+    );
+    const contenderPid = await beginSession(
+      context.contender,
+      context.authorityAdministrator.userId,
+      `${context.prefix}-admin-add`,
+    );
+    sendExpectedFailure(context.contender, addSql(context.fixture));
+    await waitForBlockedBy(
+      context.observer,
+      context.contender,
+      contenderPid,
+      holderPid,
+    );
+    await commitHolder(context.holder);
+    await expectFailure(context.contender, 'permission_denied', '42501');
+    assert.equal(
+      scalar(
+        context.containerId,
+        `select account.status || '|' ||
+          (select count(*) from public.project_activity_participations where activity_id = '${context.fixture.activityId}'::uuid) || '|' ||
+          (select count(*) from public.audit_logs where entity_type = 'project_activity_participation' and action = 'project_activity_participation.created' and entity_id in (
+            select id from public.project_activity_participations where activity_id = '${context.fixture.activityId}'::uuid
+          ))
+         from public.accounts as account
+         where account.id = '${context.authorityAdministrator.accountId}'::uuid;`,
+      ),
+      'suspended|0|0',
+    );
+  });
+});
+
+test('administrator participation mutation wins before suspension', async () => {
+  await runAuthorityScenario('admin-add-wins-suspension', async (context) => {
+    const holderPid = await beginSession(
+      context.holder,
+      context.authorityAdministrator.userId,
+      `${context.prefix}-admin-add`,
+    );
+    await runHolder(context.holder, addSql(context.fixture));
+    const contenderPid = await beginSession(
+      context.contender,
+      adminUserId,
+      `${context.prefix}-suspension`,
+    );
+    sendExpectedSuccess(
+      context.contender,
+      `select * from public.change_account_status(
+        '${context.authorityAdministrator.accountId}'::uuid,
+        'suspended',
+        'Suspensión posterior autorizada'
+      );`,
+    );
+    await waitForBlockedBy(
+      context.observer,
+      context.contender,
+      contenderPid,
+      holderPid,
+    );
+    await commitHolder(context.holder);
+    await expectSuccess(context.contender);
+    assert.equal(
+      scalar(
+        context.containerId,
+        `select account.status || '|' ||
+          (select count(*) from public.project_activity_participations where activity_id = '${context.fixture.activityId}'::uuid and ended_at is null) || '|' ||
+          (select count(*) from public.audit_logs where entity_type = 'project_activity_participation' and action = 'project_activity_participation.created' and entity_id in (
+            select id from public.project_activity_participations where activity_id = '${context.fixture.activityId}'::uuid
+          ))
+         from public.accounts as account
+         where account.id = '${context.authorityAdministrator.accountId}'::uuid;`,
+      ),
+      'suspended|1|1',
+    );
+  });
 });
