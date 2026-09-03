@@ -1,10 +1,52 @@
 # ExecPlan 0007 — Activity Participation V1
 
-- Estado: implementación completa; lista para PRE-MERGE REVIEW
+- Estado: corrección de dos hallazgos MEDIUM pre-merge completada
 - Fecha: 2026-09-02
 - Rama: `feat/activity-participation-v1`
 - Base: `main@fdc05c1`
 - Implementación: completada el 2026-09-02; cinco revisores GO y gates locales aprobados
+
+## Corrección pre-merge de autoridad y privacidad
+
+La revisión pre-merge confirmó dos defectos acotados. Primero, la rama
+administrator de las mutaciones que reutilizan
+`lock_project_activity_mutation_access` aceptaba `project.manage` antes de tomar
+el lock de autoridad de la cuenta. `change_account_status` y
+`manage_account_role` serializan la pérdida de autoridad mediante la fila
+`accounts FOR UPDATE` y actualizan `authority_version`; no existe una RPC de
+runtime que modifique `roles`, `permissions` o `role_permissions`, y esas tablas
+no conceden DML a roles cliente. La corrección forward-only hace que el helper
+tome la cuenta activa `FOR SHARE` y revalide después del lock `status = active`
+y `project.manage`. La ruta contextual conserva la segunda revalidación de rol,
+permiso y `scope FOR SHARE` antes del Project.
+
+Segundo, `finish_project_volunteer_assignment(uuid)` usaba el prelookup global
+de Assignment como resultado observable. La firma se conserva: el `project_id`
+leído sin lock se tratará solo como hint para enrutar autorización; el helper
+tomará los locks `account → scope si aplica → Project`, y la Assignment se
+bloqueará y revalidará después. Para todo caller sin autoridad sobre el target,
+un UUID inexistente y uno real fuera de scope tendrán el mismo contrato público
+`42501/permission_denied`. Un administrator global seguirá recibiendo
+`P0002/assignment_not_found` para un UUID inexistente; con la firma de un solo
+UUID, un manager no puede obtener esa distinción sin reintroducir el oráculo.
+
+La fase añadió pgTAP focalizado, dos carreras reales suspensión↔Participation
+en ambos órdenes y los dos mutation checks solicitados. No cambia semántica del
+guard `volunteer_has_scheduled_activity_participations`, que continúa mirando
+solo Participations con `ended_at IS NULL` en Activities `scheduled` del mismo
+Project y Volunteer.
+
+### Revisiones finales de la corrección
+
+- Database security reviewer: GO, sin bloqueantes. Confirmó `accounts` como
+  primitive de status/role, revalidación posterior al lock, mínimo privilegio,
+  hint no observable y semántica exacta del guard.
+- QA reviewer: GO, sin bloqueantes. Confirmó pgTAP 147/147, harness Participation
+  14/14, evidencia de bloqueo real en ambos órdenes, estados/auditoría y
+  sensibilidad de los dos mutation checks.
+- Architect: GO, sin bloqueantes. Confirmó que el helper es seguro para sus
+  llamadas actuales, no introduce `project → account`, conserva límites del
+  módulo y mantiene la firma pública con el contrato de error acotado.
 
 ## Objetivo
 
@@ -228,7 +270,12 @@ placeholder y además implicaría self-join fuera de alcance.
 
 Una cuenta activa con `project.manage` tiene autoridad global para leer y mutar
 Participations sujetas al lifecycle y eligibility. No se comprueba el nombre del
-rol en paralelo.
+rol en paralelo. Antes de aceptar esa autoridad para una mutación, el helper
+compartido toma la fila `accounts FOR SHARE`; después del lock revalida que la
+cuenta continúa `active` y que `project.manage` sigue vigente. Suspender/archivar
+cuenta y grant/revoke de roles usan la misma fila `FOR UPDATE` y actualizan
+`authority_version`, por lo que la operación ganadora determina la autoridad que
+la mutación puede observar.
 
 ### Project manager contextual
 
@@ -260,11 +307,16 @@ Decisión de producto aprobada:
 - no se finalizan Participations automáticamente al finalizar Assignment;
 - el usuario debe resolver primero las Participations activas relevantes.
 
-La migración reemplaza `finish_project_volunteer_assignment(uuid)` con la misma
-firma y proyección para conservar compatibilidad. Después de autorizar y tomar
-`project FOR UPDATE → project assignment FOR UPDATE`, la función relee la
-Assignment y consulta Participations activas unidas a Activities scheduled del
-mismo Project. Si existe alguna, fallará
+Las migraciones 0007 y 0008 reemplazan
+`finish_project_volunteer_assignment(uuid)` con la misma firma y proyección para
+conservar compatibilidad. 0008 usa el `project_id` de un prelookup no bloqueante
+solo como hint interno: toma el lock/recheck de autoridad, después
+`project FOR UPDATE → project assignment FOR UPDATE`, y relee la Assignment sin
+confiar en el hint como estado autoritativo. Un caller sin autoridad recibe
+`42501/permission_denied` tanto para UUID inexistente como para uno real fuera de
+scope; administrator conserva `P0002/assignment_not_found`. La función consulta
+Participations activas unidas a Activities scheduled del mismo Project. Si existe
+alguna, fallará
 `23514/volunteer_has_scheduled_activity_participations` antes de actualizar o
 auditar.
 
@@ -420,15 +472,16 @@ Orden global compatible implementado:
 
 Modos y operaciones:
 
-| Operación                           | Locks en orden                                                                                                                                             |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Add, administrator                  | `project FOR UPDATE → active project assignment FOR SHARE → activity FOR UPDATE → insert participation`                                                    |
-| Add, manager                        | `actor account FOR SHARE → active scope FOR SHARE → project FOR UPDATE → active project assignment FOR SHARE → activity FOR UPDATE → insert participation` |
-| Finish Participation, administrator | `project FOR UPDATE → activity FOR UPDATE → participation FOR UPDATE`                                                                                      |
-| Finish Participation, manager       | `account FOR SHARE → scope FOR SHARE → project FOR UPDATE → activity FOR UPDATE → participation FOR UPDATE`                                                |
-| Finish Project Assignment           | `[account FOR SHARE → scope FOR SHARE] → project FOR UPDATE → assignment FOR UPDATE → consultar scheduled activity/active participation`                   |
-| Complete/cancel Activity            | `[account FOR SHARE → scope FOR SHARE] → project FOR UPDATE → activity FOR UPDATE`                                                                         |
-| Scope removal                       | `scope FOR UPDATE`                                                                                                                                         |
+| Operación                           | Locks en orden                                                                                                                                       |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add, administrator                  | `account FOR SHARE → project FOR UPDATE → active project assignment FOR SHARE → activity FOR UPDATE → insert participation`                          |
+| Add, manager                        | `account FOR SHARE → active scope FOR SHARE → project FOR UPDATE → active project assignment FOR SHARE → activity FOR UPDATE → insert participation` |
+| Finish Participation, administrator | `account FOR SHARE → project FOR UPDATE → activity FOR UPDATE → participation FOR UPDATE`                                                            |
+| Finish Participation, manager       | `account FOR SHARE → scope FOR SHARE → project FOR UPDATE → activity FOR UPDATE → participation FOR UPDATE`                                          |
+| Finish Project Assignment           | `account FOR SHARE → [scope FOR SHARE] → project FOR UPDATE → assignment FOR UPDATE → consultar scheduled activity/active participation`             |
+| Complete/cancel Activity            | `account FOR SHARE → [scope FOR SHARE] → project FOR UPDATE → activity FOR UPDATE`                                                                   |
+| Account status/role revocation      | `account FOR UPDATE`                                                                                                                                 |
+| Scope removal                       | `scope FOR UPDATE`                                                                                                                                   |
 
 Finish Participation autoriza y bloquea Project antes de bloquear Activity por la
 tupla `(requested_project_id, requested_activity_id)` y Participation por
@@ -441,6 +494,8 @@ Justificación:
 
 - 0005 ya aprobó `account → scope → project → assignment`.
 - 0006 ya aprobó `account → scope → project → activity`.
+- 0002 serializa status y roles de runtime con `account FOR UPDATE`; 0008 toma la
+  misma fila `FOR SHARE` antes de aceptar autoridad global o contextual.
 - Insertar Assignment antes de Activity cuando una operación necesita ambas une los
   dos órdenes sin invertir ninguno.
 - Cuando una operación necesita Assignment y Activity, Assignment se bloquea
@@ -721,7 +776,9 @@ del cierre.
 | Add después de Activity terminal                          | Project → Activity lock/recheck y complete/cancel races                          |
 | Duplicado activo concurrente                              | Project serializa, índice único parcial y error estable                          |
 | Finish doble reescribe historia                           | Participation FOR UPDATE, precondición `ended_at IS NULL` y audit exacto         |
+| Revocación administrator pierde contra autoridad obsoleta | account lock/recheck compartido y carrera de suspensión en ambos órdenes         |
 | Scope revocado aún muta                                   | account/scope locks existentes y carreras add/finish en ambos órdenes            |
+| UUID Assignment revela existencia fuera de scope          | hint no observable, autorización previa y error público uniforme                 |
 | Manager enumera voluntarios globales                      | candidatos por Project/Activity, autoridad manageAssigned y proyección mínima    |
 | PII en tabla/auditoría/UI                                 | solo FK/IDs, nombre mínimo en read model y scans explícitos                      |
 | Semántica confusa de `ended_at NULL` en Activity terminal | documentar activa por periodo pero histórico read-only; UI sin acción pendiente  |
@@ -836,9 +893,10 @@ sus hallazgos:
 - Docs governor: GO. Se alinearon visión, recorrido, ADR 0011, runtime, ExecPlan,
   CI/local development y trazabilidad con la implementación y cobertura reales.
 
-No queda contradicción material. El oráculo histórico preexistente de
-`finish_project_volunteer_assignment(uuid)` por prelookup del Assignment se mantiene
-como follow-up fuera del cambio aprobado de contrato y no fue introducido por 0007.
+Los GO anteriores describen el cierre inicial del slice. La corrección pre-merge
+posterior resuelve el oráculo histórico de
+`finish_project_volunteer_assignment(uuid)` y vuelve a solicitar las revisiones de
+database security, QA y arquitectura por el lock order/contrato público ajustados.
 
 ## Progreso
 
@@ -908,6 +966,23 @@ como follow-up fuera del cambio aprobado de contrato y no fue introducido por 00
   aislado aprobó 7/7; se sustituyeron esas aserciones no aisladas por estado y
   auditoría del Project propio. El combinado volvió a 36/36, sin cambiar SQL ni
   reglas de producto; QA confirmó que no se debilitó una invariante material.
+- 2026-09-03: inspeccionados los primitives reales de invalidación de autoridad:
+  suspensión/archivo y grant/revoke de rol toman `accounts FOR UPDATE`, mientras
+  no existe RPC cliente para mutar el catálogo role/permission.
+- 2026-09-03: migración 0008 añadió el lock/recheck compartido de autoridad y
+  convirtió el prelookup Assignment en hint no observable; pgTAP 0007+0008 aprobó
+  147/147 y el harness Participation completo aprobó 14/14.
+- 2026-09-03: los mutation checks retiraron temporalmente el lock de cuenta y
+  restauraron el error distinguible del prelookup. La carrera dejó de bloquear y
+  el pgTAP recibió `P0002/assignment_not_found` en vez de
+  `42501/permission_denied`; restaurados, ambos focales volvieron a verde y no
+  quedó función temporal en catálogo.
+- 2026-09-03: database security, QA y architect emitieron GO final sin
+  bloqueantes.
+- 2026-09-03: la validación de cierre única aprobó reset y lint local, 553/553
+  pgTAP, 38/38 carreras, 21/21 Functions, 19/19 E2E y `pnpm verify` con 226
+  unitarias, 4 integración, 13 orquestación, boundaries, tipos y build de 472
+  módulos; `git diff --check` aprobó y Supabase local quedó detenido.
 
 ## Descubrimientos
 
@@ -917,9 +992,10 @@ como follow-up fuera del cambio aprobado de contrato y no fue introducido por 00
   Activity toma Project antes de Activity.
 - La finalización actual de Project Assignment ya toma Project antes de Assignment;
   solo necesita el nuevo chequeo antes del update.
-- La RPC actual de finish Assignment hace un prelookup por assignment ID antes de
-  autorizar; este plan conserva firma/comportamiento para no ampliar el slice. Las
-  nuevas RPC Participation sí autorizan Project antes de localizar el hijo.
+- La firma de un solo UUID impide que manager autorizado distinga un UUID
+  inexistente como `assignment_not_found` sin revelar existencia entre scopes. El
+  contrato uniforme para no-admin es deliberado; administrator global sí conserva
+  el not-found legítimo.
 - Activity detail no es una ruta propia; la sección Activities en Project detail es
   la superficie equivalente aprobada para Participants V1.
 - `activity.create` y `activity.join` siguen siendo placeholders y no expresan esta
@@ -933,13 +1009,16 @@ como follow-up fuera del cambio aprobado de contrato y no fue introducido por 00
   Project esté cerrado.
 - No auto-finalizar filas al cambiar Activity o Assignment.
 - Preservar firma de finish Assignment y evolucionar su guard forward-only.
+- Tratar el `project_id` preliminar de finish Assignment únicamente como hint y
+  revalidar la fila después de authority → Project → Assignment.
 - Exponer solo cuatro RPC específicas y una UI acotada, sin CRUD/framework genérico.
 
 ## Resultado de esta fase
 
-La implementación vertical, los cinco GO y la validación local prueban esquema,
-autoridad, histórico, guards, concurrencia y UI. Los tres commits convencionales
-separan feature, regresiones y cierre documental. La rama queda lista para
-PRE-MERGE REVIEW, sin push, merge, rebase, amend, despliegue, modificación de `main`
-ni operación Supabase remota. GitHub Actions no se declara aprobado: su ejecución
+La implementación vertical y la corrección pre-merge prueban esquema, autoridad,
+privacidad horizontal, histórico, guards, concurrencia y UI. Los dos hallazgos
+MEDIUM quedaron corregidos, sus mutation checks demostraron sensibilidad, la
+validación local completa aprobó y los tres revisores especializados emitieron
+GO. No se hace push, merge, rebase, amend, despliegue, modificación de `main` ni
+operación Supabase remota. GitHub Actions no se declara aprobado: su ejecución
 remota corresponde a la revisión pre-merge.
