@@ -665,9 +665,9 @@ La primera ronda solicitada se ejecutó sin ediciones por parte de los revisores
 
 | Revisor           | Veredicto inicial                      | Hallazgos incorporados                                                                                                          | Recheck final                                      |
 | ----------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| architect         | NO-GO documental; NO-GO implementación | happy path manual incompleto; vínculo link A/B en replace; separación Edge/RPC; gate ADR; evitar rate limit/leases prematuros   | Recheck LUNA no ejecutado (límite de uso)           |
-| database security | NO-GO documental; NO-GO implementación | vínculo link→Invitation; scope horizontal futuro; ACL/RLS pgTAP concretos                                                       | Recheck LUNA no ejecutado (límite de uso)           |
-| QA                | NO-GO documental                       | ledger A–J, oráculos objetivo, state machines, paridad CI y cobertura real de J                                                 | Recheck LUNA no ejecutado (límite de uso)           |
+| architect         | NO-GO documental; NO-GO implementación | happy path manual incompleto; vínculo link A/B en replace; separación Edge/RPC; gate ADR; evitar rate limit/leases prematuros   | Recheck LUNA no ejecutado (límite de uso)          |
+| database security | NO-GO documental; NO-GO implementación | vínculo link→Invitation; scope horizontal futuro; ACL/RLS pgTAP concretos                                                       | Recheck LUNA no ejecutado (límite de uso)          |
+| QA                | NO-GO documental                       | ledger A–J, oráculos objetivo, state machines, paridad CI y cobertura real de J                                                 | Recheck LUNA no ejecutado (límite de uso)          |
 | docs governor     | NO-GO documental                       | runtime fijado no disponible, sobreafirmación del happy path, deriva documental, comandos/teardown y trazabilidad de revisiones | GO commit documental; NO-GO implementación/release |
 
 Se completó el happy path manual faltante y se incorporaron los demás hallazgos. La
