@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(92);
+select plan(113);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.accounts'::regclass),
@@ -12,6 +12,87 @@ select ok(
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.invitations'::regclass),
   'invitations enables RLS'
+);
+select ok(
+  (
+    select relrowsecurity
+    from pg_class
+    where oid = 'public.invitation_operation_requests'::regclass
+  ),
+  'invitation operation requests enable RLS'
+);
+select is(
+  has_table_privilege(
+    'authenticated',
+    'public.invitation_operation_requests',
+    'SELECT,INSERT,UPDATE,DELETE'
+  ),
+  false,
+  'authenticated has no direct operation-request table privileges'
+);
+select ok(
+  has_function_privilege(
+    'authenticated',
+    'public.prepare_account_invitation_v2(text,text,text,text,uuid)',
+    'EXECUTE'
+  ) and has_function_privilege(
+    'authenticated',
+    'public.prepare_account_invitation_action_v2(uuid,text,uuid,text)',
+    'EXECUTE'
+  ),
+  'authenticated can execute only the V2 invitation preparation entrypoints'
+);
+select ok(
+  has_function_privilege(
+    'authenticated',
+    'public.accept_current_account_invitation_v2()',
+    'EXECUTE'
+  ) and has_function_privilege(
+    'authenticated',
+    'public.complete_current_account_profile_v2(text,text)',
+    'EXECUTE'
+  ),
+  'authenticated can execute the generation-bound onboarding entrypoints'
+);
+select ok(
+  has_function_privilege(
+    'service_role',
+    'public.acknowledge_account_invitation_delivery(uuid,uuid,uuid)',
+    'EXECUTE'
+  ) and has_function_privilege(
+    'service_role',
+    'public.finalize_account_invitation_delivery_v2(uuid,uuid,uuid,boolean,text)',
+    'EXECUTE'
+  ),
+  'service_role can execute the exact ACK and V2 finalize entrypoints'
+);
+select ok(
+  not has_function_privilege(
+    'authenticated',
+    'public.acknowledge_account_invitation_delivery(uuid,uuid,uuid)',
+    'EXECUTE'
+  ) and not has_function_privilege(
+    'authenticated',
+    'public.finalize_account_invitation_delivery_v2(uuid,uuid,uuid,boolean,text)',
+    'EXECUTE'
+  ),
+  'authenticated cannot execute ACK or finalize'
+);
+select ok(
+  not has_function_privilege(
+    'authenticated',
+    'public.prepare_account_invitation(text,text,text,text,uuid)',
+    'EXECUTE'
+  ) and not has_function_privilege(
+    'authenticated',
+    'public.prepare_account_invitation_action(uuid,text,uuid,text)',
+    'EXECUTE'
+  ) and not has_function_privilege(
+    'service_role',
+    'public.finalize_account_invitation_delivery(uuid,uuid,uuid,boolean,text)',
+    'EXECUTE'
+  ),
+  'legacy mutation entrypoints are not client executable'
 );
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.account_status_history'::regclass),
@@ -42,9 +123,9 @@ select throws_ok(
   'anonymous users cannot inspect account context'
 );
 select throws_ok(
-  $$select * from public.accept_current_account_invitation()$$,
+  $$select * from public.accept_current_account_invitation_v2()$$,
   '42501',
-  'permission denied for function accept_current_account_invitation',
+  'permission denied for function accept_current_account_invitation_v2',
   'anonymous users cannot accept invitations'
 );
 
@@ -84,7 +165,7 @@ select throws_ok(
 );
 select throws_ok(
   $$
-    select * from public.prepare_account_invitation(
+    select * from public.prepare_account_invitation_v2(
       'blocked@example.invalid', null, 'es', 'volunteer',
       '30000000-0000-4000-8000-000000000001'
     )
@@ -137,7 +218,7 @@ select is(
 select lives_ok(
   $$
     create temporary table test_coordinator_invitation as
-    select * from public.prepare_account_invitation(
+    select * from public.prepare_account_invitation_v2(
       '  Coordinator.Invite+tag@Example.Invalid  ', ' Persona Invitada ',
       'es', 'volunteer', '30000000-0000-4000-8000-000000000002'
     )
@@ -161,7 +242,7 @@ select ok(
 select is(
   (
     select invitation_id
-    from public.prepare_account_invitation(
+    from public.prepare_account_invitation_v2(
       'coordinator.invite+tag@example.invalid', 'Persona Invitada',
       'es', 'volunteer', '30000000-0000-4000-8000-000000000002'
     )
@@ -172,7 +253,7 @@ select is(
 select is(
   (
     select should_deliver
-    from public.prepare_account_invitation(
+    from public.prepare_account_invitation_v2(
       'coordinator.invite+tag@example.invalid',
       'Persona Invitada',
       'es',
@@ -183,9 +264,23 @@ select is(
   false,
   'an idempotent replay cannot reuse an in-flight delivery lease'
 );
+select is(
+  (
+    select operation_outcome
+    from public.prepare_account_invitation_v2(
+      'coordinator.invite+tag@example.invalid',
+      'Persona Invitada',
+      'es',
+      'volunteer',
+      '30000000-0000-4000-8000-000000000002'
+    )
+  ),
+  'in_progress',
+  'an active lease is reported explicitly as in_progress'
+);
 select throws_ok(
   $$
-    select * from public.prepare_account_invitation(
+    select * from public.prepare_account_invitation_v2(
       'different@example.invalid', 'Persona Invitada', 'es', 'volunteer',
       '30000000-0000-4000-8000-000000000002'
     )
@@ -196,7 +291,7 @@ select throws_ok(
 );
 select throws_ok(
   $$
-    select * from public.prepare_account_invitation(
+    select * from public.prepare_account_invitation_v2(
       'coordinator-admin@example.invalid', null, 'es', 'administrator',
       '30000000-0000-4000-8000-000000000003'
     )
@@ -232,7 +327,7 @@ select is(
 );
 select throws_ok(
   format(
-    'select * from public.prepare_account_invitation_action(%L, %L, %L, null)',
+    'select * from public.prepare_account_invitation_action_v2(%L, %L, %L, null)',
     (select invitation_id from test_coordinator_invitation),
     'resend',
     '30000000-0000-4000-8000-000000000004'
@@ -256,7 +351,7 @@ select ok(
 select lives_ok(
   $$
     create temporary table test_admin_invitation as
-    select * from public.prepare_account_invitation(
+    select * from public.prepare_account_invitation_v2(
       'onboarding@example.invalid', 'Onboarding Local', 'en', 'volunteer',
       '30000000-0000-4000-8000-000000000005'
     )
@@ -293,7 +388,7 @@ set local role authenticated;
 select lives_ok(
   format(
     'create temporary table test_cross_actor_resend as
-     select * from public.prepare_account_invitation_action(%L, %L, %L, null)',
+     select * from public.prepare_account_invitation_action_v2(%L, %L, %L, null)',
     (select invitation_id from test_coordinator_invitation),
     'resend',
     '30000000-0000-4000-8000-000000000026'
@@ -305,17 +400,15 @@ select is(
   true,
   'the first cross-actor resend owns the delivery lease'
 );
-select is(
-  (
-    select should_deliver
-    from public.prepare_account_invitation_action(
-      (select invitation_id from test_coordinator_invitation),
-      'resend',
-      '30000000-0000-4000-8000-000000000027',
-      null
-    )
+select throws_ok(
+  format(
+    'select * from public.prepare_account_invitation_action_v2(%L, %L, %L, null)',
+    (select invitation_id from test_coordinator_invitation),
+    'resend',
+    '30000000-0000-4000-8000-000000000027'
   ),
-  false,
+  '23514',
+  'invitation_delivery_in_progress',
   'a different idempotency key cannot overwrite an active delivery lease'
 );
 reset role;
@@ -332,7 +425,7 @@ select set_config(
 set local role service_role;
 select lives_ok(
   $$
-    select * from public.finalize_account_invitation_delivery(
+    select * from public.finalize_account_invitation_delivery_v2(
       current_setting('test.cross_actor_invitation_id')::uuid,
       current_setting('test.cross_actor_attempt_id')::uuid,
       null,
@@ -375,7 +468,7 @@ values (
 set local role authenticated;
 select throws_ok(
   format(
-    'select * from public.prepare_account_invitation_action(%L, %L, %L, null)',
+    'select * from public.prepare_account_invitation_action_v2(%L, %L, %L, null)',
     (select invitation_id from test_coordinator_invitation),
     'replace',
     '30000000-0000-4000-8000-000000000028'
@@ -393,7 +486,7 @@ set local role authenticated;
 select lives_ok(
   format(
     'create temporary table test_coordinator_replacement as
-     select * from public.prepare_account_invitation_action(%L, %L, %L, null)',
+     select * from public.prepare_account_invitation_action_v2(%L, %L, %L, null)',
     (select invitation_id from test_coordinator_invitation),
     'replace',
     '30000000-0000-4000-8000-000000000006'
@@ -419,11 +512,23 @@ select is(
   (select invitation_id from test_coordinator_replacement),
   'replacement links the source to its successor'
 );
+select ok(
+  exists(
+    select 1
+    from public.audit_logs as audit_log
+    where audit_log.action = 'invitation.replaced'
+      and audit_log.entity_id = (select invitation_id from test_coordinator_invitation)
+      and audit_log.previous_state in ('pending', 'sent', 'delivery_failed')
+      and audit_log.new_state = 'superseded'
+      and audit_log.changed_fields @> array['status', 'superseded_by']::text[]
+  ),
+  'replacement audit records the predecessor transition and successor link'
+);
 set local role authenticated;
 select is(
   (
     select should_deliver
-    from public.prepare_account_invitation_action(
+    from public.prepare_account_invitation_action_v2(
       (select invitation_id from test_coordinator_invitation),
       'replace',
       '30000000-0000-4000-8000-000000000006',
@@ -444,21 +549,22 @@ select set_config(
   true
 );
 set local role authenticated;
-select ok(
+select is(
   (
-    select should_deliver
-    from public.prepare_account_invitation_action(
+    select operation_outcome
+    from public.prepare_account_invitation_action_v2(
       (select invitation_id from test_coordinator_invitation),
       'replace',
       '30000000-0000-4000-8000-000000000006',
       null
     )
   ),
-  'an expired replacement lease can be reclaimed idempotently'
+  'failed',
+  'an expired replacement lease closes as a durable failed outcome'
 );
 select throws_ok(
   format(
-    'select * from public.prepare_account_invitation_action(%L, %L, %L, null)',
+    'select * from public.prepare_account_invitation_action_v2(%L, %L, %L, null)',
     (select invitation_id from test_coordinator_invitation),
     'replace',
     '30000000-0000-4000-8000-000000000007'
@@ -506,14 +612,16 @@ values (
   '00000000-0000-4000-8000-000000000101',
   'authenticated', 'authenticated', 'onboarding@example.invalid',
   extensions.crypt('local-test-only-not-a-secret', extensions.gen_salt('bf')),
-  '{"provider":"email","providers":["email"]}',
   (
     select jsonb_build_object(
+      'provider', 'email',
+      'providers', jsonb_build_array('email'),
       'account_invitation_id',
       invitation_id::text
     )
     from test_admin_invitation
   ),
+  '{}'::jsonb,
   statement_timestamp(), statement_timestamp(), '', '', '', ''
 );
 select set_config(
@@ -533,7 +641,7 @@ select set_config(
 );
 
 update auth.users
-set raw_user_meta_data = jsonb_build_object(
+set raw_app_meta_data = jsonb_build_object(
   'account_invitation_id',
   '00000000-0000-4000-8000-000000000999'
 )
@@ -541,12 +649,10 @@ where id = '00000000-0000-4000-8000-000000000101';
 set local role service_role;
 select throws_ok(
   $$
-    select * from public.finalize_account_invitation_delivery(
+    select public.acknowledge_account_invitation_delivery(
       current_setting('test.invitation_id')::uuid,
       current_setting('test.delivery_attempt_id')::uuid,
-      '00000000-0000-4000-8000-000000000101',
-      true,
-      null
+      '00000000-0000-4000-8000-000000000101'
     )
   $$,
   '23514',
@@ -555,15 +661,44 @@ select throws_ok(
 );
 reset role;
 update auth.users
-set raw_user_meta_data = jsonb_build_object(
+set raw_app_meta_data = jsonb_build_object(
   'account_invitation_id',
   current_setting('test.invitation_id')
-)
+),
+    invited_at = statement_timestamp(),
+    email_confirmed_at = statement_timestamp() - interval '1 minute'
+where id = '00000000-0000-4000-8000-000000000101';
+set local role service_role;
+select throws_ok(
+  $$
+    select public.acknowledge_account_invitation_delivery(
+      current_setting('test.invitation_id')::uuid,
+      current_setting('test.delivery_attempt_id')::uuid,
+      '00000000-0000-4000-8000-000000000101'
+    )
+  $$,
+  '23514',
+  'auth_user_confirmed_before_delivery',
+  'a session confirmed before the current Auth issue cannot authorize its successor'
+);
+reset role;
+update auth.users
+set email_confirmed_at = null
 where id = '00000000-0000-4000-8000-000000000101';
 set local role service_role;
 select lives_ok(
   $$
-    select * from public.finalize_account_invitation_delivery(
+    select public.acknowledge_account_invitation_delivery(
+      current_setting('test.invitation_id')::uuid,
+      current_setting('test.delivery_attempt_id')::uuid,
+      '00000000-0000-4000-8000-000000000101'
+    )
+  $$,
+  'service role durably acknowledges the exact Auth delivery'
+);
+select lives_ok(
+  $$
+    select * from public.finalize_account_invitation_delivery_v2(
       current_setting('test.invitation_id')::uuid,
       current_setting('test.delivery_attempt_id')::uuid,
       '00000000-0000-4000-8000-000000000101',
@@ -575,7 +710,7 @@ select lives_ok(
 );
 select throws_ok(
   $$
-    select * from public.finalize_account_invitation_delivery(
+    select * from public.finalize_account_invitation_delivery_v2(
       current_setting('test.invitation_id')::uuid,
       current_setting('test.delivery_attempt_id')::uuid,
       '00000000-0000-4000-8000-000000000101',
@@ -589,7 +724,7 @@ select throws_ok(
 );
 select throws_ok(
   $$
-    select * from public.finalize_account_invitation_delivery(
+    select * from public.finalize_account_invitation_delivery_v2(
       current_setting('test.invitation_id')::uuid,
       null,
       '00000000-0000-4000-8000-000000000101',
@@ -641,15 +776,62 @@ select is(
   'sent',
   'successful delivery transitions the invitation to sent'
 );
-
 select set_config(
   'request.jwt.claims',
-  '{"sub":"00000000-0000-4000-8000-000000000101","role":"authenticated"}',
+  '{"sub":"00000000-0000-4000-8000-000000000004","role":"authenticated"}',
   true
 );
 set local role authenticated;
 select is(
-  (select account_status from public.accept_current_account_invitation()),
+  (
+    select operation_outcome
+    from public.prepare_account_invitation_v2(
+      'onboarding@example.invalid',
+      'Onboarding Local',
+      'en',
+      'volunteer',
+      '30000000-0000-4000-8000-000000000005'
+    )
+  ),
+  'replayed',
+  'a completed create returns the durable replay outcome'
+);
+reset role;
+
+select set_config(
+  'request.jwt.claims',
+  jsonb_build_object(
+    'sub', '00000000-0000-4000-8000-000000000101',
+    'role', 'authenticated',
+    'app_metadata', jsonb_build_object(
+      'account_invitation_id', '00000000-0000-4000-8000-000000000999'
+    )
+  )::text,
+  true
+);
+set local role authenticated;
+select throws_ok(
+  $$select * from public.accept_current_account_invitation_v2()$$,
+  '23514',
+  'invitation_context_mismatch',
+  'an authenticated identity cannot accept another invitation generation'
+);
+reset role;
+
+select set_config(
+  'request.jwt.claims',
+  jsonb_build_object(
+    'sub', '00000000-0000-4000-8000-000000000101',
+    'role', 'authenticated',
+    'app_metadata', jsonb_build_object(
+      'account_invitation_id', current_setting('test.invitation_id')
+    )
+  )::text,
+  true
+);
+set local role authenticated;
+select is(
+  (select account_status from public.accept_current_account_invitation_v2()),
   'pending_profile',
   'the invited identity can accept its sent invitation'
 );
@@ -659,15 +841,43 @@ select is(
   'pending_profile has no effective RBAC permissions'
 );
 select throws_ok(
-  $$select * from public.accept_current_account_invitation()$$,
+  $$select * from public.accept_current_account_invitation_v2()$$,
   '23514',
   'invitation_used',
   'an accepted invitation cannot be consumed twice'
 );
+select set_config(
+  'request.jwt.claims',
+  jsonb_build_object(
+    'sub', '00000000-0000-4000-8000-000000000101',
+    'role', 'authenticated',
+    'app_metadata', jsonb_build_object(
+      'account_invitation_id', '00000000-0000-4000-8000-000000000999'
+    )
+  )::text,
+  true
+);
+select throws_ok(
+  $$select * from public.complete_current_account_profile_v2('No autorizado', 'en')$$,
+  '23514',
+  'invitation_context_mismatch',
+  'an old invitation context cannot complete another generation onboarding'
+);
+select set_config(
+  'request.jwt.claims',
+  jsonb_build_object(
+    'sub', '00000000-0000-4000-8000-000000000101',
+    'role', 'authenticated',
+    'app_metadata', jsonb_build_object(
+      'account_invitation_id', current_setting('test.invitation_id')
+    )
+  )::text,
+  true
+);
 select is(
   (
     select account_status
-    from public.complete_current_account_profile('Persona Activada', 'en')
+    from public.complete_current_account_profile_v2('Persona Activada', 'en')
   ),
   'active',
   'profile completion activates the pending account'
@@ -679,7 +889,7 @@ select ok(
 select is(
   (
     select account_status
-    from public.complete_current_account_profile('Ignorado tras activar', 'es')
+    from public.complete_current_account_profile_v2('Ignorado tras activar', 'es')
   ),
   'active',
   'profile completion is idempotent after activation'
@@ -694,15 +904,44 @@ set status = 'revoked'
 where id = current_setting('test.invitation_id')::uuid;
 select set_config(
   'request.jwt.claims',
-  '{"sub":"00000000-0000-4000-8000-000000000101","role":"authenticated"}',
+  jsonb_build_object(
+    'sub', '00000000-0000-4000-8000-000000000101',
+    'role', 'authenticated',
+    'app_metadata', jsonb_build_object(
+      'account_invitation_id', current_setting('test.invitation_id')
+    )
+  )::text,
   true
 );
 set local role authenticated;
 select throws_ok(
-  $$select * from public.accept_current_account_invitation()$$,
+  $$select * from public.accept_current_account_invitation_v2()$$,
   '23514',
   'invitation_revoked',
   'a revoked invitation cannot be accepted'
+);
+
+reset role;
+update public.invitations
+set status = 'expired'
+where id = current_setting('test.invitation_id')::uuid;
+select set_config(
+  'request.jwt.claims',
+  jsonb_build_object(
+    'sub', '00000000-0000-4000-8000-000000000101',
+    'role', 'authenticated',
+    'app_metadata', jsonb_build_object(
+      'account_invitation_id', current_setting('test.invitation_id')
+    )
+  )::text,
+  true
+);
+set local role authenticated;
+select throws_ok(
+  $$select * from public.accept_current_account_invitation_v2()$$,
+  '23514',
+  'invitation_expired',
+  'an expired invitation cannot be accepted'
 );
 
 reset role;
@@ -711,12 +950,18 @@ set status = 'superseded'
 where id = current_setting('test.invitation_id')::uuid;
 select set_config(
   'request.jwt.claims',
-  '{"sub":"00000000-0000-4000-8000-000000000101","role":"authenticated"}',
+  jsonb_build_object(
+    'sub', '00000000-0000-4000-8000-000000000101',
+    'role', 'authenticated',
+    'app_metadata', jsonb_build_object(
+      'account_invitation_id', current_setting('test.invitation_id')
+    )
+  )::text,
   true
 );
 set local role authenticated;
 select throws_ok(
-  $$select * from public.accept_current_account_invitation()$$,
+  $$select * from public.accept_current_account_invitation_v2()$$,
   '23514',
   'invitation_superseded',
   'a superseded invitation cannot be accepted'
@@ -1024,7 +1269,7 @@ select set_config(
 set local role authenticated;
 select throws_ok(
   $$
-    select * from public.prepare_account_invitation(
+    select * from public.prepare_account_invitation_v2(
       'coordinator.invite+tag@example.invalid',
       'Otro registro',
       'es',
@@ -1046,7 +1291,7 @@ set local role authenticated;
 select lives_ok(
   format(
     'create temporary table test_terminal_replacement as
-     select * from public.prepare_account_invitation_action(%L, %L, %L, null)',
+     select * from public.prepare_account_invitation_action_v2(%L, %L, %L, null)',
     (select invitation_id from test_coordinator_replacement),
     'replace',
     '30000000-0000-4000-8000-000000000029'
@@ -1068,7 +1313,7 @@ select ok(
 set local role authenticated;
 select throws_ok(
   format(
-    'select * from public.prepare_account_invitation_action(%L, %L, %L, null)',
+    'select * from public.prepare_account_invitation_action_v2(%L, %L, %L, null)',
     (select invitation_id from test_coordinator_replacement),
     'replace',
     '30000000-0000-4000-8000-000000000030'
@@ -1076,6 +1321,74 @@ select throws_ok(
   '23514',
   'invitation_not_replaceable',
   'a terminal ancestor cannot overwrite its existing successor link'
+);
+
+select is(
+  has_function_privilege(
+    'authenticated',
+    'public.accept_current_account_invitation()',
+    'EXECUTE'
+  ),
+  false,
+  'the generation-agnostic acceptance RPC is not executable by clients'
+);
+reset role;
+select lives_ok(
+  format(
+    'update public.invitations
+     set delivery_attempted_at = statement_timestamp() - interval ''3 minutes''
+     where id = %L',
+    (select invitation_id from test_terminal_replacement)
+  ),
+  'the test can force the successor delivery lease stale before revocation'
+);
+set local role authenticated;
+select is(
+  (
+    select operation_outcome
+    from public.prepare_account_invitation_action_v2(
+      (select invitation_id from test_terminal_replacement),
+      'revoke',
+      '30000000-0000-4000-8000-000000000031',
+      'Revocación idempotente de prueba'
+    )
+  ),
+  'completed',
+  'the first revoke completes once'
+);
+select is(
+  (
+    select operation_outcome
+    from public.prepare_account_invitation_action_v2(
+      (select invitation_id from test_terminal_replacement),
+      'revoke',
+      '30000000-0000-4000-8000-000000000031',
+      'Revocación idempotente de prueba'
+    )
+  ),
+  'replayed',
+  'the same revoke intention replays deterministically'
+);
+reset role;
+select is(
+  (
+    select count(*)
+    from public.audit_logs
+    where entity_id = (select invitation_id from test_terminal_replacement)
+      and action = 'invitation.revoked'
+  ),
+  1::bigint,
+  'revoke replay creates exactly one terminal audit transition'
+);
+select is(
+  (
+    select count(*)
+    from public.invitation_operation_requests
+    where request_fingerprint ~* '(email|token|password|secret)'
+      or coalesce(error_code, '') ~* '(email|token|password|secret)'
+  ),
+  0::bigint,
+  'durable operation state persists no secret-bearing values'
 );
 
 select * from finish();

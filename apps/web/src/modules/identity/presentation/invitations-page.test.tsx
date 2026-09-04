@@ -17,6 +17,7 @@ const invitationId = '00000000-0000-4000-8000-000000000020';
 const commandResult = {
   accountId: '00000000-0000-4000-8000-000000000021',
   invitationId,
+  outcome: 'completed' as const,
   status: 'sent' as const,
 };
 
@@ -194,10 +195,14 @@ describe('InvitationsPage', () => {
     await user.click(await screen.findByRole('button', { name: 'Revocar' }));
 
     expect(confirm).toHaveBeenCalledOnce();
-    expect(revokeInvitation).toHaveBeenCalledWith({
+    const revokeCommand = revokeInvitation.mock.calls[0]?.[0];
+    expect(revokeCommand).toMatchObject({
       invitationId,
       reason: 'Solicitud administrativa',
     });
+    expect(revokeCommand?.idempotencyKey).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu,
+    );
     expect(await screen.findByText('Invitación actualizada.')).not.toBeNull();
   });
 
