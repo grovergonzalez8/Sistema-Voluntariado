@@ -49,7 +49,7 @@ flowchart TD
   P -->|No| X
   P -->|Sí| B["Reservar operación idempotente con JWT"]
   B --> L{"Lease de entrega"}
-  L -->|No| O["Devolver estado existente"]
+  L -->|No| O["Devolver replayed, in_progress o failed"]
   L -->|Sí| S["Crear cliente Auth Admin"]
   S --> A["Invitar o reconciliar identidad"]
   A --> F["Finalizar sent o delivery_failed"]
@@ -99,10 +99,11 @@ sequenceDiagram
   EF->>DB: reservar cuenta/invitación y lease
   DB-->>EF: IDs + should_deliver
   alt Debe entregar
-    EF->>AU: inviteUserByEmail
+    EF->>AU: inviteUserByEmail + app_metadata de generación
     alt Auth confirma
       AU-->>EF: auth_user_id
-      EF->>DB: enlace bilateral + sent
+      EF->>DB: ACK durable
+      EF->>DB: enlace bilateral + sent + completed
     else Auth falla
       AU-->>EF: error proveedor
       EF->>DB: delivery_failed con código seguro
@@ -112,7 +113,12 @@ sequenceDiagram
   end
 ```
 
-No existe transacción distribuida. La idempotencia, el lease exclusivo con actor/correlación por intento, el snapshot bilateral de `auth_user_id`, constraints diferidos y la reconciliación por correo exacto + identificador de invitación en metadata emitida por el servidor limitan divergencias. Los casos ambiguos o una identidad ya confirmada quedan fallidos para intervención; nunca se enlazan ni eliminan usuarios automáticamente.
+No existe transacción distribuida. La idempotencia, el lease exclusivo con actor/
+correlación, el ACK Auth durable, el snapshot bilateral de `auth_user_id`,
+constraints diferidos y la generación en `app_metadata` limitan divergencias. Un
+retry con ACK finaliza sin reenviar; un lease ajeno vigente es `in_progress`, no
+éxito. Los casos ambiguos o una identidad ya confirmada quedan fallidos para
+intervención; nunca se eliminan usuarios automáticamente.
 
 ## Padrón administrativo de voluntarios
 

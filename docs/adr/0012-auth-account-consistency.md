@@ -33,3 +33,19 @@ Un ACK perdido puede dejar Auth adelantado respecto de PostgreSQL. Se mitiga con
 Los eventos Auth conservan su tipo. `TOKEN_REFRESHED`, `USER_UPDATED` y `SIGNED_IN` repetido para el mismo `user_id` actualizan la sesión e invalidan el contexto sin borrar su dato válido. Un cambio real de `user_id` cancela y elimina la clave de autoridad anterior antes de consultar la nueva identidad; `SIGNED_OUT` limpia los datos privados.
 
 El estado de acceso es una unión discriminada: inicialización, no autenticado, autoridad en carga, activo, invitado, perfil pendiente, suspendido, archivado, prohibido y error recuperable. TanStack Query usa una clave que incluye `user_id`, conserva datos durante un refetch del mismo usuario y mantiene `refetchOnWindowFocus` para actualizar autoridad. Solo una consulta satisfactoria que confirme `suspended` o `archived` permite `/account-blocked`; un 403 de una mutación nunca cambia por sí mismo el ciclo de vida de cuenta.
+
+## Apéndice 2026-09-04: generación Auth y saga durable
+
+El spike local confirmó que reinvitar una identidad no confirmada invalida el link
+anterior y conserva el mismo `auth_user_id`. Replace vuelve a invitar, actualiza por
+API Admin `app_metadata.account_invitation_id`, registra un ACK durable y solo
+después finaliza PostgreSQL. Un finalize perdido se reanuda con el mismo ACK sin
+otro correo. Un lease activo responde `in_progress`; éxito previo responde
+`replayed`.
+
+La autorización de aceptación no usa “última invitación” ni `user_metadata`:
+PostgreSQL exige el ID exacto de `app_metadata` firmado y el vínculo bilateral
+Invitation/Auth. El mismo contexto se exige para completar perfil. Links terminales
+pueden autenticar mientras Auth aún los considere válidos, pero no conceden
+autoridad de aplicación. No se eliminan identidades automáticamente; una identidad
+confirmada por link revocado/expirado requiere reconciliación administrativa.

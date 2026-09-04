@@ -1,6 +1,6 @@
 # ExecPlan 0008: Invitation Flow Hardening V1
 
-- Estado: diagnóstico y reproducción completados; implementación no iniciada;
+- Estado: FASE A implementada; gates locales completados;
   paridad CI bloqueada por runtime Node no disponible
 - Inicio del diagnóstico: 2026-09-03
 - Responsable: agente principal de Codex, con revisión humana obligatoria
@@ -12,11 +12,67 @@
 
 Endurecer el flujo real de invitaciones para que una invitación administrativa pueda recorrerse de extremo a extremo en Supabase local —creación, entrega en Mailpit, consumo del link Auth, onboarding, activación y login posterior— sin manipulación manual de la base entre esos pasos, y para que los fallos, reintentos y carreras relevantes tengan regresiones reproducibles.
 
-Este documento cierra únicamente la primera fase de investigación. No modifica código productivo, migraciones, Edge Functions, UI, dependencias ni versiones. La implementación futura no podrá declararse terminada solo porque se haya creado una fila o enviado un correo.
+El diagnóstico inicial quedó preservado como evidencia histórica. La FASE A añade
+el hardening de backend/Auth/PostgreSQL/Edge Function y las regresiones focales;
+callback/E2E canónico y rediseño frontend permanecen fuera de este incremento.
+
+## FASE A — contrato implementado
+
+El spike local se repitió con Supabase CLI `2.109.1` y GoTrue `v2.192.0`, sin
+persistir ni imprimir tokens. Con Invitation A ya enviada, la API Admin soportada
+volvió a invitar la misma identidad no confirmada,
+actualizó `app_metadata.account_invitation_id` a B y emitió B. Al abrir A después
+de esa rotación, Auth respondió `303` con `otp_expired` y no emitió sesión. B
+respondió `303` con sesión y `accept_current_account_invitation_v2` aceptó
+exactamente B. A y B conservaron el mismo `auth_user_id`.
+
+La implementación adopta por tanto el CASO 1:
+
+- `inviteUserByEmail` rota el artefacto Auth previo de una identidad no confirmada;
+- `app_metadata`, escribible solo por Auth Admin, vincula el JWT a una generación;
+- PostgreSQL exige ese claim tanto al aceptar como al completar onboarding;
+- `user_metadata` no concede autoridad y solo conserva locale/display name no
+  autoritativos;
+- la Edge Function persiste un ACK técnico de Auth antes del finalize y un retry
+  con ACK no vuelve a enviar correo;
+- respuestas públicas distinguen `completed`, `replayed`, `in_progress` y
+  `failed`; `execute` es exclusivamente una disposición interna RPC→Edge;
+- revoke usa idempotency key/fingerprint y el mismo replay no repite audit.
+
+No se eliminan identidades automáticamente. Si un link revocado o expirado se
+consume antes de que Auth lo invalide, puede confirmar la identidad, pero el claim
+solo referencia la invitación terminal y PostgreSQL rechaza aceptación y profile
+completion. El resultado queda recuperable como Account `invited`, Invitation
+terminal y vínculo Auth técnico; la reconciliación administrativa de esa identidad
+confirmada sigue siendo una tarea explícita de FASE B, no una compensación
+destructiva automática.
+
+`preferred_locale=es` continúa llegando a metadata no autoritativa, pero el
+template único local de Supabase no selecciona contenido dinámico versionado en el
+mecanismo actual. Se difiere el email localizado a FASE B para no duplicar HTML ni
+acoplar seguridad a metadata de plantilla.
+
+**LOCAL NODE PARITY WITH CI: NOT CONFIRMED** (`v22.21.0` local frente a
+`22.18.0` requerido). No se cambió runtime ni tooling.
 
 ## Estado inicial y Git
 
-La inspección inicial encontró el árbol limpio en `main`. Antes de investigar se creó la rama obligatoria desde esa base exacta. No se hizo push, merge, rebase, amend, deploy, `supabase link`, `db push` ni ninguna operación Supabase remota.
+El precheck de implementación de FASE A observó el árbol limpio, la rama
+obligatoria y el commit de planificación esperado. No se hizo push, merge,
+rebase, amend, deploy, `supabase link`, `db push` ni ninguna operación Supabase
+remota.
+
+| Referencia en precheck FASE A      | Valor observado                            |
+| ---------------------------------- | ------------------------------------------ |
+| Rama de trabajo                    | `fix/invitation-flow-hardening`            |
+| `HEAD` inicial de implementación   | `181929ddd3bab469722431aa113ab4fd1890a06f` |
+| `main`                             | `34c25dde52f1439639236ea2d192a53fd79739d3` |
+| `origin/main`                      | `34c25dde52f1439639236ea2d192a53fd79739d3` |
+| `merge-base HEAD main/origin-main` | `34c25dde52f1439639236ea2d192a53fd79739d3` |
+| Árbol inicial de implementación    | limpio                                     |
+
+La tabla histórica siguiente corresponde al inicio del diagnóstico que produjo
+el commit de planificación `181929d`, antes de comenzar esta implementación:
 
 | Referencia                    | Valor observado                            |
 | ----------------------------- | ------------------------------------------ |
@@ -609,16 +665,14 @@ La primera ronda solicitada se ejecutó sin ediciones por parte de los revisores
 
 | Revisor           | Veredicto inicial                      | Hallazgos incorporados                                                                                                          | Recheck final                                      |
 | ----------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| architect         | NO-GO documental; NO-GO implementación | happy path manual incompleto; vínculo link A/B en replace; separación Edge/RPC; gate ADR; evitar rate limit/leases prematuros   | GO commit documental; NO-GO implementación         |
-| database security | NO-GO documental; NO-GO implementación | vínculo link→Invitation; scope horizontal futuro; ACL/RLS pgTAP concretos                                                       | GO commit documental; NO-GO implementación         |
-| QA                | NO-GO documental                       | ledger A–J, oráculos objetivo, state machines, paridad CI y cobertura real de J                                                 | GO commit documental; NO-GO implementación         |
+| architect         | NO-GO documental; NO-GO implementación | happy path manual incompleto; vínculo link A/B en replace; separación Edge/RPC; gate ADR; evitar rate limit/leases prematuros   | Recheck LUNA no ejecutado (límite de uso)           |
+| database security | NO-GO documental; NO-GO implementación | vínculo link→Invitation; scope horizontal futuro; ACL/RLS pgTAP concretos                                                       | Recheck LUNA no ejecutado (límite de uso)           |
+| QA                | NO-GO documental                       | ledger A–J, oráculos objetivo, state machines, paridad CI y cobertura real de J                                                 | Recheck LUNA no ejecutado (límite de uso)           |
 | docs governor     | NO-GO documental                       | runtime fijado no disponible, sobreafirmación del happy path, deriva documental, comandos/teardown y trazabilidad de revisiones | GO commit documental; NO-GO implementación/release |
 
-Se completó el happy path manual faltante y se incorporaron los demás hallazgos. Los
-cuatro rechecks emitieron GO para este commit documental y mantuvieron NO-GO para
-implementación; docs governor también mantuvo NO-GO para release. La ausencia de
-Node `22.18.0` no se presenta como PASS: la paridad CI sigue **NOT EXECUTED** y
-deberá repetirse en la fase de implementación.
+Se completó el happy path manual faltante y se incorporaron los demás hallazgos. La
+ausencia de Node `22.18.0` no se presenta como PASS: la paridad CI sigue
+**NOT EXECUTED** y deberá repetirse cuando ese runtime esté disponible.
 
 ## Progreso
 
@@ -631,7 +685,8 @@ deberá repetirse en la fase de implementación.
 - [x] Reproducir casos focales A–J hasta donde existe soporte.
 - [x] Identificar root causes, seguridad, idempotencia, concurrencia y gaps E2E.
 - [x] Diseñar fases y tests de corrección.
-- [ ] Implementar fixes (deliberadamente fuera de esta fase).
+- [x] Implementar FASE A de backend/Auth/PostgreSQL/Edge e idempotencia.
+- [x] Versionar el spike A/B y carreras críticas sin navegador destinatario.
 - [ ] Versionar el acceptance E2E final con logout/login (la reproducción manual sí
       se completó).
 - [ ] Repetir paridad CI con Node `22.18.0` (runtime no disponible y actualización
@@ -640,6 +695,11 @@ deberá repetirse en la fase de implementación.
 ## Descubrimientos
 
 - Supabase Auth permite resend a una identidad no confirmada y envía otro correo, pero no transfiere la metadata de invitación a la sucesora de `replace`.
+- La reinvitación soportada invalida A (`otp_expired`) y B funciona cuando la Edge
+  Function actualiza después `app_metadata` mediante Auth Admin; el mismo
+  `auth_user_id` se conserva.
+- `user_metadata` es editable por el usuario y no es una frontera de autoridad;
+  la generación vigente se valida exclusivamente desde `app_metadata` firmado.
 - Un link revocado en DB sigue siendo válido en Auth hasta su expiración/consumo; la autorización DB niega activación, pero no evita confirmar la identidad.
 - El E2E verde usa un contexto destinatario aislado, por lo que no observa el cambio global de sesión al abrir el link en el perfil administrativo.
 - Ejecutar pgTAP después de E2E sin reset produce fallos de conteo; el orden de gates debe preservar el reset ya documentado.
@@ -654,11 +714,34 @@ deberá repetirse en la fase de implementación.
 - Mantener tokens exclusivamente dentro de Auth/test runtime y redactarlos en toda evidencia.
 - No elegir todavía una API Auth destructiva: el spike y la revisión de FKs preceden cualquier migración/Edge change.
 
-## Resultado de esta primera fase
+## Resultado de FASE A
 
-Diagnóstico y reproducción local listos para recheck documental. El incremento sigue
-**no implementado** y la paridad CI exacta sigue pendiente por ausencia del runtime
-Node fijado. La recomendación para la siguiente fase es NO-GO a fixes aislados de
-UI: primero deben añadirse regresiones distribuidas, completarse el spike de vínculo
-link→Invitation y acordarse la saga Auth/DB para replace/revoke/expiry. El cierre
-futuro dependerá del acceptance E2E versionado completo, no de `200 sent`.
+El backend separa autenticación Auth de autorización de invitación y conserva
+estado durable de operación/ACK. Las regresiones versionadas cubren A/B real,
+replay/leases, revoke idempotente, estados terminales, ausencia de secretos y las
+carreras críticas solicitadas. FASE A se detiene antes del rediseño completo de
+callback y del E2E canónico con navegador destinatario. La paridad CI exacta sigue
+pendiente por ausencia del runtime Node fijado.
+
+## Validación final de FASE A
+
+Con la migración y regresiones actuales se verificó:
+
+- `supabase test db supabase/tests/0002_account_lifecycle.test.sql`: 113/113;
+- `pnpm exec supabase db lint --local --level warning`: sin errores;
+- `pnpm test:functions`: 28/28;
+- `pnpm invitations:test:auth-contract`: 1/1;
+- `pnpm invitations:test:concurrency`: 6/6;
+- `pnpm format:check`, `pnpm lint:boundaries`, `pnpm typecheck` y
+  `pnpm typecheck:functions`: aprobados.
+
+Los mutation checks temporales para autorización vigente, replay
+`in_progress` y recuperación/idempotencia de replace fallaron como debían y se
+restauraron inmediatamente; no se conservaron mutaciones. La ejecución final de
+`pnpm verify` queda para el cierre de la rama, junto con el `db:test` completo y
+el teardown local.
+
+Se solicitaron rechecks read-only de arquitectura, seguridad de base de datos y
+QA usando GPT-5.6 Luna; el proveedor devolvió límite de uso antes de ejecutar
+esas tres revisiones. No se presenta ese recheck como aprobación ni se oculta la
+limitación.

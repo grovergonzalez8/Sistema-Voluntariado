@@ -14,7 +14,13 @@ flowchart LR
   J --> K["active"]
 ```
 
-La invitación vencida, revocada, sustituida o ya aceptada termina en una pantalla segura y no concede acceso. Administrator puede sustituir una invitación abierta o crear una sucesora para una revocada/vencida dentro de la misma cuenta; si Auth ya confirmó la identidad, la operación falla cerrada y requiere revisión humana. Durante `pending_profile` solo se permite completar el onboarding. El registro público permanece desactivado.
+La invitación vencida, revocada, sustituida o ya aceptada no concede acceso aunque
+su link todavía consiga autenticar en Auth. PostgreSQL exige la generación exacta
+firmada en `app_metadata` para aceptar y completar onboarding. Administrator puede
+sustituir una invitación abierta o crear una sucesora para una revocada/vencida
+dentro de la misma cuenta; si Auth ya confirmó la identidad, la recuperación exige
+revisión humana. Durante `pending_profile` solo el contexto de la invitación
+aceptada puede completar onboarding. El registro público permanece desactivado.
 
 ## Administración
 

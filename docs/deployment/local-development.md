@@ -49,6 +49,10 @@ No son credenciales de ningún entorno compartido y nunca deben reutilizarse.
 
 No copie cuerpos, tokens o enlaces de Mailpit al repositorio o a logs. El rate limit y TTL locales son fixtures, no configuración productiva.
 
+El template Auth local actual es único: `preferred_locale` se conserva para la
+aplicación, pero todavía no selecciona un email español/inglés versionado. Ese
+trabajo pertenece a FASE B y no cambia la autorización de la invitación.
+
 ## Verificar recuperación de sesión y autoridad
 
 1. Inicie sesión como `administrator@example.invalid` y abra `/app/admin/invitations`.
@@ -66,6 +70,8 @@ corepack pnpm verify
 corepack pnpm exec supabase db lint --local --level warning
 corepack pnpm db:test
 corepack pnpm projects:test:concurrency
+corepack pnpm invitations:test:auth-contract
+corepack pnpm invitations:test:concurrency
 corepack pnpm test:functions
 corepack pnpm --filter @sistema-voluntariado/web exec playwright install chromium
 corepack pnpm test:e2e
