@@ -99,6 +99,7 @@ export class InvitationAdministrationService {
   }
 
   public revokeInvitation(input: {
+    readonly idempotencyKey: string;
     readonly invitationId: string;
     readonly reason: string;
   }): Promise<Result<InvitationCommandResult>> {
@@ -107,7 +108,10 @@ export class InvitationAdministrationService {
       return Promise.resolve(reason);
     }
 
-    if (!idempotencyKeyPattern.test(input.invitationId)) {
+    if (
+      !idempotencyKeyPattern.test(input.idempotencyKey) ||
+      !idempotencyKeyPattern.test(input.invitationId)
+    ) {
       return Promise.resolve(
         failure({
           code: 'validation',
@@ -117,6 +121,7 @@ export class InvitationAdministrationService {
     }
 
     return this.gateway.revokeInvitation({
+      idempotencyKey: input.idempotencyKey,
       invitationId: input.invitationId,
       reason: reason.value,
     });

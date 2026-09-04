@@ -15,6 +15,7 @@ const knownErrors: Readonly<Record<string, AppErrorCode>> = {
   invitation_expired: 'invitation-expired',
   invitation_not_found: 'not-found',
   invitation_revoked: 'invitation-revoked',
+  invitation_reconciliation_required: 'server',
   invitation_superseded: 'invitation-superseded',
   invitation_used: 'invitation-used',
   network_error: 'network',

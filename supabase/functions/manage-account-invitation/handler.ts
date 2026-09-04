@@ -6,6 +6,7 @@ interface AccountContext {
 }
 
 export interface DeliveryReservation {
+  readonly acknowledgedAuthUserId: string | null;
   readonly accountId: string;
   readonly correlationId: string;
   readonly deliveryAttemptId: string | null;
@@ -14,7 +15,9 @@ export interface DeliveryReservation {
   readonly normalizedEmail: string;
   readonly preferredLocale: 'en' | 'es';
   readonly requestedInitialRoleCode: string;
-  readonly shouldDeliver: boolean;
+  readonly operationOutcome:
+    'completed' | 'execute' | 'failed' | 'in_progress' | 'replayed';
+  readonly sourceInvitationId: string;
   readonly status: string;
 }
 
@@ -23,6 +26,9 @@ interface SafeCommandResult {
   readonly invitationId: string;
   readonly status: string;
 }
+
+type PublicOperationOutcome =
+  'completed' | 'failed' | 'in_progress' | 'replayed';
 
 interface CreateInput {
   readonly displayName: string | null;
@@ -40,6 +46,7 @@ interface IdempotentActionInput {
 }
 
 interface RevokeInput {
+  readonly idempotencyKey: string;
   readonly invitationId: string;
   readonly operation: 'revoke';
   readonly reason: string;
@@ -48,6 +55,11 @@ interface RevokeInput {
 type CommandInput = CreateInput | IdempotentActionInput | RevokeInput;
 
 export interface InvitationHandlerDependencies {
+  readonly acknowledgeDelivery: (input: {
+    readonly authUserId: string;
+    readonly deliveryAttemptId: string;
+    readonly invitationId: string;
+  }) => Promise<void>;
   readonly allowedOrigins: ReadonlySet<string>;
   readonly authenticate: (
     authorization: string,
@@ -72,6 +84,12 @@ export interface InvitationHandlerDependencies {
     readonly invitationId: string;
     readonly locale: 'en' | 'es';
   }) => Promise<{ readonly id: string }>;
+  readonly updateAuthUserInvitation: (input: {
+    readonly authUserId: string;
+    readonly displayName: string | null;
+    readonly invitationId: string;
+    readonly locale: 'en' | 'es';
+  }) => Promise<void>;
   readonly prepareAction: (
     authorization: string,
     input: IdempotentActionInput | RevokeInput,
@@ -218,8 +236,14 @@ export function parseInvitationCommand(body: unknown): CommandInput {
   }
 
   if (operation === 'revoke') {
-    rejectUnknownKeys(body, ['invitationId', 'operation', 'reason']);
+    rejectUnknownKeys(body, [
+      'idempotencyKey',
+      'invitationId',
+      'operation',
+      'reason',
+    ]);
     return {
+      idempotencyKey: requiredUuid(body['idempotencyKey'], 'idempotencyKey'),
       invitationId: requiredUuid(body['invitationId'], 'invitationId'),
       operation,
       reason: requiredString(body['reason'], 'reason', 3, 500),
@@ -231,6 +255,23 @@ export function parseInvitationCommand(body: unknown): CommandInput {
     'invalid_body',
     'La operación solicitada no es válida.',
   );
+}
+
+function operationResponse(
+  origin: string,
+  httpStatus: number,
+  outcome: PublicOperationOutcome,
+  reservation: Pick<
+    DeliveryReservation,
+    'accountId' | 'invitationId' | 'status'
+  >,
+): Response {
+  return jsonResponse(origin, httpStatus, {
+    accountId: reservation.accountId,
+    invitationId: reservation.invitationId,
+    outcome,
+    status: reservation.status,
+  });
 }
 
 function corsHeaders(origin: string): Record<string, string> {
@@ -249,14 +290,15 @@ function jsonResponse(origin: string, status: number, body: unknown): Response {
   });
 }
 
-function providerErrorCode(error: unknown): string {
-  if (isRecord(error) && typeof error['code'] === 'string') {
-    const normalized = error['code'].toLowerCase().replace(/[^a-z0-9_]/g, '_');
-    if (/^[a-z][a-z0-9_]{0,63}$/.test(normalized)) {
-      return normalized;
-    }
-  }
-  return 'auth_provider_error';
+function providerFailure(error: unknown): {
+  readonly ambiguous: boolean;
+  readonly code: 'auth_provider_outcome_unknown' | 'auth_provider_rejected';
+} {
+  const status = isRecord(error) ? error['status'] : null;
+  const rejected = typeof status === 'number' && status >= 400 && status < 500;
+  return rejected
+    ? { ambiguous: false, code: 'auth_provider_rejected' }
+    : { ambiguous: true, code: 'auth_provider_outcome_unknown' };
 }
 
 function requiredPermission(operation: InvitationOperation): string {
@@ -349,16 +391,20 @@ export function createInvitationHandler(
           ? await dependencies.prepareCreate(authorization, command)
           : await dependencies.prepareAction(authorization, command);
 
-      if (command.operation === 'revoke' || !reservation.shouldDeliver) {
-        dependencies.recordSafeEvent('invitation.command_completed', {
+      if (reservation.operationOutcome !== 'execute') {
+        const outcome = reservation.operationOutcome;
+        dependencies.recordSafeEvent(`invitation.command_${outcome}`, {
+          correlationId: reservation.correlationId,
           invitationId: reservation.invitationId,
           operation: command.operation,
         });
-        return jsonResponse(origin, 200, {
-          accountId: reservation.accountId,
-          invitationId: reservation.invitationId,
-          status: reservation.status,
-        });
+        if (outcome === 'in_progress') {
+          return operationResponse(origin, 202, outcome, reservation);
+        }
+        if (outcome === 'failed') {
+          return operationResponse(origin, 200, outcome, reservation);
+        }
+        return operationResponse(origin, 200, outcome, reservation);
       }
 
       if (!reservation.deliveryAttemptId) {
@@ -370,55 +416,168 @@ export function createInvitationHandler(
       }
 
       let authUser: { readonly id: string };
-      try {
-        const reconciledUser =
+      if (reservation.acknowledgedAuthUserId) {
+        authUser = { id: reservation.acknowledgedAuthUserId };
+      } else {
+        let reconciledUser =
           command.operation === 'resend'
             ? null
             : await dependencies.findReconciledAuthUser({
                 email: reservation.normalizedEmail,
                 invitationId: reservation.invitationId,
               });
-        authUser =
-          reconciledUser ??
-          (await dependencies.inviteAuthUser({
-            displayName: reservation.displayName,
-            email: reservation.normalizedEmail,
+        if (!reconciledUser) {
+          try {
+            authUser = await dependencies.inviteAuthUser({
+              displayName: reservation.displayName,
+              email: reservation.normalizedEmail,
+              invitationId: reservation.invitationId,
+              locale: reservation.preferredLocale,
+            });
+          } catch (error) {
+            const failure = providerFailure(error);
+            try {
+              await dependencies.finalizeDelivery({
+                authUserId: null,
+                deliveryAttemptId: reservation.deliveryAttemptId,
+                invitationId: reservation.invitationId,
+                providerErrorCode: failure.code,
+                succeeded: false,
+              });
+            } catch {
+              dependencies.recordSafeEvent(
+                'invitation.delivery_reconciliation_required',
+                {
+                  correlationId: reservation.correlationId,
+                  invitationId: reservation.invitationId,
+                  operation: command.operation,
+                },
+              );
+              throw new InvitationHttpError(
+                503,
+                'invitation_reconciliation_required',
+                'La entrega requiere reconciliación segura. Reintenta con la misma clave.',
+              );
+            }
+            if (failure.ambiguous) {
+              dependencies.recordSafeEvent(
+                'invitation.delivery_reconciliation_required',
+                {
+                  correlationId: reservation.correlationId,
+                  invitationId: reservation.invitationId,
+                  operation: command.operation,
+                },
+              );
+              throw new InvitationHttpError(
+                503,
+                'invitation_reconciliation_required',
+                'La entrega requiere reconciliación segura. Reintenta con la misma clave.',
+              );
+            }
+            dependencies.recordSafeEvent('invitation.delivery_failed', {
+              correlationId: reservation.correlationId,
+              invitationId: reservation.invitationId,
+              operation: command.operation,
+              providerErrorCode: failure.code,
+            });
+            throw new InvitationHttpError(
+              502,
+              'invitation_delivery_failed',
+              'No fue posible enviar la invitación. Puedes reintentar de forma segura.',
+            );
+          }
+
+          try {
+            await dependencies.updateAuthUserInvitation({
+              authUserId: authUser.id,
+              displayName: reservation.displayName,
+              invitationId: reservation.invitationId,
+              locale: reservation.preferredLocale,
+            });
+          } catch {
+            reconciledUser =
+              command.operation === 'resend'
+                ? null
+                : await dependencies
+                    .findReconciledAuthUser({
+                      email: reservation.normalizedEmail,
+                      invitationId: reservation.invitationId,
+                    })
+                    .catch(() => null);
+            if (!reconciledUser) {
+              dependencies.recordSafeEvent(
+                'invitation.delivery_reconciliation_required',
+                {
+                  correlationId: reservation.correlationId,
+                  invitationId: reservation.invitationId,
+                  operation: command.operation,
+                },
+              );
+              throw new InvitationHttpError(
+                503,
+                'invitation_reconciliation_required',
+                'La entrega requiere reconciliación segura. Reintenta con la misma clave.',
+              );
+            }
+            authUser = reconciledUser;
+          }
+        } else {
+          authUser = reconciledUser;
+        }
+
+        try {
+          await dependencies.acknowledgeDelivery({
+            authUserId: authUser.id,
+            deliveryAttemptId: reservation.deliveryAttemptId,
             invitationId: reservation.invitationId,
-            locale: reservation.preferredLocale,
-          }));
-      } catch (error) {
-        const errorCode = providerErrorCode(error);
-        await dependencies.finalizeDelivery({
-          authUserId: null,
-          deliveryAttemptId: reservation.deliveryAttemptId,
-          invitationId: reservation.invitationId,
-          providerErrorCode: errorCode,
-          succeeded: false,
-        });
-        dependencies.recordSafeEvent('invitation.delivery_failed', {
-          invitationId: reservation.invitationId,
-          operation: command.operation,
-          providerErrorCode: errorCode,
-        });
-        throw new InvitationHttpError(
-          502,
-          'invitation_delivery_failed',
-          'No fue posible enviar la invitación. Puedes reintentar de forma segura.',
-        );
+          });
+        } catch {
+          dependencies.recordSafeEvent(
+            'invitation.delivery_reconciliation_required',
+            {
+              correlationId: reservation.correlationId,
+              invitationId: reservation.invitationId,
+              operation: command.operation,
+            },
+          );
+          throw new InvitationHttpError(
+            503,
+            'invitation_reconciliation_required',
+            'La entrega requiere reconciliación segura. Reintenta con la misma clave.',
+          );
+        }
       }
 
-      const result = await dependencies.finalizeDelivery({
-        authUserId: authUser.id,
-        deliveryAttemptId: reservation.deliveryAttemptId,
-        invitationId: reservation.invitationId,
-        providerErrorCode: null,
-        succeeded: true,
-      });
+      let result: SafeCommandResult;
+      try {
+        result = await dependencies.finalizeDelivery({
+          authUserId: authUser.id,
+          deliveryAttemptId: reservation.deliveryAttemptId,
+          invitationId: reservation.invitationId,
+          providerErrorCode: null,
+          succeeded: true,
+        });
+      } catch {
+        dependencies.recordSafeEvent(
+          'invitation.delivery_reconciliation_required',
+          {
+            correlationId: reservation.correlationId,
+            invitationId: reservation.invitationId,
+            operation: command.operation,
+          },
+        );
+        throw new InvitationHttpError(
+          503,
+          'invitation_reconciliation_required',
+          'La entrega requiere reconciliación segura. Reintenta con la misma clave.',
+        );
+      }
       dependencies.recordSafeEvent('invitation.delivery_completed', {
+        correlationId: reservation.correlationId,
         invitationId: result.invitationId,
         operation: command.operation,
       });
-      return jsonResponse(origin, 200, result);
+      return jsonResponse(origin, 200, { ...result, outcome: 'completed' });
     } catch (error) {
       if (error instanceof InvitationHttpError) {
         return jsonResponse(origin, error.status, {

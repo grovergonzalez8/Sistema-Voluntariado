@@ -76,6 +76,9 @@ const sharedEnglish = {
   },
   invitations: {
     actionCompleted: 'Invitation updated.',
+    actionFailed:
+      'The invitation operation failed safely. Start a new intent to retry.',
+    actionInProgress: 'The invitation operation is still in progress.',
     confirm: {
       replace: 'Replace this invitation?',
       resend: 'Resend this invitation?',
@@ -396,6 +399,9 @@ const sharedSpanish = {
   },
   invitations: {
     actionCompleted: 'Invitación actualizada.',
+    actionFailed:
+      'La operación falló de forma segura. Inicia una intención nueva para reintentar.',
+    actionInProgress: 'La operación de invitación sigue en curso.',
     confirm: {
       replace: '¿Sustituir esta invitación?',
       resend: '¿Reenviar esta invitación?',

@@ -101,6 +101,13 @@ export interface Database {
           account_status: 'pending_profile';
         }[];
       };
+      accept_current_account_invitation_v2: {
+        Args: Record<string, never>;
+        Returns: {
+          account_id: string;
+          account_status: 'pending_profile';
+        }[];
+      };
       change_account_status: {
         Args: {
           requested_account_id: string;
@@ -142,6 +149,13 @@ export interface Database {
         Returns: ProjectActivityProjectionRow[];
       };
       complete_current_account_profile: {
+        Args: {
+          requested_display_name: string;
+          requested_locale: string;
+        };
+        Returns: { account_id: string; account_status: 'active' }[];
+      };
+      complete_current_account_profile_v2: {
         Args: {
           requested_display_name: string;
           requested_locale: string;

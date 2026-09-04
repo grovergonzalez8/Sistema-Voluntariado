@@ -16,6 +16,7 @@ interface EdgeRuntimeEnvironment {
 }
 
 interface ReservationRow {
+  readonly acknowledged_auth_user_id: string | null;
   readonly account_id: string;
   readonly correlation_id: string;
   readonly delivery_attempt_id: string | null;
@@ -25,7 +26,8 @@ interface ReservationRow {
   readonly normalized_email: string;
   readonly preferred_locale: string;
   readonly requested_initial_role_code: string;
-  readonly should_deliver: boolean;
+  readonly operation_outcome: string;
+  readonly source_invitation_id: string;
 }
 
 interface EdgeDatabase {
@@ -33,7 +35,15 @@ interface EdgeDatabase {
     CompositeTypes: Record<string, never>;
     Enums: Record<string, never>;
     Functions: {
-      finalize_account_invitation_delivery: {
+      acknowledge_account_invitation_delivery: {
+        Args: {
+          requested_auth_user_id: string;
+          requested_delivery_attempt_id: string;
+          requested_invitation_id: string;
+        };
+        Returns: undefined;
+      };
+      finalize_account_invitation_delivery_v2: {
         Args: {
           delivery_succeeded: boolean;
           requested_auth_user_id: string | null;
@@ -57,7 +67,7 @@ interface EdgeDatabase {
           readonly permissions: readonly string[];
         }[];
       };
-      prepare_account_invitation: {
+      prepare_account_invitation_v2: {
         Args: {
           requested_display_name: string | null;
           requested_email: string;
@@ -67,7 +77,7 @@ interface EdgeDatabase {
         };
         Returns: readonly ReservationRow[];
       };
-      prepare_account_invitation_action: {
+      prepare_account_invitation_action_v2: {
         Args: {
           requested_idempotency_key: string | null;
           requested_invitation_id: string;
@@ -133,18 +143,6 @@ function nullableStringField(
   const value = row[name];
   if (value === null) return null;
   return stringField(row, name);
-}
-
-function booleanField(row: Record<string, unknown>, name: string): boolean {
-  const value = row[name];
-  if (typeof value !== 'boolean') {
-    throw new InvitationHttpError(
-      500,
-      'invalid_server_response',
-      'Respuesta interna no válida.',
-    );
-  }
-  return value;
 }
 
 function mapDatabaseError(error: unknown): InvitationHttpError {
@@ -221,7 +219,25 @@ function mapReservation(value: unknown): DeliveryReservation {
       'Respuesta interna no válida.',
     );
   }
+  const operationOutcome = stringField(row, 'operation_outcome');
+  if (
+    operationOutcome !== 'completed' &&
+    operationOutcome !== 'execute' &&
+    operationOutcome !== 'failed' &&
+    operationOutcome !== 'in_progress' &&
+    operationOutcome !== 'replayed'
+  ) {
+    throw new InvitationHttpError(
+      500,
+      'invalid_server_response',
+      'Respuesta interna no válida.',
+    );
+  }
   return {
+    acknowledgedAuthUserId: nullableStringField(
+      row,
+      'acknowledged_auth_user_id',
+    ),
     accountId: stringField(row, 'account_id'),
     correlationId: stringField(row, 'correlation_id'),
     deliveryAttemptId: nullableStringField(row, 'delivery_attempt_id'),
@@ -230,7 +246,8 @@ function mapReservation(value: unknown): DeliveryReservation {
     normalizedEmail: stringField(row, 'normalized_email'),
     preferredLocale: locale,
     requestedInitialRoleCode: stringField(row, 'requested_initial_role_code'),
-    shouldDeliver: booleanField(row, 'should_deliver'),
+    operationOutcome,
+    sourceInvitationId: stringField(row, 'source_invitation_id'),
     status: stringField(row, 'invitation_status'),
   };
 }
@@ -269,6 +286,17 @@ function getAdminClient(): SupabaseClient<EdgeDatabase> {
 }
 
 const dependencies: InvitationHandlerDependencies = {
+  acknowledgeDelivery: async (input) => {
+    const { error } = await getAdminClient().rpc(
+      'acknowledge_account_invitation_delivery',
+      {
+        requested_auth_user_id: input.authUserId,
+        requested_delivery_attempt_id: input.deliveryAttemptId,
+        requested_invitation_id: input.invitationId,
+      },
+    );
+    if (error) throw mapDatabaseError(error);
+  },
   allowedOrigins: new Set(configuredOrigins),
   authenticate: async (authorization) => {
     const client = createUserClient(supabaseUrl, anonKey, authorization);
@@ -284,7 +312,7 @@ const dependencies: InvitationHandlerDependencies = {
   },
   finalizeDelivery: async (input) => {
     const { data, error } = await getAdminClient().rpc(
-      'finalize_account_invitation_delivery',
+      'finalize_account_invitation_delivery_v2',
       {
         delivery_succeeded: input.succeeded,
         requested_auth_user_id: input.authUserId,
@@ -311,7 +339,7 @@ const dependencies: InvitationHandlerDependencies = {
       });
       if (error) throw error;
       for (const user of data.users) {
-        const metadata = asRecord(user.user_metadata);
+        const metadata = asRecord(user.app_metadata);
         if (
           user.email?.trim().toLowerCase() === input.email &&
           metadata['account_invitation_id'] === input.invitationId
@@ -357,20 +385,37 @@ const dependencies: InvitationHandlerDependencies = {
     const { data, error } = await getAdminClient().auth.admin.inviteUserByEmail(
       input.email,
       {
-        data: { account_invitation_id: input.invitationId },
+        data: {
+          display_name: input.displayName,
+          preferred_locale: input.locale,
+        },
         redirectTo: `${appOrigin}/auth/callback`,
       },
     );
     if (error) throw error;
     return { id: data.user.id };
   },
+  updateAuthUserInvitation: async (input) => {
+    const { error } = await getAdminClient().auth.admin.updateUserById(
+      input.authUserId,
+      {
+        app_metadata: {
+          account_invitation_id: input.invitationId,
+        },
+        user_metadata: {
+          display_name: input.displayName,
+          preferred_locale: input.locale,
+        },
+      },
+    );
+    if (error) throw error;
+  },
   prepareAction: async (authorization, input) => {
     const client = createUserClient(supabaseUrl, anonKey, authorization);
     const { data, error } = await client.rpc(
-      'prepare_account_invitation_action',
+      'prepare_account_invitation_action_v2',
       {
-        requested_idempotency_key:
-          input.operation === 'revoke' ? null : input.idempotencyKey,
+        requested_idempotency_key: input.idempotencyKey,
         requested_invitation_id: input.invitationId,
         requested_operation: input.operation,
         requested_reason: input.operation === 'revoke' ? input.reason : null,
@@ -381,7 +426,7 @@ const dependencies: InvitationHandlerDependencies = {
   },
   prepareCreate: async (authorization, input) => {
     const client = createUserClient(supabaseUrl, anonKey, authorization);
-    const { data, error } = await client.rpc('prepare_account_invitation', {
+    const { data, error } = await client.rpc('prepare_account_invitation_v2', {
       requested_display_name: input.displayName,
       requested_email: input.email,
       requested_idempotency_key: input.idempotencyKey,

@@ -16,6 +16,7 @@ export interface InvitationIdempotentCommand {
 }
 
 export interface RevokeInvitationCommand {
+  readonly idempotencyKey: string;
   readonly invitationId: string;
   readonly reason: string;
 }

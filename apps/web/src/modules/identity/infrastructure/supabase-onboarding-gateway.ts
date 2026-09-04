@@ -17,7 +17,7 @@ export class SupabaseOnboardingGateway implements OnboardingGateway {
     Result<InvitationAcceptanceResult>
   > {
     const { data, error } = await this.client.rpc(
-      'accept_current_account_invitation',
+      'accept_current_account_invitation_v2',
     );
     if (error) return supabaseFailure(error);
     const row = data[0];
@@ -30,7 +30,7 @@ export class SupabaseOnboardingGateway implements OnboardingGateway {
     input: Omit<OnboardingCompletionRequest, 'password'>,
   ): Promise<Result<OnboardingCompletion>> {
     const { data, error } = await this.client.rpc(
-      'complete_current_account_profile',
+      'complete_current_account_profile_v2',
       {
         requested_display_name: input.displayName,
         requested_locale: input.preferredLocale,
