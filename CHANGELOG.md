@@ -18,6 +18,9 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 
 ### Added
 
+- Diagnóstico reproducible y ExecPlan de Invitation Flow Hardening V1, con flujo
+  real UI–Edge–PostgreSQL–Auth–Mailpit–onboarding, state machines, causas raíz y
+  estrategia de regresión; la implementación queda deliberadamente pendiente.
 - Workspace pnpm/Turborepo con calidad reproducible.
 - Gobernanza, documentación arquitectónica, ADRs, agentes y skills.
 - Supabase local con autorización por permisos, RLS, auditoría y pruebas pgTAP.

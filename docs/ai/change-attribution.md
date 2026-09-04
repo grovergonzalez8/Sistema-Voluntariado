@@ -249,3 +249,33 @@ cuatro RPC mínimas y auditoría sin PII.
   regresó a 36/36 sin modificar la protección autoritativa ni su cobertura pgTAP.
 - Estado: completo y listo para PRE-MERGE REVIEW; sin push, merge, rebase, amend,
   despliegue, cambio en main ni operación Supabase remota.
+
+## Invitation Flow Hardening V1 0014 — diagnóstico
+
+- Objetivo: reproducir y diagnosticar el flujo real de invitaciones antes de
+  implementar correcciones.
+- Herramienta: agente principal de Codex como único escritor; revisiones
+  especializadas de solo lectura.
+- Rama/base/HEAD inicial: `fix/invitation-flow-hardening`, `main@34c25dd`,
+  `34c25dd`.
+- Prompt: `docs/ai/prompts/0014-invitation-flow-hardening-v1.md`.
+- Plan: `docs/exec-plans/0008-invitation-flow-hardening-v1.md`.
+- Cambios: documentación de baseline, arquitectura real, reproducciones A–J,
+  estados, seguridad, email/redirect, concurrencia, causas raíz, estrategia y
+  criterios de aceptación futuros.
+- Validación: frozen install, `pnpm verify`, reset/lint DB, 553 pgTAP, 21 Functions
+  y 19 E2E; reproducción manual local desde UI y Mailpit hasta logout/login, con
+  evidencia sanitizada. Estos gates fueron PASS local bajo Node `22.21.0`; la
+  paridad con el `22.18.0` fijado es NOT EXECUTED porque el runtime no está
+  disponible y no se actualizó.
+- Revisión: architect, database security, QA y docs governor emitieron GO para el
+  commit documental tras integrar sus hallazgos; todos mantuvieron NO-GO para
+  implementación y docs governor también para release.
+- Estado: diagnóstico completado; implementación no iniciada. Sin cambios
+  productivos, push, merge, rebase, amend, despliegue, modificación de `main` ni
+  operación Supabase remota.
+
+Hallazgos materiales: replace envía una sucesora no reconciliable; revoke/expiry no
+invalidan el artefacto Auth; callback infiere éxito por sesión; replays en progreso
+parecen éxito terminal; revoke carece de idempotencia; locale no controla el correo;
+y el E2E existente no prueba logout/login final ni las fronteras distribuidas.
