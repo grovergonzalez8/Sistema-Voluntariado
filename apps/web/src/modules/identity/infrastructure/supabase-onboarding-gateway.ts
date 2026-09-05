@@ -13,11 +13,12 @@ import { supabaseFailure, unknownFailure } from './supabase-gateway-result';
 export class SupabaseOnboardingGateway implements OnboardingGateway {
   public constructor(private readonly client: SupabaseClient<Database>) {}
 
-  public async acceptCurrentInvitation(): Promise<
-    Result<InvitationAcceptanceResult>
-  > {
+  public async acceptCurrentInvitation(
+    acceptanceChallenge: string,
+  ): Promise<Result<InvitationAcceptanceResult>> {
     const { data, error } = await this.client.rpc(
-      'accept_current_account_invitation_v2',
+      'accept_current_account_invitation_v3',
+      { requested_acceptance_challenge: acceptanceChallenge },
     );
     if (error) return supabaseFailure(error);
     const row = data[0];

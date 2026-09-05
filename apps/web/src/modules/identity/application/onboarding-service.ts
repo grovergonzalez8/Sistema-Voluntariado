@@ -13,10 +13,10 @@ import type {
 export class OnboardingService {
   public constructor(private readonly gateway: OnboardingGateway) {}
 
-  public acceptCurrentInvitation(): Promise<
-    Result<InvitationAcceptanceResult>
-  > {
-    return this.gateway.acceptCurrentInvitation();
+  public acceptCurrentInvitation(
+    acceptanceChallenge: string,
+  ): Promise<Result<InvitationAcceptanceResult>> {
+    return this.gateway.acceptCurrentInvitation(acceptanceChallenge);
   }
 
   public async completeProfile(

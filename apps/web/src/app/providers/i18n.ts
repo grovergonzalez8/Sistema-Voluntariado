@@ -126,6 +126,8 @@ const sharedEnglish = {
     activate: 'Activate account',
     activating: 'Activating…',
     eyebrow: 'Account activation',
+    invalidInvitationLink:
+      'Open the most recently delivered invitation link to continue.',
     profileDescription: 'Set a password and complete the minimum profile.',
     profileTitle: 'Complete your profile',
     validatingLink: 'Validating the secure invitation link…',
@@ -451,6 +453,8 @@ const sharedSpanish = {
     activate: 'Activar cuenta',
     activating: 'Activando…',
     eyebrow: 'Activación de cuenta',
+    invalidInvitationLink:
+      'Abre el enlace de invitación entregado más recientemente para continuar.',
     profileDescription: 'Define una contraseña y completa el perfil mínimo.',
     profileTitle: 'Completa tu perfil',
     validatingLink: 'Validando el enlace seguro de invitación…',

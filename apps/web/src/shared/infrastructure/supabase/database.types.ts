@@ -108,6 +108,13 @@ export interface Database {
           account_status: 'pending_profile';
         }[];
       };
+      accept_current_account_invitation_v3: {
+        Args: { requested_acceptance_challenge: string };
+        Returns: {
+          account_id: string;
+          account_status: 'pending_profile';
+        }[];
+      };
       change_account_status: {
         Args: {
           requested_account_id: string;
