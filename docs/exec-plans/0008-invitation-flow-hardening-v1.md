@@ -780,3 +780,15 @@ La recuperación administrativa completa de una identidad confirmada con Account
 Invitation terminal queda explícitamente fuera de A.1; FASE B deberá exigir
 evidencia de Auth, Invitation predecessor/successor, generación/challenge y
 auditoría antes de conceder autoridad, sin eliminar `auth.users` automáticamente.
+
+### Cierre A.1
+
+La validación de cierre local quedó ejecutada: `db lint` sin errores, 574/574
+pgTAP, contrato Auth 1/1, concurrencia de invitaciones 8/8, Functions 30/30,
+unitarias web 227/227, integración 4/4 y build 472 módulos; `pnpm verify` y
+`git diff --check` pasaron. Los tres mutation checks se hicieron temporalmente
+(challenge, reconciliación y conflicto idempotente), cada regresión falló bajo la
+mutación y el código se restauró antes de continuar. El revisor de seguridad DB y
+el arquitecto emitieron PASS; QA emitió PASS tras corregir la ACL/documentación del
+helper interno, el lector type-safe del callback y el camino de reconciliación
+indisponible. Node 22.18.0 sigue NOT CONFIRMED (runtime local 22.21.0).
