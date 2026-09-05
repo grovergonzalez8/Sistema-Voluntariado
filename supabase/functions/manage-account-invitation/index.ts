@@ -1,6 +1,7 @@
 import {
   createClient,
   type SupabaseClient,
+  type User,
 } from 'npm:@supabase/supabase-js@2.110.8';
 
 import {
@@ -28,6 +29,14 @@ interface ReservationRow {
   readonly requested_initial_role_code: string;
   readonly operation_outcome: string;
   readonly source_invitation_id: string;
+  readonly should_deliver: boolean;
+}
+
+interface DeliveryRecoveryRow {
+  readonly acceptance_challenge_generation: number;
+  readonly acceptance_challenge_hash: string | null;
+  readonly delivery_attempted_at: string;
+  readonly expected_auth_user_id: string | null;
 }
 
 interface EdgeDatabase {
@@ -58,6 +67,13 @@ interface EdgeDatabase {
           readonly invitation_status: string;
         }[];
       };
+      get_account_invitation_delivery_recovery_context: {
+        Args: {
+          requested_delivery_attempt_id: string;
+          requested_invitation_id: string;
+        };
+        Returns: readonly DeliveryRecoveryRow[];
+      };
       get_my_account_context: {
         Args: Record<string, never>;
         Returns: readonly {
@@ -67,7 +83,7 @@ interface EdgeDatabase {
           readonly permissions: readonly string[];
         }[];
       };
-      prepare_account_invitation_v2: {
+      prepare_account_invitation_v3: {
         Args: {
           requested_display_name: string | null;
           requested_email: string;
@@ -77,7 +93,7 @@ interface EdgeDatabase {
         };
         Returns: readonly ReservationRow[];
       };
-      prepare_account_invitation_action_v2: {
+      prepare_account_invitation_action_v3: {
         Args: {
           requested_idempotency_key: string | null;
           requested_invitation_id: string;
@@ -85,6 +101,14 @@ interface EdgeDatabase {
           requested_reason: string | null;
         };
         Returns: readonly ReservationRow[];
+      };
+      stage_account_invitation_acceptance_challenge: {
+        Args: {
+          requested_challenge_hash: string;
+          requested_delivery_attempt_id: string;
+          requested_invitation_id: string;
+        };
+        Returns: number;
       };
     };
     Tables: Record<string, never>;
@@ -145,6 +169,30 @@ function nullableStringField(
   return stringField(row, name);
 }
 
+function booleanField(row: Record<string, unknown>, name: string): boolean {
+  const value = row[name];
+  if (typeof value !== 'boolean') {
+    throw new InvitationHttpError(
+      500,
+      'invalid_server_response',
+      'Respuesta interna no válida.',
+    );
+  }
+  return value;
+}
+
+function numberField(row: Record<string, unknown>, name: string): number {
+  const value = row[name];
+  if (typeof value !== 'number' || !Number.isSafeInteger(value)) {
+    throw new InvitationHttpError(
+      500,
+      'invalid_server_response',
+      'Respuesta interna no válida.',
+    );
+  }
+  return value;
+}
+
 function mapDatabaseError(error: unknown): InvitationHttpError {
   const record = asRecord(error);
   const message =
@@ -160,6 +208,7 @@ function mapDatabaseError(error: unknown): InvitationHttpError {
     'invitation_not_replaceable',
     'invitation_not_resendable',
     'invitation_not_revocable',
+    'invitation_recovery_required',
     'invitation_used',
   ]);
   const safeValidationCodes = new Set([
@@ -246,6 +295,7 @@ function mapReservation(value: unknown): DeliveryReservation {
     normalizedEmail: stringField(row, 'normalized_email'),
     preferredLocale: locale,
     requestedInitialRoleCode: stringField(row, 'requested_initial_role_code'),
+    shouldDeliver: booleanField(row, 'should_deliver'),
     operationOutcome,
     sourceInvitationId: stringField(row, 'source_invitation_id'),
     status: stringField(row, 'invitation_status'),
@@ -310,6 +360,7 @@ const dependencies: InvitationHandlerDependencies = {
     }
     return { id: data.user.id };
   },
+  createAcceptanceChallenge,
   finalizeDelivery: async (input) => {
     const { data, error } = await getAdminClient().rpc(
       'finalize_account_invitation_delivery_v2',
@@ -329,8 +380,30 @@ const dependencies: InvitationHandlerDependencies = {
       status: stringField(row, 'invitation_status'),
     };
   },
-  findReconciledAuthUser: async (input) => {
-    const matchedUserIds: string[] = [];
+  reconcileAuthDelivery: async (input) => {
+    const { data: recoveryData, error: recoveryError } =
+      await getAdminClient().rpc(
+        'get_account_invitation_delivery_recovery_context',
+        {
+          requested_delivery_attempt_id: input.deliveryAttemptId,
+          requested_invitation_id: input.invitationId,
+        },
+      );
+    if (recoveryError) throw mapDatabaseError(recoveryError);
+    const recovery = firstRow(recoveryData);
+    const challengeHash = nullableStringField(
+      recovery,
+      'acceptance_challenge_hash',
+    );
+    const generation = numberField(recovery, 'acceptance_challenge_generation');
+    const attemptedAt = stringField(recovery, 'delivery_attempted_at');
+    const expectedAuthUserId = nullableStringField(
+      recovery,
+      'expected_auth_user_id',
+    );
+    if (!challengeHash || generation < 1) return { kind: 'not_applied' };
+
+    const matchedUsers: User[] = [];
     let page: number | null = 1;
     while (page !== null) {
       const { data, error } = await getAdminClient().auth.admin.listUsers({
@@ -339,25 +412,38 @@ const dependencies: InvitationHandlerDependencies = {
       });
       if (error) throw error;
       for (const user of data.users) {
-        const metadata = asRecord(user.app_metadata);
-        if (
-          user.email?.trim().toLowerCase() === input.email &&
-          metadata['account_invitation_id'] === input.invitationId
-        ) {
-          matchedUserIds.push(user.id);
+        if (user.email?.trim().toLowerCase() === input.email) {
+          matchedUsers.push(user);
         }
       }
       page = data.nextPage;
     }
 
-    if (matchedUserIds.length > 1) {
-      throw new InvitationHttpError(
-        409,
-        'auth_user_reconciliation_ambiguous',
-        'La identidad invitada requiere revisión administrativa.',
-      );
+    if (matchedUsers.length === 0) return { kind: 'not_applied' };
+    if (matchedUsers.length > 1) return { kind: 'ambiguous' };
+    const user = matchedUsers[0];
+    if (!user) return { kind: 'ambiguous' };
+    if (expectedAuthUserId && user.id !== expectedAuthUserId) {
+      return { kind: 'ambiguous' };
     }
-    return matchedUserIds[0] ? { id: matchedUserIds[0] } : null;
+    const metadata = asRecord(user.app_metadata);
+    if (
+      metadata['account_invitation_id'] === input.invitationId &&
+      metadata['account_invitation_delivery_attempt_id'] ===
+        input.deliveryAttemptId &&
+      String(metadata['account_invitation_delivery_generation']) ===
+        String(generation) &&
+      metadata['account_invitation_acceptance_challenge_hash'] === challengeHash
+    ) {
+      return { authUserId: user.id, kind: 'applied' };
+    }
+    const invitedAt = user.invited_at ? Date.parse(user.invited_at) : NaN;
+    const deliveryAttemptedAt = Date.parse(attemptedAt);
+    return Number.isFinite(invitedAt) &&
+      Number.isFinite(deliveryAttemptedAt) &&
+      invitedAt < deliveryAttemptedAt
+      ? { kind: 'not_applied' }
+      : { kind: 'ambiguous' };
   },
   getAccountContext: async (authorization) => {
     const client = createUserClient(supabaseUrl, anonKey, authorization);
@@ -382,6 +468,11 @@ const dependencies: InvitationHandlerDependencies = {
     };
   },
   inviteAuthUser: async (input) => {
+    const redirect = new URL('/auth/callback', appOrigin);
+    redirect.searchParams.set(
+      'invitation_challenge',
+      input.acceptanceChallenge,
+    );
     const { data, error } = await getAdminClient().auth.admin.inviteUserByEmail(
       input.email,
       {
@@ -389,7 +480,7 @@ const dependencies: InvitationHandlerDependencies = {
           display_name: input.displayName,
           preferred_locale: input.locale,
         },
-        redirectTo: `${appOrigin}/auth/callback`,
+        redirectTo: redirect.toString(),
       },
     );
     if (error) throw error;
@@ -400,6 +491,10 @@ const dependencies: InvitationHandlerDependencies = {
       input.authUserId,
       {
         app_metadata: {
+          account_invitation_acceptance_challenge_hash:
+            input.acceptanceChallengeHash,
+          account_invitation_delivery_attempt_id: input.deliveryAttemptId,
+          account_invitation_delivery_generation: input.deliveryGeneration,
           account_invitation_id: input.invitationId,
         },
         user_metadata: {
@@ -413,7 +508,7 @@ const dependencies: InvitationHandlerDependencies = {
   prepareAction: async (authorization, input) => {
     const client = createUserClient(supabaseUrl, anonKey, authorization);
     const { data, error } = await client.rpc(
-      'prepare_account_invitation_action_v2',
+      'prepare_account_invitation_action_v3',
       {
         requested_idempotency_key: input.idempotencyKey,
         requested_invitation_id: input.invitationId,
@@ -426,7 +521,7 @@ const dependencies: InvitationHandlerDependencies = {
   },
   prepareCreate: async (authorization, input) => {
     const client = createUserClient(supabaseUrl, anonKey, authorization);
-    const { data, error } = await client.rpc('prepare_account_invitation_v2', {
+    const { data, error } = await client.rpc('prepare_account_invitation_v3', {
       requested_display_name: input.displayName,
       requested_email: input.email,
       requested_idempotency_key: input.idempotencyKey,
@@ -439,6 +534,47 @@ const dependencies: InvitationHandlerDependencies = {
   recordSafeEvent: (event, identifiers) => {
     console.info(JSON.stringify({ event, ...identifiers }));
   },
+  stageAcceptanceChallenge: async (input) => {
+    const { data, error } = await getAdminClient().rpc(
+      'stage_account_invitation_acceptance_challenge',
+      {
+        requested_challenge_hash: input.challengeHash,
+        requested_delivery_attempt_id: input.deliveryAttemptId,
+        requested_invitation_id: input.invitationId,
+      },
+    );
+    if (error) throw mapDatabaseError(error);
+    if (typeof data !== 'number' || !Number.isSafeInteger(data) || data < 1) {
+      throw new InvitationHttpError(
+        500,
+        'invalid_server_response',
+        'Respuesta interna no válida.',
+      );
+    }
+    return { generation: data };
+  },
 };
+
+async function createAcceptanceChallenge(): Promise<{
+  readonly hash: string;
+  readonly raw: string;
+}> {
+  const bytes = new Uint8Array(32);
+  globalThis.crypto.getRandomValues(bytes);
+  const raw = btoa(String.fromCharCode(...bytes))
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
+    .replace(/=+$/u, '');
+  const digest = new Uint8Array(
+    await globalThis.crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(raw),
+    ),
+  );
+  const hash = Array.from(digest, (byte) =>
+    byte.toString(16).padStart(2, '0'),
+  ).join('');
+  return { hash, raw };
+}
 
 runtime.serve(createInvitationHandler(dependencies));
