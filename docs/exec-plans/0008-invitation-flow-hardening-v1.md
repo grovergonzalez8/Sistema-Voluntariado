@@ -745,3 +745,38 @@ Se solicitaron rechecks read-only de arquitectura, seguridad de base de datos y
 QA usando GPT-5.6 Luna; el proveedor devolvió límite de uso antes de ejecutar
 esas tres revisiones. No se presenta ese recheck como aprobación ni se oculta la
 limitación.
+
+## FASE A.1 — Invitation provenance and recovery (2026-09-05)
+
+Esta pasada cierra únicamente los bloqueantes de la mini-review. El spike local
+demostró que Supabase conserva un parámetro `redirectTo` por entrega hasta el
+callback; por ello cada create/replace/resend genera un acceptance challenge
+aleatorio, transportado solo en el redirect y capturado en estado efímero del
+callback. PostgreSQL guarda únicamente hash, generación y timestamp de consumo.
+La aceptación v3 exige sesión/Auth user, metadata técnica, Invitation y generación
+vigentes, hash coincidente y consumo one-time bajo lock. Replace y resend rotan la
+generación; revoke/expiry/terminalización invalidan el challenge.
+
+La saga de entrega usa `reconcileAuthDelivery` antes de marcar un lease ambiguo o
+un ACK incierto como `delivery_outcome_unknown`. Solo metadata técnica exacta y el
+usuario Auth esperado prueban que el efecto de Auth ya ocurrió; eso no afirma que
+el correo llegó a la bandeja humana. Si Auth no permite distinguir, se devuelve
+`recovery_required` fail-closed sin borrar identidades.
+
+Las reservas v3 serializan `(actor, operation, idempotency_key)` mediante advisory
+transaction lock. Una clave repetida con fingerprint distinto devuelve siempre
+`idempotency_conflict`, incluso bajo INSERT concurrente. El harness PostgreSQL
+prueba ambos ganadores de accept↔replace y verifica predecessor, successor,
+`successor_of`, Auth user, cuenta y auditoría.
+
+Regresiones implementadas: contrato Auth A/B (challenge A + sesión válida no puede
+aceptar B), concurrencia de idempotencia y carreras de lifecycle; pgTAP ACL/ACK/
+challenge/recovery; callback mínimo y funciones. Mutation checks A (comparación de
+challenge), B (reconciliación antes de unknown) y C (conflicto idempotente) se
+ejecutaron de forma temporal y fallaron sus pruebas dirigidas; todas las
+mutaciones fueron restauradas.
+
+La recuperación administrativa completa de una identidad confirmada con Account o
+Invitation terminal queda explícitamente fuera de A.1; FASE B deberá exigir
+evidencia de Auth, Invitation predecessor/successor, generación/challenge y
+auditoría antes de conceder autoridad, sin eliminar `auth.users` automáticamente.

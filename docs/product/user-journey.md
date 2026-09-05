@@ -16,11 +16,19 @@ flowchart LR
 
 La invitación vencida, revocada, sustituida o ya aceptada no concede acceso aunque
 su link todavía consiga autenticar en Auth. PostgreSQL exige la generación exacta
-firmada en `app_metadata` para aceptar y completar onboarding. Administrator puede
+firmada en `app_metadata` y el acceptance challenge de esa entrega para aceptar y
+completar onboarding. El challenge RAW viaja únicamente en el redirect y se elimina
+del query string al entrar al flujo; no se guarda en storage ni se muestra en logs.
+Administrator puede
 sustituir una invitación abierta o crear una sucesora para una revocada/vencida
 dentro de la misma cuenta; si Auth ya confirmó la identidad, la recuperación exige
 revisión humana. Durante `pending_profile` solo el contexto de la invitación
 aceptada puede completar onboarding. El registro público permanece desactivado.
+
+Replace y resend rotan el challenge: solo el enlace más recientemente entregado
+puede aceptar la invitación vigente. La operación Auth se distingue de la entrega
+física del correo; un estado `recovery_required` queda cerrado para autoridad hasta
+que una reconciliación administrativa de FASE B aporte evidencia suficiente.
 
 ## Administración
 

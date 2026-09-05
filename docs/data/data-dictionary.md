@@ -115,18 +115,21 @@ El índice único parcial `(activity_id, volunteer_id) where ended_at is null` i
 
 ## `invitations`
 
-| Grupo                  | Columnas                                                                                                                                                             | Regla                                                                               |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Identidad              | `id`, `account_id`, `auth_user_id`                                                                                                                                   | enlace Auth bilateral e inmutable cuando deja de ser `null`                         |
-| Destino                | `normalized_email`, `display_name`, `preferred_locale`, `requested_initial_role_id`                                                                                  | correo canónico; idioma `es`/`en`; rol protegido                                    |
-| Estado                 | `status`, `created_at`, `expires_at`, `sent_at`, `accepted_at`, `revoked_at`, `expired_at`, `superseded_at`                                                          | timestamps de servidor coherentes con la transición                                 |
-| Revocación/sustitución | `revoked_by`, `revocation_reason`, `superseded_by`                                                                                                                   | motivo 3–500; sucesión con FK diferida                                              |
-| Entrega/idempotencia   | `delivery_error_code`, `delivery_attempt_id`, `delivery_attempted_at`, `delivery_actor_user_id`, `delivery_correlation_id`, `idempotency_key`, `request_fingerprint` | códigos allowlist, lease exclusivo con actor/correlación y fingerprint; nunca token |
-| Trazabilidad           | `created_by`, `correlation_id`, `updated_at`                                                                                                                         | correlación sin PII                                                                 |
+| Grupo                  | Columnas                                                                                                                                                             | Regla                                                                                                                                                                                                                             |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Identidad              | `id`, `account_id`, `auth_user_id`                                                                                                                                   | enlace Auth bilateral e inmutable cuando deja de ser `null`                                                                                                                                                                       |
+| Destino                | `normalized_email`, `display_name`, `preferred_locale`, `requested_initial_role_id`                                                                                  | correo canónico; idioma `es`/`en`; rol protegido                                                                                                                                                                                  |
+| Estado                 | `status`, `created_at`, `expires_at`, `sent_at`, `accepted_at`, `revoked_at`, `expired_at`, `superseded_at`                                                          | timestamps de servidor coherentes con la transición                                                                                                                                                                               |
+| Revocación/sustitución | `revoked_by`, `revocation_reason`, `superseded_by`                                                                                                                   | motivo 3–500; sucesión con FK diferida                                                                                                                                                                                            |
+| Entrega/idempotencia   | `delivery_error_code`, `delivery_attempt_id`, `delivery_attempted_at`, `delivery_actor_user_id`, `delivery_correlation_id`, `idempotency_key`, `request_fingerprint` | códigos allowlist, lease exclusivo con actor/correlación y fingerprint; nunca token                                                                                                                                               |
+| Procedencia de entrega | `acceptance_challenge_hash`, `acceptance_challenge_generation`, `acceptance_challenge_consumed_at`                                                                   | hash SHA-256 hexadecimal y generación técnica; el challenge RAW solo viaja en el redirect y nunca se persiste, audita ni registra; se rota en create/replace/resend, se invalida en revoke/expire y se consume una vez al aceptar |
+| Trazabilidad           | `created_by`, `correlation_id`, `updated_at`                                                                                                                         | correlación sin PII                                                                                                                                                                                                               |
 
 ## `invitation_operation_requests`
 
-Clave primaria `(actor_user_id, operation, idempotency_key)` para `resend` y `replace`; conserva fingerprint, invitación origen/resultado y `created_at`. No contiene cuerpo ni token.
+Clave primaria `(actor_user_id, operation, idempotency_key)` para `create`, `resend` y
+`replace` (y las acciones idempotentes equivalentes); conserva fingerprint,
+invitación origen/resultado y `created_at`. No contiene cuerpo ni token.
 
 ## `account_status_history`
 
@@ -200,13 +203,16 @@ Las concesiones son relaciones inmutables: se insertan o revocan, no se editan; 
 
 No se guardan tokens, correo, teléfono, nombre, contraseña, valores personales anteriores/nuevos ni cuerpos de solicitudes. Además de `reason_code` y `provider_error_code`, `metadata` admite únicamente `requested_count`, `inserted_count` y `duplicate_count` como enteros entre 0 y 1.000 para `volunteer.imported`.
 
-## API PostgreSQL del hito
+## API PostgreSQL vigente del hito
 
-- Contexto/onboarding: `get_my_account_context`, `accept_current_account_invitation`, `complete_current_account_profile`.
-- Invitaciones: `list_account_invitations`, `prepare_account_invitation`, `prepare_account_invitation_action`, `finalize_account_invitation_delivery`, `expire_open_invitations`.
+- Contexto/onboarding: `get_my_account_context`, `accept_current_account_invitation_v3(requested_acceptance_challenge)`, `complete_current_account_profile_v2`.
+- Invitaciones cliente: `list_account_invitations`, `prepare_account_invitation_v3`, `prepare_account_invitation_action_v3`.
+- Helper interno owner-only: `expire_open_invitations` (no tiene ejecución para roles de API).
+- Invitaciones internas `service_role`: `stage_account_invitation_acceptance_challenge`, `get_account_invitation_delivery_recovery_context`, `acknowledge_account_invitation_delivery`, `finalize_account_invitation_delivery_v2`.
+- Las variantes `prepare_account_invitation_v2`, `prepare_account_invitation_action_v2`, `accept_current_account_invitation` y `finalize_account_invitation_delivery` son compatibilidad interna/legacy y no son API de cliente.
 - Administración: `list_accounts`, `get_account_detail`, `change_account_status`, `manage_account_role`.
 - Padrón: `list_volunteers`, `get_volunteer_detail`, `find_volunteer_duplicates`, `create_volunteer`, `update_volunteer`, `preview_volunteer_import_duplicates`, `import_volunteers`, `export_volunteers`.
 - Proyectos: `list_projects`, `get_project_detail`, `create_project`, `update_project`, `close_project`, `list_project_assignments`, `search_project_volunteer_candidates`, `assign_volunteer_to_project`, `finish_project_volunteer_assignment`, `list_volunteer_projects`, `list_project_manager_assignments`, `search_project_manager_candidates`, `assign_project_manager`, `finish_project_manager_assignment`, `list_project_activities`, `get_project_activity_detail`, `create_project_activity`, `update_project_activity`, `complete_project_activity`, `cancel_project_activity`, `list_project_activity_participations`, `search_project_activity_volunteer_candidates`, `create_project_activity_participation`, `finish_project_activity_participation`.
 - Reglas internas: `user_has_permission`, `user_has_active_role`, `can_user_grant_role`, `is_account_transition_allowed`, helpers contextuales específicos de Projects y guards de consistencia/auditoría.
 
-Las funciones expuestas a `authenticated` derivan el actor del JWT. `finalize_account_invitation_delivery` es la única de este grupo concedida a `service_role`; las tablas nuevas no conceden acceso directo a `anon` o `authenticated`.
+Las funciones expuestas a `authenticated` derivan el actor del JWT. Las funciones de staging, reconciliación, ACK y finalización de entrega se conceden únicamente a `service_role`; las tablas nuevas no conceden acceso directo a `anon` o `authenticated`. Que Auth acepte la operación prueba únicamente aceptación por Auth/proveedor, no entrega física en la bandeja humana.

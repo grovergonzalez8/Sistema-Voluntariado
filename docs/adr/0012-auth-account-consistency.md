@@ -49,3 +49,18 @@ Invitation/Auth. El mismo contexto se exige para completar perfil. Links termina
 pueden autenticar mientras Auth aún los considere válidos, pero no conceden
 autoridad de aplicación. No se eliminan identidades automáticamente; una identidad
 confirmada por link revocado/expirado requiere reconciliación administrativa.
+
+## Apéndice 2026-09-05: procedencia por entrega y recuperación
+
+Cada entrega genera un acceptance challenge aleatorio. El RAW solo se transporta
+en `redirectTo` y en el callback efímero; PostgreSQL conserva únicamente su hash,
+generación y consumo. Create, replace y resend rotan la generación; revoke,
+expiry y cualquier terminalización la invalidan. `accept_current_account_invitation_v3`
+exige sesión/Auth user, metadata técnica, generación vigente y challenge no
+consumido, y consume la autorización una sola vez bajo lock.
+
+La Edge Function serializa la reserva por actor y clave idempotente. Ante un lease
+ambiguo o un ACK perdido reconcilia primero Auth mediante Admin API y metadata
+técnica; solo si la evidencia es insuficiente marca `delivery_outcome_unknown` y
+`recovery_required`. Auth aceptando una operación no demuestra entrega física en la
+bandeja humana.

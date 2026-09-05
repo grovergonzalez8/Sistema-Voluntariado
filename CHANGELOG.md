@@ -6,12 +6,15 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 
 ### Fixed
 
-- Replace rota el link Auth previo, vincula la sesión a la generación vigente con
-  `app_metadata` y reanuda finalize desde un ACK durable sin duplicar entrega.
+- Create/replace/resend generan y rotan un acceptance challenge por entrega;
+  PostgreSQL valida hash, generación y consumo one-time además de la sesión Auth.
+- Replace reanuda finalize desde un ACK durable: los reintentos reconcilian Auth
+  antes de declarar `delivery_outcome_unknown` y no duplican entrega.
 - Create/resend/replace/revoke distinguen `completed`, `replayed`, `in_progress` y
   `failed`; revoke es idempotente y no duplica transición ni auditoría.
 - Invitaciones revoked/expired/replaced/accepted no pueden aceptar ni completar el
-  onboarding de otra generación aunque exista una sesión Auth.
+  onboarding de otra generación aunque exista una sesión Auth; el callback limpia
+  el challenge del query string sin persistirlo.
 - La carrera asignar/cerrar proyecto queda protegida por una regresión PostgreSQL determinista que comprueba ambos órdenes de locks, estados finales, auditoría e invariante histórica.
 - Las RPC del padrón rechazan parámetros estructurales requeridos `NULL` y payloads incompletos; solo un booleano `true` explícito confirma duplicados durante importación.
 - La lectura `.xlsx` inspecciona el ZIP antes del parser, limita expansión/dimensiones, rechaza hojas adicionales y preconfigura `Celular` como texto en la plantilla.

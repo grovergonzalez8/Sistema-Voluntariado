@@ -99,14 +99,16 @@ sequenceDiagram
   EF->>DB: reservar cuenta/invitación y lease
   DB-->>EF: IDs + should_deliver
   alt Debe entregar
-    EF->>AU: inviteUserByEmail + app_metadata de generación
+    EF->>EF: generar challenge RAW y conservar solo hash en PostgreSQL
+    EF->>AU: inviteUserByEmail + redirect challenge + app_metadata técnico
     alt Auth confirma
       AU-->>EF: auth_user_id
       EF->>DB: ACK durable
       EF->>DB: enlace bilateral + sent + completed
-    else Auth falla
-      AU-->>EF: error proveedor
-      EF->>DB: delivery_failed con código seguro
+    else Auth falla o ACK incierto
+      AU-->>EF: error/estado actual
+      EF->>AU: reconciliar primero con Admin API y metadata exacta
+      EF->>DB: delivery_failed solo si la evidencia sigue ambigua
     end
   else Replay o lease vigente
     EF-->>UI: estado ya reservado
@@ -115,10 +117,12 @@ sequenceDiagram
 
 No existe transacción distribuida. La idempotencia, el lease exclusivo con actor/
 correlación, el ACK Auth durable, el snapshot bilateral de `auth_user_id`,
-constraints diferidos y la generación en `app_metadata` limitan divergencias. Un
-retry con ACK finaliza sin reenviar; un lease ajeno vigente es `in_progress`, no
-éxito. Los casos ambiguos o una identidad ya confirmada quedan fallidos para
-intervención; nunca se eliminan usuarios automáticamente.
+constraints diferidos y la generación/challenge en `app_metadata` limitan
+divergencias. Un retry con ACK incierto reconcilia Auth antes de marcar
+`delivery_outcome_unknown`; si demuestra aplicación, persiste el ACK sin reenviar.
+El callback transporta el challenge en memoria efímera y la aceptación lo consume
+una sola vez server-side. Auth/proveedor aceptando la operación no equivale a
+entrega física en la bandeja. Nunca se eliminan usuarios automáticamente.
 
 ## Padrón administrativo de voluntarios
 

@@ -279,3 +279,18 @@ Hallazgos materiales: replace envía una sucesora no reconciliable; revoke/expir
 invalidan el artefacto Auth; callback infiere éxito por sesión; replays en progreso
 parecen éxito terminal; revoke carece de idempotencia; locale no controla el correo;
 y el E2E existente no prueba logout/login final ni las fronteras distribuidas.
+
+## Invitation Flow Hardening V1 — FASE A.1 (2026-09-05)
+
+- Objetivo: cerrar exclusivamente provenance por delivery, recuperación tras ACK
+  incierto, conflicto idempotente concurrente y harness accept↔replace.
+- Herramienta: Codex GPT-5.6 Sol como escritor; revisiones finales solicitadas a
+  database security, QA y architect en modo solo lectura.
+- Cambios: migración forward-only con hash/generación/consumo de challenge y RPC
+  v3; callback efímero; reconciliación Auth Admin antes de unknown; advisory lock
+  por clave; regresiones Auth/pgTAP/Functions/concurrencia; documentación alineada.
+- Privacidad: ningún challenge RAW, token, JWT, correo o dato personal se añadió a
+  logs, auditoría o documentación.
+- Validación: pruebas focales verdes; gates de cierre se ejecutarán una sola vez
+  tras integrar revisiones. Node 22.18.0 no está disponible localmente y no se
+  actualiza en esta rama.
