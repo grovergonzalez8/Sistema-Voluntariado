@@ -23,6 +23,7 @@ function reservation(overrides: Readonly<Record<string, unknown>> = {}) {
     normalizedEmail: 'invited@example.invalid',
     preferredLocale: 'es' as const,
     requestedInitialRoleCode: 'volunteer',
+    shouldDeliver: true,
     operationOutcome: 'execute' as const,
     sourceInvitationId: firstId,
     status: 'pending',
@@ -37,6 +38,12 @@ function dependencies(
     acknowledgeDelivery: vi.fn(() => Promise.resolve()),
     allowedOrigins: new Set([origin]),
     authenticate: vi.fn(() => Promise.resolve({ id: 'actor-id' })),
+    createAcceptanceChallenge: vi.fn(() =>
+      Promise.resolve({
+        hash: 'a'.repeat(64),
+        raw: 'a'.repeat(43),
+      }),
+    ),
     finalizeDelivery: vi.fn(() =>
       Promise.resolve({
         accountId: secondId,
@@ -44,7 +51,9 @@ function dependencies(
         status: 'sent',
       }),
     ),
-    findReconciledAuthUser: vi.fn(() => Promise.resolve(null)),
+    reconcileAuthDelivery: vi.fn(() =>
+      Promise.resolve({ kind: 'not_applied' as const }),
+    ),
     getAccountContext: vi.fn(() =>
       Promise.resolve({
         accountStatus: 'active',
@@ -59,6 +68,7 @@ function dependencies(
     prepareAction: vi.fn(() => Promise.resolve(reservation())),
     prepareCreate: vi.fn(() => Promise.resolve(reservation())),
     recordSafeEvent: vi.fn(),
+    stageAcceptanceChallenge: vi.fn(() => Promise.resolve({ generation: 1 })),
     updateAuthUserInvitation: vi.fn(() => Promise.resolve()),
     ...overrides,
   };
@@ -335,8 +345,14 @@ describe('manage-account-invitation handler', () => {
 
   it('reconciles an exact Auth identity after an acknowledgement loss', async () => {
     const deps = dependencies({
-      findReconciledAuthUser: vi.fn(() =>
-        Promise.resolve({ id: 'reconciled-auth-user-id' }),
+      prepareCreate: vi.fn(() =>
+        Promise.resolve(reservation({ shouldDeliver: false })),
+      ),
+      reconcileAuthDelivery: vi.fn(() =>
+        Promise.resolve({
+          authUserId: 'reconciled-auth-user-id',
+          kind: 'applied' as const,
+        }),
       ),
     });
     const response = await createInvitationHandler(deps)(request());
@@ -348,12 +364,68 @@ describe('manage-account-invitation handler', () => {
         succeeded: true,
       }),
     );
+    expect(deps.stageAcceptanceChallenge).not.toHaveBeenCalled();
   });
 
-  it('resend deliberately calls Auth instead of consuming reconciliation', async () => {
+  it('fails closed when reconciliation itself is unavailable', async () => {
     const deps = dependencies({
-      findReconciledAuthUser: vi.fn(() =>
-        Promise.resolve({ id: 'existing-auth-user-id' }),
+      prepareCreate: vi.fn(() =>
+        Promise.resolve(reservation({ shouldDeliver: false })),
+      ),
+      reconcileAuthDelivery: vi.fn(() =>
+        Promise.reject(new Error('Auth Admin unavailable')),
+      ),
+    });
+    const response = await createInvitationHandler(deps)(request());
+    expect(response.status).toBe(503);
+    expect(await responseBody(response)).toMatchObject({
+      code: 'invitation_reconciliation_required',
+    });
+    expect(deps.finalizeDelivery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerErrorCode: 'auth_provider_outcome_unknown',
+        succeeded: false,
+      }),
+    );
+    expect(deps.inviteAuthUser).not.toHaveBeenCalled();
+  });
+
+  it('reconciles Auth before retrying a failed ACK persistence', async () => {
+    const acknowledgeDelivery = vi
+      .fn<InvitationHandlerDependencies['acknowledgeDelivery']>()
+      .mockRejectedValueOnce(new Error('ack unavailable'))
+      .mockResolvedValueOnce();
+    const reconcileAuthDelivery = vi.fn(() =>
+      Promise.resolve({
+        authUserId: 'auth-user-id',
+        kind: 'applied' as const,
+      }),
+    );
+    const deps = dependencies({
+      acknowledgeDelivery,
+      reconcileAuthDelivery,
+    });
+
+    const response = await createInvitationHandler(deps)(request());
+
+    expect(response.status).toBe(200);
+    expect(acknowledgeDelivery).toHaveBeenCalledTimes(2);
+    expect(reconcileAuthDelivery).toHaveBeenCalledOnce();
+    expect(acknowledgeDelivery.mock.invocationCallOrder[0]).toBeLessThan(
+      reconcileAuthDelivery.mock.invocationCallOrder[0] ?? 0,
+    );
+    expect(reconcileAuthDelivery.mock.invocationCallOrder[0]).toBeLessThan(
+      acknowledgeDelivery.mock.invocationCallOrder[1] ?? 0,
+    );
+    expect(deps.finalizeDelivery).toHaveBeenCalledWith(
+      expect.objectContaining({ authUserId: 'auth-user-id', succeeded: true }),
+    );
+  });
+
+  it('a new resend rotates its challenge and calls Auth', async () => {
+    const deps = dependencies({
+      reconcileAuthDelivery: vi.fn(() =>
+        Promise.resolve({ kind: 'ambiguous' as const }),
       ),
     });
     const response = await createInvitationHandler(deps)(
@@ -364,7 +436,8 @@ describe('manage-account-invitation handler', () => {
       }),
     );
     expect(response.status).toBe(200);
-    expect(deps.findReconciledAuthUser).not.toHaveBeenCalled();
+    expect(deps.reconcileAuthDelivery).not.toHaveBeenCalled();
+    expect(deps.stageAcceptanceChallenge).toHaveBeenCalledOnce();
     expect(deps.inviteAuthUser).toHaveBeenCalledOnce();
   });
 
@@ -434,6 +507,7 @@ describe('manage-account-invitation handler', () => {
     );
     expect(response.status).toBe(200);
     expect(deps.inviteAuthUser).not.toHaveBeenCalled();
+    expect(deps.createAcceptanceChallenge).not.toHaveBeenCalled();
     expect(deps.updateAuthUserInvitation).not.toHaveBeenCalled();
     expect(deps.acknowledgeDelivery).not.toHaveBeenCalled();
     expect(deps.finalizeDelivery).toHaveBeenCalledWith(
@@ -529,6 +603,9 @@ describe('manage-account-invitation handler', () => {
       inviteAuthUser: vi.fn(() =>
         Promise.reject(new Error('transport outcome unknown')),
       ),
+      reconcileAuthDelivery: vi.fn(() =>
+        Promise.resolve({ kind: 'ambiguous' as const }),
+      ),
     });
     const response = await createInvitationHandler(deps)(request());
     expect(response.status).toBe(503);
@@ -541,6 +618,11 @@ describe('manage-account-invitation handler', () => {
         succeeded: false,
       }),
     );
+    expect(
+      vi.mocked(deps.reconcileAuthDelivery).mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      vi.mocked(deps.finalizeDelivery).mock.invocationCallOrder[0] ?? 0,
+    );
   });
 
   it('does not misreport a post-delivery metadata failure as provider failure', async () => {
@@ -548,13 +630,21 @@ describe('manage-account-invitation handler', () => {
       updateAuthUserInvitation: vi.fn(() =>
         Promise.reject(new Error('metadata acknowledgement unavailable')),
       ),
+      reconcileAuthDelivery: vi.fn(() =>
+        Promise.resolve({ kind: 'ambiguous' as const }),
+      ),
     });
     const response = await createInvitationHandler(deps)(request());
     expect(response.status).toBe(503);
     expect(await responseBody(response)).toMatchObject({
       code: 'invitation_reconciliation_required',
     });
-    expect(deps.finalizeDelivery).not.toHaveBeenCalled();
+    expect(deps.finalizeDelivery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerErrorCode: 'auth_provider_outcome_unknown',
+        succeeded: false,
+      }),
+    );
     expect(deps.recordSafeEvent).not.toHaveBeenCalledWith(
       'invitation.delivery_failed',
       expect.anything(),

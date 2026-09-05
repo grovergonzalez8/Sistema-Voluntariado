@@ -33,26 +33,38 @@ select is(
 select ok(
   has_function_privilege(
     'authenticated',
-    'public.prepare_account_invitation_v2(text,text,text,text,uuid)',
+    'public.prepare_account_invitation_v3(text,text,text,text,uuid)',
     'EXECUTE'
   ) and has_function_privilege(
+    'authenticated',
+    'public.prepare_account_invitation_action_v3(uuid,text,uuid,text)',
+    'EXECUTE'
+  ) and not has_function_privilege(
+    'authenticated',
+    'public.prepare_account_invitation_v2(text,text,text,text,uuid)',
+    'EXECUTE'
+  ) and not has_function_privilege(
     'authenticated',
     'public.prepare_account_invitation_action_v2(uuid,text,uuid,text)',
     'EXECUTE'
   ),
-  'authenticated can execute only the V2 invitation preparation entrypoints'
+  'authenticated can execute only the serialized V3 invitation preparation entrypoints'
 );
 select ok(
   has_function_privilege(
     'authenticated',
-    'public.accept_current_account_invitation_v2()',
+    'public.accept_current_account_invitation_v3(text)',
     'EXECUTE'
   ) and has_function_privilege(
     'authenticated',
     'public.complete_current_account_profile_v2(text,text)',
     'EXECUTE'
+  ) and not has_function_privilege(
+    'authenticated',
+    'public.accept_current_account_invitation_v2()',
+    'EXECUTE'
   ),
-  'authenticated can execute the generation-bound onboarding entrypoints'
+  'authenticated can execute only challenge-bound acceptance and profile completion'
 );
 select ok(
   has_function_privilege(
@@ -63,8 +75,16 @@ select ok(
     'service_role',
     'public.finalize_account_invitation_delivery_v2(uuid,uuid,uuid,boolean,text)',
     'EXECUTE'
+  ) and has_function_privilege(
+    'service_role',
+    'public.stage_account_invitation_acceptance_challenge(uuid,uuid,text)',
+    'EXECUTE'
+  ) and has_function_privilege(
+    'service_role',
+    'public.get_account_invitation_delivery_recovery_context(uuid,uuid)',
+    'EXECUTE'
   ),
-  'service_role can execute the exact ACK and V2 finalize entrypoints'
+  'service_role can stage, reconcile, acknowledge and finalize a delivery'
 );
 select ok(
   not has_function_privilege(
@@ -74,6 +94,14 @@ select ok(
   ) and not has_function_privilege(
     'authenticated',
     'public.finalize_account_invitation_delivery_v2(uuid,uuid,uuid,boolean,text)',
+    'EXECUTE'
+  ) and not has_function_privilege(
+    'authenticated',
+    'public.stage_account_invitation_acceptance_challenge(uuid,uuid,text)',
+    'EXECUTE'
+  ) and not has_function_privilege(
+    'authenticated',
+    'public.get_account_invitation_delivery_recovery_context(uuid,uuid)',
     'EXECUTE'
   ),
   'authenticated cannot execute ACK or finalize'
@@ -123,9 +151,9 @@ select throws_ok(
   'anonymous users cannot inspect account context'
 );
 select throws_ok(
-  $$select * from public.accept_current_account_invitation_v2()$$,
+  $$select * from public.accept_current_account_invitation_v3(repeat('A', 43))$$,
   '42501',
-  'permission denied for function accept_current_account_invitation_v2',
+  'permission denied for function accept_current_account_invitation_v3',
   'anonymous users cannot accept invitations'
 );
 
@@ -165,7 +193,7 @@ select throws_ok(
 );
 select throws_ok(
   $$
-    select * from public.prepare_account_invitation_v2(
+    select * from public.prepare_account_invitation_v3(
       'blocked@example.invalid', null, 'es', 'volunteer',
       '30000000-0000-4000-8000-000000000001'
     )
@@ -218,7 +246,7 @@ select is(
 select lives_ok(
   $$
     create temporary table test_coordinator_invitation as
-    select * from public.prepare_account_invitation_v2(
+    select * from public.prepare_account_invitation_v3(
       '  Coordinator.Invite+tag@Example.Invalid  ', ' Persona Invitada ',
       'es', 'volunteer', '30000000-0000-4000-8000-000000000002'
     )
@@ -242,7 +270,7 @@ select ok(
 select is(
   (
     select invitation_id
-    from public.prepare_account_invitation_v2(
+    from public.prepare_account_invitation_v3(
       'coordinator.invite+tag@example.invalid', 'Persona Invitada',
       'es', 'volunteer', '30000000-0000-4000-8000-000000000002'
     )
@@ -253,7 +281,7 @@ select is(
 select is(
   (
     select should_deliver
-    from public.prepare_account_invitation_v2(
+    from public.prepare_account_invitation_v3(
       'coordinator.invite+tag@example.invalid',
       'Persona Invitada',
       'es',
@@ -267,7 +295,7 @@ select is(
 select is(
   (
     select operation_outcome
-    from public.prepare_account_invitation_v2(
+    from public.prepare_account_invitation_v3(
       'coordinator.invite+tag@example.invalid',
       'Persona Invitada',
       'es',
@@ -280,7 +308,7 @@ select is(
 );
 select throws_ok(
   $$
-    select * from public.prepare_account_invitation_v2(
+    select * from public.prepare_account_invitation_v3(
       'different@example.invalid', 'Persona Invitada', 'es', 'volunteer',
       '30000000-0000-4000-8000-000000000002'
     )
@@ -291,7 +319,7 @@ select throws_ok(
 );
 select throws_ok(
   $$
-    select * from public.prepare_account_invitation_v2(
+    select * from public.prepare_account_invitation_v3(
       'coordinator-admin@example.invalid', null, 'es', 'administrator',
       '30000000-0000-4000-8000-000000000003'
     )
@@ -327,7 +355,7 @@ select is(
 );
 select throws_ok(
   format(
-    'select * from public.prepare_account_invitation_action_v2(%L, %L, %L, null)',
+    'select * from public.prepare_account_invitation_action_v3(%L, %L, %L, null)',
     (select invitation_id from test_coordinator_invitation),
     'resend',
     '30000000-0000-4000-8000-000000000004'
@@ -351,7 +379,7 @@ select ok(
 select lives_ok(
   $$
     create temporary table test_admin_invitation as
-    select * from public.prepare_account_invitation_v2(
+    select * from public.prepare_account_invitation_v3(
       'onboarding@example.invalid', 'Onboarding Local', 'en', 'volunteer',
       '30000000-0000-4000-8000-000000000005'
     )
@@ -388,7 +416,7 @@ set local role authenticated;
 select lives_ok(
   format(
     'create temporary table test_cross_actor_resend as
-     select * from public.prepare_account_invitation_action_v2(%L, %L, %L, null)',
+     select * from public.prepare_account_invitation_action_v3(%L, %L, %L, null)',
     (select invitation_id from test_coordinator_invitation),
     'resend',
     '30000000-0000-4000-8000-000000000026'
@@ -402,7 +430,7 @@ select is(
 );
 select throws_ok(
   format(
-    'select * from public.prepare_account_invitation_action_v2(%L, %L, %L, null)',
+    'select * from public.prepare_account_invitation_action_v3(%L, %L, %L, null)',
     (select invitation_id from test_coordinator_invitation),
     'resend',
     '30000000-0000-4000-8000-000000000027'
@@ -468,7 +496,7 @@ values (
 set local role authenticated;
 select throws_ok(
   format(
-    'select * from public.prepare_account_invitation_action_v2(%L, %L, %L, null)',
+    'select * from public.prepare_account_invitation_action_v3(%L, %L, %L, null)',
     (select invitation_id from test_coordinator_invitation),
     'replace',
     '30000000-0000-4000-8000-000000000028'
@@ -486,7 +514,7 @@ set local role authenticated;
 select lives_ok(
   format(
     'create temporary table test_coordinator_replacement as
-     select * from public.prepare_account_invitation_action_v2(%L, %L, %L, null)',
+     select * from public.prepare_account_invitation_action_v3(%L, %L, %L, null)',
     (select invitation_id from test_coordinator_invitation),
     'replace',
     '30000000-0000-4000-8000-000000000006'
@@ -528,7 +556,7 @@ set local role authenticated;
 select is(
   (
     select should_deliver
-    from public.prepare_account_invitation_action_v2(
+    from public.prepare_account_invitation_action_v3(
       (select invitation_id from test_coordinator_invitation),
       'replace',
       '30000000-0000-4000-8000-000000000006',
@@ -552,19 +580,19 @@ set local role authenticated;
 select is(
   (
     select operation_outcome
-    from public.prepare_account_invitation_action_v2(
+    from public.prepare_account_invitation_action_v3(
       (select invitation_id from test_coordinator_invitation),
       'replace',
       '30000000-0000-4000-8000-000000000006',
       null
     )
   ),
-  'failed',
-  'an expired replacement lease closes as a durable failed outcome'
+  'execute',
+  'an expired replacement lease is returned for reconciliation before unknown'
 );
 select throws_ok(
   format(
-    'select * from public.prepare_account_invitation_action_v2(%L, %L, %L, null)',
+    'select * from public.prepare_account_invitation_action_v3(%L, %L, %L, null)',
     (select invitation_id from test_coordinator_invitation),
     'replace',
     '30000000-0000-4000-8000-000000000007'
@@ -640,6 +668,16 @@ select set_config(
   true
 );
 
+set local role service_role;
+select public.stage_account_invitation_acceptance_challenge(
+  current_setting('test.invitation_id')::uuid,
+  current_setting('test.delivery_attempt_id')::uuid,
+  encode(
+    extensions.digest(convert_to(repeat('A', 43), 'utf8'), 'sha256'),
+    'hex'
+  )
+);
+reset role;
 update auth.users
 set raw_app_meta_data = jsonb_build_object(
   'account_invitation_id',
@@ -662,8 +700,13 @@ select throws_ok(
 reset role;
 update auth.users
 set raw_app_meta_data = jsonb_build_object(
-  'account_invitation_id',
-  current_setting('test.invitation_id')
+  'account_invitation_id', current_setting('test.invitation_id'),
+  'account_invitation_delivery_attempt_id', current_setting('test.delivery_attempt_id'),
+  'account_invitation_delivery_generation', 1,
+  'account_invitation_acceptance_challenge_hash', encode(
+    extensions.digest(convert_to(repeat('A', 43), 'utf8'), 'sha256'),
+    'hex'
+  )
 ),
     invited_at = statement_timestamp(),
     email_confirmed_at = statement_timestamp() - interval '1 minute'
@@ -785,7 +828,7 @@ set local role authenticated;
 select is(
   (
     select operation_outcome
-    from public.prepare_account_invitation_v2(
+    from public.prepare_account_invitation_v3(
       'onboarding@example.invalid',
       'Onboarding Local',
       'en',
@@ -811,7 +854,7 @@ select set_config(
 );
 set local role authenticated;
 select throws_ok(
-  $$select * from public.accept_current_account_invitation_v2()$$,
+  $$select * from public.accept_current_account_invitation_v3(repeat('A', 43))$$,
   '23514',
   'invitation_context_mismatch',
   'an authenticated identity cannot accept another invitation generation'
@@ -831,7 +874,7 @@ select set_config(
 );
 set local role authenticated;
 select is(
-  (select account_status from public.accept_current_account_invitation_v2()),
+  (select account_status from public.accept_current_account_invitation_v3(repeat('A', 43))),
   'pending_profile',
   'the invited identity can accept its sent invitation'
 );
@@ -841,7 +884,7 @@ select is(
   'pending_profile has no effective RBAC permissions'
 );
 select throws_ok(
-  $$select * from public.accept_current_account_invitation_v2()$$,
+  $$select * from public.accept_current_account_invitation_v3(repeat('A', 43))$$,
   '23514',
   'invitation_used',
   'an accepted invitation cannot be consumed twice'
@@ -915,7 +958,7 @@ select set_config(
 );
 set local role authenticated;
 select throws_ok(
-  $$select * from public.accept_current_account_invitation_v2()$$,
+  $$select * from public.accept_current_account_invitation_v3(repeat('A', 43))$$,
   '23514',
   'invitation_revoked',
   'a revoked invitation cannot be accepted'
@@ -938,7 +981,7 @@ select set_config(
 );
 set local role authenticated;
 select throws_ok(
-  $$select * from public.accept_current_account_invitation_v2()$$,
+  $$select * from public.accept_current_account_invitation_v3(repeat('A', 43))$$,
   '23514',
   'invitation_expired',
   'an expired invitation cannot be accepted'
@@ -961,7 +1004,7 @@ select set_config(
 );
 set local role authenticated;
 select throws_ok(
-  $$select * from public.accept_current_account_invitation_v2()$$,
+  $$select * from public.accept_current_account_invitation_v3(repeat('A', 43))$$,
   '23514',
   'invitation_superseded',
   'a superseded invitation cannot be accepted'
@@ -1269,7 +1312,7 @@ select set_config(
 set local role authenticated;
 select throws_ok(
   $$
-    select * from public.prepare_account_invitation_v2(
+    select * from public.prepare_account_invitation_v3(
       'coordinator.invite+tag@example.invalid',
       'Otro registro',
       'es',
@@ -1291,7 +1334,7 @@ set local role authenticated;
 select lives_ok(
   format(
     'create temporary table test_terminal_replacement as
-     select * from public.prepare_account_invitation_action_v2(%L, %L, %L, null)',
+     select * from public.prepare_account_invitation_action_v3(%L, %L, %L, null)',
     (select invitation_id from test_coordinator_replacement),
     'replace',
     '30000000-0000-4000-8000-000000000029'
@@ -1313,7 +1356,7 @@ select ok(
 set local role authenticated;
 select throws_ok(
   format(
-    'select * from public.prepare_account_invitation_action_v2(%L, %L, %L, null)',
+    'select * from public.prepare_account_invitation_action_v3(%L, %L, %L, null)',
     (select invitation_id from test_coordinator_replacement),
     'replace',
     '30000000-0000-4000-8000-000000000030'
@@ -1342,11 +1385,21 @@ select lives_ok(
   ),
   'the test can force the successor delivery lease stale before revocation'
 );
+grant select on test_terminal_replacement to service_role;
+set local role service_role;
+select public.finalize_account_invitation_delivery_v2(
+  (select invitation_id from test_terminal_replacement),
+  (select delivery_attempt_id from test_terminal_replacement),
+  null,
+  false,
+  'auth_provider_outcome_unknown'
+);
+reset role;
 set local role authenticated;
 select is(
   (
     select operation_outcome
-    from public.prepare_account_invitation_action_v2(
+    from public.prepare_account_invitation_action_v3(
       (select invitation_id from test_terminal_replacement),
       'revoke',
       '30000000-0000-4000-8000-000000000031',
@@ -1359,7 +1412,7 @@ select is(
 select is(
   (
     select operation_outcome
-    from public.prepare_account_invitation_action_v2(
+    from public.prepare_account_invitation_action_v3(
       (select invitation_id from test_terminal_replacement),
       'revoke',
       '30000000-0000-4000-8000-000000000031',

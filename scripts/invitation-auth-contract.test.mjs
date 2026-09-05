@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import test from 'node:test';
+import { URL, URLSearchParams } from 'node:url';
 
 import { createClient } from '../apps/web/node_modules/@supabase/supabase-js/dist/index.mjs';
 
@@ -45,7 +47,7 @@ async function waitForNewMessage(email, previousIds) {
     const ids = await recipientMessageIds(email);
     const nextId = ids.find((id) => !previousIds.has(id));
     if (nextId) return nextId;
-    await new Promise((resolve) => globalThis.setTimeout(resolve, 100));
+    await delay(100);
   }
   throw new Error('Timed out waiting for a local invitation email.');
 }
@@ -63,21 +65,91 @@ async function invitationLink(messageId) {
   return match[0];
 }
 
+function challengeFromVerificationLink(link) {
+  const redirectTo = new URL(link).searchParams.get('redirect_to');
+  assert.ok(redirectTo);
+  return new URL(redirectTo).searchParams.get('invitation_challenge');
+}
+
 async function verifyInvitation(link) {
   const response = await globalThis.fetch(link, { redirect: 'manual' });
+  assert.equal(response.status, 303);
   const location = response.headers.get('location');
   assert.ok(location);
-  const redirect = new globalThis.URL(location);
-  const fragment = new globalThis.URLSearchParams(redirect.hash.slice(1));
+  const redirect = new URL(location);
+  const fragment = new URLSearchParams(redirect.hash.slice(1));
   return {
     accessToken: fragment.get('access_token'),
-    errorCode:
-      fragment.get('error_code') ?? redirect.searchParams.get('error_code'),
+    callbackChallenge: redirect.searchParams.get('invitation_challenge'),
     refreshToken: fragment.get('refresh_token'),
   };
 }
 
-test('replace invalidates link A and only link B accepts generation B', async () => {
+function newChallenge() {
+  const raw = randomBytes(32).toString('base64url');
+  return {
+    hash: createHash('sha256').update(raw, 'utf8').digest('hex'),
+    raw,
+  };
+}
+
+async function deliver(admin, email, invitation) {
+  const challenge = newChallenge();
+  const before = new Set(await recipientMessageIds(email));
+  const { data: generation, error: stageError } = await admin.rpc(
+    'stage_account_invitation_acceptance_challenge',
+    {
+      requested_challenge_hash: challenge.hash,
+      requested_delivery_attempt_id: invitation.delivery_attempt_id,
+      requested_invitation_id: invitation.invitation_id,
+    },
+  );
+  assert.equal(stageError, null);
+  assert.equal(typeof generation, 'number');
+  const callback = new URL('http://localhost:5173/auth/callback');
+  callback.searchParams.set('invitation_challenge', challenge.raw);
+  const { data: inviteData, error: inviteError } =
+    await admin.auth.admin.inviteUserByEmail(email, {
+      data: { preferred_locale: 'es' },
+      redirectTo: callback.toString(),
+    });
+  assert.equal(inviteError, null);
+  const { error: metadataError } = await admin.auth.admin.updateUserById(
+    inviteData.user.id,
+    {
+      app_metadata: {
+        account_invitation_acceptance_challenge_hash: challenge.hash,
+        account_invitation_delivery_attempt_id: invitation.delivery_attempt_id,
+        account_invitation_delivery_generation: generation,
+        account_invitation_id: invitation.invitation_id,
+      },
+    },
+  );
+  assert.equal(metadataError, null);
+  const { error: acknowledgeError } = await admin.rpc(
+    'acknowledge_account_invitation_delivery',
+    {
+      requested_auth_user_id: inviteData.user.id,
+      requested_delivery_attempt_id: invitation.delivery_attempt_id,
+      requested_invitation_id: invitation.invitation_id,
+    },
+  );
+  assert.equal(acknowledgeError, null);
+  await exactlyOneRow(
+    admin.rpc('finalize_account_invitation_delivery_v2', {
+      delivery_succeeded: true,
+      requested_auth_user_id: inviteData.user.id,
+      requested_delivery_attempt_id: invitation.delivery_attempt_id,
+      requested_invitation_id: invitation.invitation_id,
+      requested_provider_error_code: null,
+    }),
+  );
+  const link = await invitationLink(await waitForNewMessage(email, before));
+  assert.equal(challengeFromVerificationLink(link), challenge.raw);
+  return { authUserId: inviteData.user.id, challenge, link };
+}
+
+test('A challenge cannot authorize B with B identity and metadata', async () => {
   const environment = localSupabaseEnvironment();
   assert.ok(environment.API_URL);
   assert.ok(environment.ANON_KEY);
@@ -86,7 +158,9 @@ test('replace invalidates link A and only link B accepts generation B', async ()
   const administrator = createClient(
     environment.API_URL,
     environment.ANON_KEY,
-    { auth: { persistSession: false } },
+    {
+      auth: { persistSession: false },
+    },
   );
   const admin = createClient(
     environment.API_URL,
@@ -101,7 +175,7 @@ test('replace invalidates link A and only link B accepts generation B', async ()
   assert.equal(signInError, null);
 
   const invitationA = await exactlyOneRow(
-    administrator.rpc('prepare_account_invitation_v2', {
+    administrator.rpc('prepare_account_invitation_v3', {
       requested_display_name: 'Auth Contract',
       requested_email: email,
       requested_idempotency_key: randomUUID(),
@@ -109,102 +183,56 @@ test('replace invalidates link A and only link B accepts generation B', async ()
       requested_role_code: 'volunteer',
     }),
   );
-  const beforeA = new Set(await recipientMessageIds(email));
-  const { data: inviteAData, error: inviteAError } =
-    await admin.auth.admin.inviteUserByEmail(email, {
-      data: {
-        preferred_locale: 'es',
-      },
-      redirectTo: 'http://localhost:5173/auth/callback',
-    });
-  assert.equal(inviteAError, null);
-  const { error: metadataAError } = await admin.auth.admin.updateUserById(
-    inviteAData.user.id,
-    { app_metadata: { account_invitation_id: invitationA.invitation_id } },
-  );
-  assert.equal(metadataAError, null);
-  const { error: acknowledgeAError } = await admin.rpc(
-    'acknowledge_account_invitation_delivery',
-    {
-      requested_auth_user_id: inviteAData.user.id,
-      requested_delivery_attempt_id: invitationA.delivery_attempt_id,
-      requested_invitation_id: invitationA.invitation_id,
-    },
-  );
-  assert.equal(acknowledgeAError, null);
-  await exactlyOneRow(
-    admin.rpc('finalize_account_invitation_delivery_v2', {
-      delivery_succeeded: true,
-      requested_auth_user_id: inviteAData.user.id,
-      requested_delivery_attempt_id: invitationA.delivery_attempt_id,
-      requested_invitation_id: invitationA.invitation_id,
-      requested_provider_error_code: null,
-    }),
-  );
-  const linkA = await invitationLink(await waitForNewMessage(email, beforeA));
+  const deliveryA = await deliver(admin, email, invitationA);
 
   const invitationB = await exactlyOneRow(
-    administrator.rpc('prepare_account_invitation_action_v2', {
+    administrator.rpc('prepare_account_invitation_action_v3', {
       requested_idempotency_key: randomUUID(),
       requested_invitation_id: invitationA.invitation_id,
       requested_operation: 'replace',
       requested_reason: null,
     }),
   );
-  const beforeB = new Set(await recipientMessageIds(email));
-  const { data: inviteBData, error: inviteBError } =
-    await admin.auth.admin.inviteUserByEmail(email, {
-      data: { preferred_locale: 'es' },
-      redirectTo: 'http://localhost:5173/auth/callback',
-    });
-  assert.equal(inviteBError, null);
-  const { error: metadataError } = await admin.auth.admin.updateUserById(
-    inviteBData.user.id,
-    {
-      app_metadata: { account_invitation_id: invitationB.invitation_id },
-      user_metadata: {
-        preferred_locale: 'es',
-      },
-    },
-  );
-  assert.equal(metadataError, null);
-  const { error: acknowledgeBError } = await admin.rpc(
-    'acknowledge_account_invitation_delivery',
-    {
-      requested_auth_user_id: inviteBData.user.id,
-      requested_delivery_attempt_id: invitationB.delivery_attempt_id,
-      requested_invitation_id: invitationB.invitation_id,
-    },
-  );
-  assert.equal(acknowledgeBError, null);
-  await exactlyOneRow(
-    admin.rpc('finalize_account_invitation_delivery_v2', {
-      delivery_succeeded: true,
-      requested_auth_user_id: inviteBData.user.id,
-      requested_delivery_attempt_id: invitationB.delivery_attempt_id,
-      requested_invitation_id: invitationB.invitation_id,
-      requested_provider_error_code: null,
-    }),
-  );
-  const linkB = await invitationLink(await waitForNewMessage(email, beforeB));
+  const deliveryB = await deliver(admin, email, invitationB);
+  assert.notEqual(deliveryA.challenge.hash, deliveryB.challenge.hash);
+  assert.equal(deliveryA.authUserId, deliveryB.authUserId);
 
-  const resultA = await verifyInvitation(linkA);
-  assert.equal(resultA.accessToken, null);
-  assert.equal(resultA.errorCode, 'otp_expired');
-
-  const resultB = await verifyInvitation(linkB);
-  assert.ok(resultB.accessToken);
-  assert.ok(resultB.refreshToken);
+  const verifiedB = await verifyInvitation(deliveryB.link);
+  assert.equal(verifiedB.callbackChallenge, deliveryB.challenge.raw);
+  assert.ok(verifiedB.accessToken);
+  assert.ok(verifiedB.refreshToken);
   const recipient = createClient(environment.API_URL, environment.ANON_KEY, {
     auth: { persistSession: false },
   });
   const { error: sessionError } = await recipient.auth.setSession({
-    access_token: resultB.accessToken,
-    refresh_token: resultB.refreshToken,
+    access_token: verifiedB.accessToken,
+    refresh_token: verifiedB.refreshToken,
   });
   assert.equal(sessionError, null);
+  const { data: currentUser, error: userError } =
+    await recipient.auth.getUser();
+  assert.equal(userError, null);
+  assert.equal(
+    currentUser.user.app_metadata.account_invitation_id,
+    invitationB.invitation_id,
+  );
+
+  const { error: wrongChallengeError } = await recipient.rpc(
+    'accept_current_account_invitation_v3',
+    { requested_acceptance_challenge: deliveryA.challenge.raw },
+  );
+  assert.equal(wrongChallengeError?.message, 'invitation_challenge_mismatch');
+  const beforeAcceptance = await exactlyOneRow(
+    administrator.rpc('get_account_invitation_detail', {
+      requested_invitation_id: invitationB.invitation_id,
+    }),
+  );
+  assert.equal(beforeAcceptance.status, 'sent');
+
   const accepted = await exactlyOneRow(
-    recipient.rpc('accept_current_account_invitation_v2'),
+    recipient.rpc('accept_current_account_invitation_v3', {
+      requested_acceptance_challenge: deliveryB.challenge.raw,
+    }),
   );
   assert.equal(accepted.account_status, 'pending_profile');
   const acceptedInvitation = await exactlyOneRow(
@@ -213,129 +241,4 @@ test('replace invalidates link A and only link B accepts generation B', async ()
     }),
   );
   assert.equal(acceptedInvitation.status, 'accepted');
-  assert.equal(inviteAData.user.id, inviteBData.user.id);
-
-  // Race gate: A can be consumed after DB prepares B but before Auth emits B.
-  // Either Auth rejects reinviting the now-confirmed identity, or PostgreSQL
-  // rejects the ACK because confirmation predates the current Auth issue.
-  const raceEmail = `auth-race-${randomUUID()}@example.invalid`;
-  const invitationC = await exactlyOneRow(
-    administrator.rpc('prepare_account_invitation_v2', {
-      requested_display_name: 'Auth Race',
-      requested_email: raceEmail,
-      requested_idempotency_key: randomUUID(),
-      requested_locale: 'es',
-      requested_role_code: 'volunteer',
-    }),
-  );
-  const beforeC = new Set(await recipientMessageIds(raceEmail));
-  const { data: inviteCData, error: inviteCError } =
-    await admin.auth.admin.inviteUserByEmail(raceEmail, {
-      data: { preferred_locale: 'es' },
-      redirectTo: 'http://localhost:5173/auth/callback',
-    });
-  assert.equal(inviteCError, null);
-  const { error: metadataCError } = await admin.auth.admin.updateUserById(
-    inviteCData.user.id,
-    { app_metadata: { account_invitation_id: invitationC.invitation_id } },
-  );
-  assert.equal(metadataCError, null);
-  const { error: acknowledgeCError } = await admin.rpc(
-    'acknowledge_account_invitation_delivery',
-    {
-      requested_auth_user_id: inviteCData.user.id,
-      requested_delivery_attempt_id: invitationC.delivery_attempt_id,
-      requested_invitation_id: invitationC.invitation_id,
-    },
-  );
-  assert.equal(acknowledgeCError, null);
-  await exactlyOneRow(
-    admin.rpc('finalize_account_invitation_delivery_v2', {
-      delivery_succeeded: true,
-      requested_auth_user_id: inviteCData.user.id,
-      requested_delivery_attempt_id: invitationC.delivery_attempt_id,
-      requested_invitation_id: invitationC.invitation_id,
-      requested_provider_error_code: null,
-    }),
-  );
-  const linkC = await invitationLink(
-    await waitForNewMessage(raceEmail, beforeC),
-  );
-  const invitationD = await exactlyOneRow(
-    administrator.rpc('prepare_account_invitation_action_v2', {
-      requested_idempotency_key: randomUUID(),
-      requested_invitation_id: invitationC.invitation_id,
-      requested_operation: 'replace',
-      requested_reason: null,
-    }),
-  );
-  const resultC = await verifyInvitation(linkC);
-  assert.ok(resultC.accessToken);
-  assert.ok(resultC.refreshToken);
-  const raceRecipient = createClient(
-    environment.API_URL,
-    environment.ANON_KEY,
-    { auth: { persistSession: false } },
-  );
-  const { error: raceSessionError } = await raceRecipient.auth.setSession({
-    access_token: resultC.accessToken,
-    refresh_token: resultC.refreshToken,
-  });
-  assert.equal(raceSessionError, null);
-
-  const { data: inviteDData, error: inviteDError } =
-    await admin.auth.admin.inviteUserByEmail(raceEmail, {
-      data: { preferred_locale: 'es' },
-      redirectTo: 'http://localhost:5173/auth/callback',
-    });
-  if (inviteDError) {
-    await exactlyOneRow(
-      admin.rpc('finalize_account_invitation_delivery_v2', {
-        delivery_succeeded: false,
-        requested_auth_user_id: null,
-        requested_delivery_attempt_id: invitationD.delivery_attempt_id,
-        requested_invitation_id: invitationD.invitation_id,
-        requested_provider_error_code: 'auth_provider_rejected',
-      }),
-    );
-  } else {
-    const { error: metadataDError } = await admin.auth.admin.updateUserById(
-      inviteDData.user.id,
-      { app_metadata: { account_invitation_id: invitationD.invitation_id } },
-    );
-    assert.equal(metadataDError, null);
-    const { error: unsafeAcknowledgeError } = await admin.rpc(
-      'acknowledge_account_invitation_delivery',
-      {
-        requested_auth_user_id: inviteDData.user.id,
-        requested_delivery_attempt_id: invitationD.delivery_attempt_id,
-        requested_invitation_id: invitationD.invitation_id,
-      },
-    );
-    assert.equal(
-      unsafeAcknowledgeError?.message,
-      'auth_user_confirmed_before_delivery',
-    );
-    await exactlyOneRow(
-      admin.rpc('finalize_account_invitation_delivery_v2', {
-        delivery_succeeded: false,
-        requested_auth_user_id: null,
-        requested_delivery_attempt_id: invitationD.delivery_attempt_id,
-        requested_invitation_id: invitationD.invitation_id,
-        requested_provider_error_code: 'auth_provider_outcome_unknown',
-      }),
-    );
-  }
-
-  await raceRecipient.auth.refreshSession();
-  const { error: raceAcceptanceError } = await raceRecipient.rpc(
-    'accept_current_account_invitation_v2',
-  );
-  assert.ok(raceAcceptanceError);
-  const blockedSuccessor = await exactlyOneRow(
-    administrator.rpc('get_account_invitation_detail', {
-      requested_invitation_id: invitationD.invitation_id,
-    }),
-  );
-  assert.equal(blockedSuccessor.status, 'delivery_failed');
 });

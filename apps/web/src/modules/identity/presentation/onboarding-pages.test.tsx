@@ -67,7 +67,16 @@ async function renderFlow(status: AccountStatus) {
   const rendered = render(
     <I18nextProvider i18n={i18n}>
       <IdentityContext.Provider value={identity}>
-        <MemoryRouter initialEntries={['/invite/accept']}>
+        <MemoryRouter
+          initialEntries={[
+            {
+              pathname: '/invite/accept',
+              state: {
+                invitationAcceptanceChallenge: 'a'.repeat(43),
+              },
+            },
+          ]}
+        >
           <Routes>
             <Route
               element={<InvitationAcceptancePage service={service} />}
@@ -96,6 +105,9 @@ describe('onboarding pages', () => {
       screen.getByRole('button', { name: 'Aceptar invitación' }),
     );
     expect(gateway.acceptCurrentInvitation).toHaveBeenCalledOnce();
+    expect(gateway.acceptCurrentInvitation).toHaveBeenCalledWith(
+      'a'.repeat(43),
+    );
     expect(refreshAccountContext).toHaveBeenCalledOnce();
   });
 

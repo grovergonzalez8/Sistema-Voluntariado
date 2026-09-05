@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import test from 'node:test';
 
 import { createClient } from '../apps/web/node_modules/@supabase/supabase-js/dist/index.mjs';
@@ -199,7 +199,7 @@ async function oneRow(promise) {
 async function acceptableInvitation(label) {
   const email = `${label}-${randomUUID()}@example.invalid`;
   const invitation = await oneRow(
-    administrator.rpc('prepare_account_invitation_v2', {
+    administrator.rpc('prepare_account_invitation_v3', {
       requested_display_name: label,
       requested_email: email,
       requested_idempotency_key: randomUUID(),
@@ -207,11 +207,29 @@ async function acceptableInvitation(label) {
       requested_role_code: 'volunteer',
     }),
   );
+  const challenge = randomBytes(32).toString('base64url');
+  const challengeHash = createHash('sha256')
+    .update(challenge, 'utf8')
+    .digest('hex');
+  const { data: generation, error: stageError } = await authAdmin.rpc(
+    'stage_account_invitation_acceptance_challenge',
+    {
+      requested_challenge_hash: challengeHash,
+      requested_delivery_attempt_id: invitation.delivery_attempt_id,
+      requested_invitation_id: invitation.invitation_id,
+    },
+  );
+  if (stageError) throw stageError;
   const { data: authData, error: authError } =
     await authAdmin.auth.admin.createUser({
       email,
       email_confirm: false,
-      app_metadata: { account_invitation_id: invitation.invitation_id },
+      app_metadata: {
+        account_invitation_acceptance_challenge_hash: challengeHash,
+        account_invitation_delivery_attempt_id: invitation.delivery_attempt_id,
+        account_invitation_delivery_generation: generation,
+        account_invitation_id: invitation.invitation_id,
+      },
     });
   if (authError) throw authError;
   const { error: ackError } = await authAdmin.rpc(
@@ -232,7 +250,7 @@ async function acceptableInvitation(label) {
       requested_provider_error_code: null,
     }),
   );
-  return { ...invitation, authUserId: authData.user.id, email };
+  return { ...invitation, authUserId: authData.user.id, challenge, email };
 }
 
 test('create↔create and replace↔replay preserve one open invitation', async () => {
@@ -244,7 +262,7 @@ test('create↔create and replace↔replay preserve one open invitation', async 
   await blocker.ready();
   const names = ['invite-create-a', 'invite-create-b'];
   const command = `select operation_outcome || ':' || invitation_id::text
-    from public.prepare_account_invitation_v2(
+    from public.prepare_account_invitation_v3(
       '${email}', 'Concurrency', 'es', 'volunteer', '${createKey}'::uuid
     );`;
   const workers = names.map((name) =>
@@ -317,7 +335,7 @@ test('create↔create and replace↔replay preserve one open invitation', async 
   await replaceBlocker.ready();
   const replaceNames = ['invite-replace-a', 'invite-replace-b'];
   const replaceCommand = `select operation_outcome || ':' || invitation_id::text
-    from public.prepare_account_invitation_action_v2(
+    from public.prepare_account_invitation_action_v3(
       '${sourceId}'::uuid, 'replace', '${replaceKey}'::uuid, null
     );`;
   const replaceWorkers = replaceNames.map((name) =>
@@ -347,6 +365,76 @@ test('create↔create and replace↔replay preserve one open invitation', async 
   );
 });
 
+test('same idempotency key with different fingerprints is deterministic', async () => {
+  const containerId = databaseContainer();
+  const key = randomUUID();
+  const emails = [
+    `key-owner-a-${randomUUID()}@example.invalid`,
+    `key-owner-b-${randomUUID()}@example.invalid`,
+  ];
+  const blocker = new Blocker(
+    containerId,
+    `select pg_catalog.pg_advisory_lock(pg_catalog.hashtextextended(
+      '${administratorId}:create:${key}', 20260905
+    ));`,
+  );
+  await blocker.ready();
+  const names = ['invite-key-a', 'invite-key-b'];
+  const workers = emails.map((email, index) =>
+    startSql(
+      containerId,
+      authenticatedSql(
+        administratorId,
+        null,
+        `select operation_outcome from public.prepare_account_invitation_v3(
+          '${email}', 'Fingerprint ${index}', 'es', 'volunteer', '${key}'::uuid
+        );`,
+        names[index],
+      ),
+    ),
+  );
+  try {
+    await waitForBlocked(containerId, names, 2);
+  } finally {
+    blocker.release();
+  }
+  const results = await Promise.all(workers);
+  assert.equal(results.filter((result) => result.code === 0).length, 1);
+  const conflict = results.find((result) => result.code !== 0);
+  assert.ok(conflict);
+  assert.match(conflict.stderr, /idempotency_conflict/u);
+  assert.doesNotMatch(conflict.stderr, /database_error|duplicate key/u);
+  assert.equal(
+    runSql(
+      containerId,
+      `select count(*) from public.invitation_operation_requests
+       where actor_user_id = '${administratorId}'
+         and operation = 'create' and idempotency_key = '${key}';`,
+    ),
+    '1',
+  );
+  assert.equal(
+    runSql(
+      containerId,
+      `select count(*) from public.invitations
+       where normalized_email in ('${emails[0]}', '${emails[1]}');`,
+    ),
+    '1',
+  );
+  assert.equal(
+    runSql(
+      containerId,
+      `select count(*) from public.audit_logs
+       where action = 'invitation.created'
+         and entity_id in (
+           select id from public.invitations
+           where normalized_email in ('${emails[0]}', '${emails[1]}')
+         );`,
+    ),
+    '1',
+  );
+});
+
 test('revoke↔replay creates one transition and one audit row', async () => {
   const containerId = databaseContainer();
   const fixture = await acceptableInvitation('revoke-race');
@@ -358,7 +446,7 @@ test('revoke↔replay creates one transition and one audit row', async () => {
   await blocker.ready();
   const names = ['invite-revoke-a', 'invite-revoke-b'];
   const command = `select operation_outcome
-    from public.prepare_account_invitation_action_v2(
+    from public.prepare_account_invitation_action_v3(
       '${fixture.invitation_id}'::uuid, 'revoke', '${key}'::uuid,
       'Revocación concurrente autorizada'
     );`;
@@ -403,14 +491,14 @@ async function terminalRace(kind) {
     authenticatedSql(
       fixture.authUserId,
       fixture.invitation_id,
-      'select account_status from public.accept_current_account_invitation_v2();',
+      `select account_status from public.accept_current_account_invitation_v3('${fixture.challenge}');`,
       acceptName,
     ),
   );
   const otherBody =
     kind === 'accept'
-      ? 'select account_status from public.accept_current_account_invitation_v2();'
-      : `select operation_outcome from public.prepare_account_invitation_action_v2(
+      ? `select account_status from public.accept_current_account_invitation_v3('${fixture.challenge}');`
+      : `select operation_outcome from public.prepare_account_invitation_action_v3(
           '${fixture.invitation_id}'::uuid, '${kind}', '${randomUUID()}'::uuid,
           ${kind === 'revoke' ? "'Carrera terminal autorizada'" : 'null'}
         );`;
@@ -450,11 +538,161 @@ async function terminalRace(kind) {
   }
 }
 
+async function acceptReplaceRace(firstWinner) {
+  const containerId = databaseContainer();
+  const fixture = await acceptableInvitation(`replace-${firstWinner}`);
+  const blocker = new Blocker(
+    containerId,
+    `select id from public.invitations where id = '${fixture.invitation_id}' for update;`,
+  );
+  await blocker.ready();
+  const acceptName = `replace-${firstWinner}-accept`;
+  const replaceName = `replace-${firstWinner}-replace`;
+  const acceptCommand = authenticatedSql(
+    fixture.authUserId,
+    fixture.invitation_id,
+    `select account_status from public.accept_current_account_invitation_v3('${fixture.challenge}');`,
+    acceptName,
+  );
+  const replaceCommand = authenticatedSql(
+    administratorId,
+    null,
+    `select invitation_id::text from public.prepare_account_invitation_action_v3(
+      '${fixture.invitation_id}'::uuid, 'replace', '${randomUUID()}'::uuid, null
+    );`,
+    replaceName,
+  );
+  const first =
+    firstWinner === 'accept'
+      ? startSql(containerId, acceptCommand)
+      : startSql(containerId, replaceCommand);
+  await waitForBlocked(
+    containerId,
+    [firstWinner === 'accept' ? acceptName : replaceName],
+    1,
+  );
+  const second =
+    firstWinner === 'accept'
+      ? startSql(containerId, replaceCommand)
+      : startSql(containerId, acceptCommand);
+  try {
+    await waitForBlocked(containerId, [acceptName, replaceName], 2);
+  } finally {
+    blocker.release();
+  }
+  const [firstResult, secondResult] = await Promise.all([first, second]);
+  const acceptResult = firstWinner === 'accept' ? firstResult : secondResult;
+  const replaceResult = firstWinner === 'accept' ? secondResult : firstResult;
+
+  if (firstWinner === 'accept') {
+    assert.equal(acceptResult.code, 0);
+    assert.equal(replaceResult.code, 3);
+    assert.match(replaceResult.stderr, /invitation_not_replaceable/u);
+    assert.equal(
+      runSql(
+        containerId,
+        `select account.status || ':' || invitation.status || ':' ||
+          coalesce(invitation.superseded_by::text, 'none') || ':' ||
+          (select count(*) from public.invitations as candidate
+           where candidate.account_id = invitation.account_id) || ':' ||
+          (select count(*) from public.audit_logs as audit
+           where audit.entity_id = invitation.id
+             and audit.action = 'invitation.accepted') || ':' ||
+          (select count(*) from public.audit_logs as audit
+           where audit.entity_id = invitation.id
+             and audit.action = 'invitation.replaced')
+         from public.invitations as invitation
+         join public.accounts as account on account.id = invitation.account_id
+         where invitation.id = '${fixture.invitation_id}';`,
+      ),
+      'pending_profile:accepted:none:1:1:0',
+    );
+    return;
+  }
+
+  assert.equal(replaceResult.code, 0);
+  assert.notEqual(acceptResult.code, 0);
+  assert.match(acceptResult.stderr, /invitation_superseded/u);
+  const successorId = replaceResult.stdout;
+  assert.match(successorId, /^[0-9a-f-]{36}$/u);
+  const successorChallenge = randomBytes(32).toString('base64url');
+  const successorHash = createHash('sha256')
+    .update(successorChallenge, 'utf8')
+    .digest('hex');
+  const successorAttemptId = runSql(
+    containerId,
+    `select delivery_attempt_id from public.invitations where id = '${successorId}';`,
+  );
+  const { data: generation, error: stageError } = await authAdmin.rpc(
+    'stage_account_invitation_acceptance_challenge',
+    {
+      requested_challenge_hash: successorHash,
+      requested_delivery_attempt_id: successorAttemptId,
+      requested_invitation_id: successorId,
+    },
+  );
+  if (stageError) throw stageError;
+  const { error: metadataError } = await authAdmin.auth.admin.updateUserById(
+    fixture.authUserId,
+    {
+      app_metadata: {
+        account_invitation_acceptance_challenge_hash: successorHash,
+        account_invitation_delivery_attempt_id: successorAttemptId,
+        account_invitation_delivery_generation: generation,
+        account_invitation_id: successorId,
+      },
+    },
+  );
+  if (metadataError) throw metadataError;
+  const { error: ackError } = await authAdmin.rpc(
+    'acknowledge_account_invitation_delivery',
+    {
+      requested_auth_user_id: fixture.authUserId,
+      requested_delivery_attempt_id: successorAttemptId,
+      requested_invitation_id: successorId,
+    },
+  );
+  if (ackError) throw ackError;
+  await oneRow(
+    authAdmin.rpc('finalize_account_invitation_delivery_v2', {
+      delivery_succeeded: true,
+      requested_auth_user_id: fixture.authUserId,
+      requested_delivery_attempt_id: successorAttemptId,
+      requested_invitation_id: successorId,
+      requested_provider_error_code: null,
+    }),
+  );
+  assert.equal(
+    runSql(
+      containerId,
+      `select predecessor.status || ':' || predecessor.superseded_by::text || ':' ||
+        successor.status || ':' || successor.auth_user_id::text || ':' ||
+        account.status || ':' ||
+        (select count(*) from public.invitations as candidate
+         where candidate.id = predecessor.superseded_by) || ':' ||
+        (select count(*) from public.audit_logs as audit
+         where audit.entity_id = predecessor.id
+           and audit.action = 'invitation.replaced') || ':' ||
+        (select count(*) from public.audit_logs as audit
+         where audit.entity_id = predecessor.id
+           and audit.action = 'invitation.accepted')
+       from public.invitations as predecessor
+       join public.invitations as successor on successor.id = predecessor.superseded_by
+       join public.accounts as account on account.id = predecessor.account_id
+       where predecessor.id = '${fixture.invitation_id}';`,
+    ),
+    `superseded:${successorId}:sent:${fixture.authUserId}:invited:1:1:0`,
+  );
+}
+
 test('accept↔revoke has exactly one terminal winner', () =>
   terminalRace('revoke'));
 
-test('accept↔replace has exactly one terminal winner', () =>
-  terminalRace('replace'));
+test('accept↔replace is coherent when accept wins', () =>
+  acceptReplaceRace('accept'));
+
+test('accept↔replace is coherent when replace wins', () =>
+  acceptReplaceRace('replace'));
 
 test('accept↔resend never cuts an active delivery lease', () =>
   terminalRace('resend'));
