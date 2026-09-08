@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(113);
+select plan(122);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.accounts'::regclass),
@@ -85,6 +85,14 @@ select ok(
     'EXECUTE'
   ),
   'service_role can stage, reconcile, acknowledge and finalize a delivery'
+);
+select ok(
+  has_function_privilege(
+    'authenticated',
+    'public.prepare_account_invitation_recovery_v1(uuid,uuid,text)',
+    'EXECUTE'
+  ),
+  'authenticated can request recovery only through the ownership-checking RPC'
 );
 select ok(
   not has_function_privilege(
@@ -906,6 +914,22 @@ select throws_ok(
   'invitation_context_mismatch',
   'an old invitation context cannot complete another generation onboarding'
 );
+reset role;
+update public.invitations
+set acceptance_challenge_consumed_at = null
+where id = current_setting('test.invitation_id')::uuid;
+set local role authenticated;
+select throws_ok(
+  $$select * from public.complete_current_account_profile_v2('Sin procedencia', 'en')$$,
+  '23514',
+  'invitation_context_mismatch',
+  'profile completion requires consumed challenge provenance'
+);
+reset role;
+update public.invitations
+set acceptance_challenge_consumed_at = statement_timestamp()
+where id = current_setting('test.invitation_id')::uuid;
+set local role authenticated;
 select set_config(
   'request.jwt.claims',
   jsonb_build_object(
@@ -1015,7 +1039,8 @@ update public.accounts
 set status = 'active'
 where id = current_setting('test.onboarding_account_id')::uuid;
 update public.invitations
-set status = 'accepted'
+set status = 'accepted',
+    acceptance_challenge_consumed_at = statement_timestamp()
 where id = current_setting('test.invitation_id')::uuid;
 
 reset role;
@@ -1053,11 +1078,31 @@ set status = 'pending_profile'
 where id = current_setting('test.onboarding_account_id')::uuid;
 delete from public.user_roles
 where user_id = '00000000-0000-4000-8000-000000000101';
+update auth.users
+set email_confirmed_at = null
+where id = '00000000-0000-4000-8000-000000000101';
 select set_config(
   'request.jwt.claims',
   '{"sub":"00000000-0000-4000-8000-000000000004","role":"authenticated"}',
   true
 );
+set local role authenticated;
+select throws_ok(
+  $$
+    select * from public.change_account_status(
+      current_setting('test.onboarding_account_id')::uuid,
+      'active',
+      'Recuperación sin ownership Auth'
+    )
+  $$,
+  '23514',
+  'account_recovery_required',
+  'administrative recovery fails closed when Auth ownership is not confirmed'
+);
+reset role;
+update auth.users
+set email_confirmed_at = statement_timestamp()
+where id = '00000000-0000-4000-8000-000000000101';
 set local role authenticated;
 select lives_ok(
   $$
@@ -1442,6 +1487,91 @@ select is(
   ),
   0::bigint,
   'durable operation state persists no secret-bearing values'
+);
+
+-- FASE B recovery: strict bilateral ownership and idempotent in-progress replay.
+reset role;
+update public.accounts
+set status = 'invited'
+where id = current_setting('test.onboarding_account_id')::uuid;
+update public.invitations
+set status = 'revoked', superseded_by = null
+where account_id = current_setting('test.onboarding_account_id')::uuid
+  and status in ('pending', 'sent', 'delivery_failed', 'accepted');
+set local session_replication_role = replica;
+update public.invitations
+set auth_user_id = '00000000-0000-4000-8000-000000000004'
+where id = current_setting('test.invitation_id')::uuid;
+set local session_replication_role = origin;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-000000000004","role":"authenticated"}',
+  true
+);
+set local role authenticated;
+select throws_ok(
+  $$
+    select * from public.prepare_account_invitation_recovery_v1(
+      current_setting('test.onboarding_account_id')::uuid,
+      '30000000-0000-0000-8000-000000000032',
+      'Ownership mismatch recovery'
+    )
+  $$,
+  '23514',
+  'invitation_recovery_required',
+  'recovery fails closed when terminal Invitation ownership differs from Account Auth'
+);
+reset role;
+set local session_replication_role = replica;
+update public.invitations
+set auth_user_id = '00000000-0000-4000-8000-000000000101'
+where id = current_setting('test.invitation_id')::uuid;
+set local session_replication_role = origin;
+set local role authenticated;
+select lives_ok(
+  $$
+    create temporary table test_recovery_operation as
+    select * from public.prepare_account_invitation_recovery_v1(
+      current_setting('test.onboarding_account_id')::uuid,
+      '30000000-0000-0000-8000-000000000032',
+      'Ownership verified recovery'
+    )
+  $$,
+  'verified recovery reserves one new invitation without activating Account'
+);
+select is(
+  (select operation_outcome from test_recovery_operation),
+  'execute',
+  'verified recovery starts exactly one delivery operation'
+);
+select is(
+  (select account_status from public.get_account_detail(
+    current_setting('test.onboarding_account_id')::uuid
+  )),
+  'invited',
+  'recovery keeps Account without authority until normal acceptance'
+);
+select is(
+  (
+    select operation_outcome
+    from public.prepare_account_invitation_recovery_v1(
+      current_setting('test.onboarding_account_id')::uuid,
+      '30000000-0000-0000-8000-000000000032',
+      'Ownership verified recovery'
+    )
+  ),
+  'in_progress',
+  'a fresh recovery replay never starts a second delivery'
+);
+reset role;
+select is(
+  (
+    select count(*)
+    from public.invitations
+    where account_id = current_setting('test.onboarding_account_id')::uuid
+  ),
+  2::bigint,
+  'recovery replay keeps one terminal source and one successor invitation'
 );
 
 select * from finish();

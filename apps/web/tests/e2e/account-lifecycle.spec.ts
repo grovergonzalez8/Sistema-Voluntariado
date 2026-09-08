@@ -1,7 +1,10 @@
+import { execFileSync } from 'node:child_process';
+
 import {
   expect,
   test,
   type APIRequestContext,
+  type Browser,
   type Page,
 } from '@playwright/test';
 
@@ -98,14 +101,15 @@ async function confirmButton(page: Page, name: string): Promise<void> {
   expect(response.ok()).toBe(true);
 }
 
-async function findMailpitMessageId(
+async function findMailpitMessageIds(
   request: APIRequestContext,
   recipient: string,
-): Promise<string | null> {
+): Promise<string[]> {
   const response = await request.get(`${mailpitUrl}/api/v1/messages`);
-  if (!response.ok()) return null;
+  if (!response.ok()) return [];
   const payload: unknown = await response.json();
-  if (!isRecord(payload) || !Array.isArray(payload['messages'])) return null;
+  if (!isRecord(payload) || !Array.isArray(payload['messages'])) return [];
+  const matches: string[] = [];
   const messages: readonly unknown[] = payload['messages'];
   for (const message of messages) {
     if (!isRecord(message) || typeof message['ID'] !== 'string') continue;
@@ -115,10 +119,17 @@ async function findMailpitMessageId(
     if (
       recipientRows.some((row) => isRecord(row) && row['Address'] === recipient)
     ) {
-      return message['ID'];
+      matches.push(message['ID']);
     }
   }
-  return null;
+  return matches;
+}
+
+async function findMailpitMessageId(
+  request: APIRequestContext,
+  recipient: string,
+): Promise<string | null> {
+  return (await findMailpitMessageIds(request, recipient))[0] ?? null;
 }
 
 async function readInvitationLink(
@@ -137,6 +148,193 @@ async function readInvitationLink(
   );
   if (!match?.[0]) throw new Error('The local invitation link was not found.');
   return match[0];
+}
+
+async function createInvitationFromUi(
+  page: Page,
+  request: APIRequestContext,
+  email: string,
+): Promise<{ readonly link: string; readonly messageId: string }> {
+  await page.getByLabel('Correo electrónico').fill(email);
+  await page.getByLabel('Nombre visible').fill('Invitación negativa E2E');
+  await page.getByLabel('Rol inicial').selectOption('volunteer');
+  const responsePromise = page.waitForResponse((response) =>
+    response.url().includes('/manage-account-invitation'),
+  );
+  await page.getByRole('button', { name: 'Crear invitación' }).click();
+  expect((await responsePromise).status()).toBe(200);
+  await expect(page.getByText('Invitación creada.')).toBeVisible();
+  await expect
+    .poll(() => findMailpitMessageIds(request, email))
+    .toHaveLength(1);
+  const messageId = await findMailpitMessageId(request, email);
+  if (!messageId) throw new Error('The isolated Mailpit message is missing.');
+  return { link: await readInvitationLink(request, messageId), messageId };
+}
+
+async function invitationAction(
+  page: Page,
+  email: string,
+  name: 'Revocar' | 'Sustituir',
+): Promise<void> {
+  const responsePromise = page.waitForResponse((response) =>
+    response.url().includes('/manage-account-invitation'),
+  );
+  page.once('dialog', (dialog) => void dialog.accept());
+  await page
+    .getByRole('article')
+    .filter({ hasText: email })
+    .getByRole('button', { name })
+    .click();
+  expect((await responsePromise).status()).toBe(200);
+  await expect(page.getByText('Invitación actualizada.')).toBeVisible();
+}
+
+async function expectInvitationLinkRejected(
+  browser: Browser,
+  link: string,
+): Promise<void> {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(link);
+  await expect(page).toHaveURL(/\/(invite\/accept|login)$/u);
+  if (page.url().endsWith('/invite/accept')) {
+    await page.getByRole('button', { name: 'Aceptar invitación' }).click();
+  }
+  await expect(page).toHaveURL(/\/login$/u);
+  expect(
+    await page.evaluate(() => {
+      for (const storageKey of Object.keys(localStorage)) {
+        if (localStorage.getItem(storageKey)?.includes('access_token')) {
+          return true;
+        }
+      }
+      return false;
+    }),
+  ).toBe(false);
+  await context.close();
+}
+
+async function assertCanonicalInvitationState(
+  request: APIRequestContext,
+  email: string,
+  expectedDisplayName = 'Persona Activada E2E',
+): Promise<void> {
+  const serviceHeaders = {
+    apikey: localServiceRoleKey,
+    authorization: `Bearer ${localServiceRoleKey}`,
+  };
+  const tokenResponse = await request.post(
+    `${supabaseUrl}/auth/v1/token?grant_type=password`,
+    {
+      data: {
+        email: 'administrator@example.invalid',
+        password: localPassword,
+      },
+      headers: { apikey: anonKey, 'content-type': 'application/json' },
+    },
+  );
+  expect(tokenResponse.ok()).toBe(true);
+  const tokenPayload: unknown = await tokenResponse.json();
+  if (
+    !isRecord(tokenPayload) ||
+    typeof tokenPayload['access_token'] !== 'string'
+  ) {
+    throw new Error('Local administrator session is unavailable.');
+  }
+  const adminHeaders = {
+    apikey: anonKey,
+    authorization: `Bearer ${tokenPayload['access_token']}`,
+    'content-type': 'application/json',
+  };
+  const invitationResponse = await request.post(
+    `${supabaseUrl}/rest/v1/rpc/list_account_invitations`,
+    { data: {}, headers: adminHeaders },
+  );
+  expect(invitationResponse.ok()).toBe(true);
+  const invitationsPayload: unknown = await invitationResponse.json();
+  if (!Array.isArray(invitationsPayload)) {
+    throw new Error('Local invitation list is invalid.');
+  }
+  const invitations: readonly unknown[] = invitationsPayload;
+  const invitation: unknown = invitations.find(
+    (candidate) =>
+      isRecord(candidate) && candidate['normalized_email'] === email,
+  );
+  expect(isRecord(invitation)).toBe(true);
+  if (!isRecord(invitation)) return;
+  expect(invitation['status']).toBe('accepted');
+  expect(typeof invitation['account_id']).toBe('string');
+
+  const accountResponse = await request.post(
+    `${supabaseUrl}/rest/v1/rpc/get_account_detail`,
+    {
+      data: { requested_account_id: invitation['account_id'] },
+      headers: adminHeaders,
+    },
+  );
+  expect(accountResponse.ok()).toBe(true);
+  const accountsPayload: unknown = await accountResponse.json();
+  if (!Array.isArray(accountsPayload) || accountsPayload.length !== 1) {
+    throw new Error('Local account detail is invalid.');
+  }
+  const account: unknown = accountsPayload[0];
+  expect(isRecord(account)).toBe(true);
+  if (!isRecord(account)) return;
+  expect(account['account_status']).toBe('active');
+  expect(account['email']).toBe(email);
+  expect(account['display_name']).toBe(expectedDisplayName);
+  expect(account['roles']).toEqual(['volunteer']);
+  expect(typeof account['user_id']).toBe('string');
+  const accountAudit: readonly unknown[] = Array.isArray(account['audit'])
+    ? account['audit']
+    : [];
+  expect(
+    accountAudit.filter(
+      (entry) => isRecord(entry) && entry['action'] === 'invitation.accepted',
+    ),
+  ).toHaveLength(1);
+
+  const usersResponse = await request.get(
+    `${supabaseUrl}/auth/v1/admin/users?page=1&per_page=1000`,
+    { headers: serviceHeaders },
+  );
+  const usersPayload: unknown = await usersResponse.json();
+  expect(usersResponse.ok()).toBe(true);
+  if (!isRecord(usersPayload) || !Array.isArray(usersPayload['users'])) {
+    throw new Error('Local Auth returned an invalid users payload.');
+  }
+  const users: readonly unknown[] = usersPayload['users'];
+  const authUser: unknown = users.find(
+    (candidate) => isRecord(candidate) && candidate['email'] === email,
+  );
+  expect(
+    users.filter(
+      (candidate) => isRecord(candidate) && candidate['email'] === email,
+    ),
+  ).toHaveLength(1);
+  expect(isRecord(authUser)).toBe(true);
+  if (isRecord(authUser)) {
+    expect(authUser['id']).toBe(account['user_id']);
+    expect(typeof authUser['email_confirmed_at']).toBe('string');
+  }
+}
+
+function forceInvitationExpiry(email: string): void {
+  if (!/^[a-z0-9@._-]+$/u.test(email)) {
+    throw new Error('The local expiry fixture email is invalid.');
+  }
+  execFileSync(
+    'psql',
+    [
+      'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-c',
+      `update public.invitations set created_at = '1999-01-01T00:00:00Z', expires_at = '2000-01-01T00:00:00Z' where normalized_email = '${email}' and status in ('pending', 'sent', 'delivery_failed')`,
+    ],
+    { stdio: 'ignore' },
+  );
 }
 
 async function rpcStatus(
@@ -379,8 +577,8 @@ test.describe.serial('account lifecycle', () => {
     await expect(adminPage.getByText('Invitación creada.')).toBeVisible();
 
     await expect
-      .poll(() => findMailpitMessageId(request, invitedEmail))
-      .not.toBeNull();
+      .poll(() => findMailpitMessageIds(request, invitedEmail))
+      .toHaveLength(1);
     const messageId = await findMailpitMessageId(request, invitedEmail);
     if (!messageId)
       throw new Error('Mailpit message disappeared during the test.');
@@ -399,6 +597,15 @@ test.describe.serial('account lifecycle', () => {
     await invitedPage.getByLabel('Idioma preferido').selectOption('es');
     await invitedPage.getByRole('button', { name: 'Activar cuenta' }).click();
     await expect(invitedPage).toHaveURL(/\/app\/profile$/);
+    await invitedPage.getByRole('button', { name: 'Cerrar sesión' }).click();
+    await expect(invitedPage).toHaveURL(/\/login$/);
+    await signIn(invitedPage, invitedEmail);
+    await expect(invitedPage).toHaveURL(/\/app\/profile$/);
+    await expectInvitationLinkRejected(browser, invitationLink);
+    await expect
+      .poll(() => findMailpitMessageIds(request, invitedEmail))
+      .toHaveLength(1);
+    await assertCanonicalInvitationState(request, invitedEmail);
 
     await adminPage.getByRole('link', { name: 'Cuentas' }).click();
     await adminPage
@@ -543,6 +750,178 @@ test.describe.serial('account lifecycle', () => {
     await expect(adminPage.getByText('account.archived')).toBeVisible();
 
     await invitedContext.close();
+  });
+
+  test('replaced, revoked, expired, replay, and actor mismatch fail closed with real links', async ({
+    browser,
+    page,
+    request,
+  }) => {
+    const suffix = String(Date.now());
+    await signIn(page, 'administrator@example.invalid');
+    await page.getByRole('link', { name: 'Invitaciones' }).click();
+
+    const replacedEmail = `replaced-${suffix}@example.invalid`;
+    const firstDelivery = await createInvitationFromUi(
+      page,
+      request,
+      replacedEmail,
+    );
+    await invitationAction(page, replacedEmail, 'Sustituir');
+    await expect
+      .poll(() => findMailpitMessageIds(request, replacedEmail))
+      .toHaveLength(2);
+    const replacedIds = await findMailpitMessageIds(request, replacedEmail);
+    const successorId = replacedIds.find(
+      (messageId) => messageId !== firstDelivery.messageId,
+    );
+    if (!successorId) throw new Error('Replacement email is missing.');
+    const successorLink = await readInvitationLink(request, successorId);
+    await expectInvitationLinkRejected(browser, firstDelivery.link);
+    const successorContext = await browser.newContext();
+    const successorPage = await successorContext.newPage();
+    await successorPage.goto(successorLink);
+    await expect(successorPage).toHaveURL(/\/invite\/accept$/u);
+    await successorPage
+      .getByRole('button', { name: 'Aceptar invitación' })
+      .click();
+    await expect(successorPage).toHaveURL(/\/app\/complete-profile$/u);
+    await successorPage
+      .getByLabel('Nombre visible')
+      .fill('Persona Sustituida E2E');
+    await successorPage.getByLabel('Contraseña').fill(localPassword);
+    await successorPage.getByLabel('Idioma preferido').selectOption('es');
+    await successorPage.getByRole('button', { name: 'Activar cuenta' }).click();
+    await expect(successorPage).toHaveURL(/\/app\/profile$/u);
+    await successorPage.getByRole('button', { name: 'Cerrar sesión' }).click();
+    await signIn(successorPage, replacedEmail);
+    await expect(successorPage).toHaveURL(/\/app\/profile$/u);
+    await assertCanonicalInvitationState(
+      request,
+      replacedEmail,
+      'Persona Sustituida E2E',
+    );
+    await successorContext.close();
+
+    const revokedEmail = `revoked-${suffix}@example.invalid`;
+    const revokedDelivery = await createInvitationFromUi(
+      page,
+      request,
+      revokedEmail,
+    );
+    await invitationAction(page, revokedEmail, 'Revocar');
+    await expectInvitationLinkRejected(browser, revokedDelivery.link);
+    await expect
+      .poll(() => findMailpitMessageIds(request, revokedEmail))
+      .toHaveLength(1);
+
+    await page.getByRole('link', { name: 'Cuentas' }).click();
+    await page
+      .getByLabel('Buscar por nombre o correo autorizado')
+      .fill(revokedEmail);
+    await page.getByRole('button', { name: 'Buscar' }).click();
+    await page
+      .getByRole('article')
+      .filter({ hasText: revokedEmail })
+      .getByRole('link', { name: 'Ver detalle' })
+      .click();
+    const recoveryResponse = page.waitForResponse((response) =>
+      response.url().includes('/manage-account-invitation'),
+    );
+    page.once('dialog', (dialog) => void dialog.accept());
+    await page.getByRole('button', { name: 'Recuperar invitación' }).click();
+    expect((await recoveryResponse).status()).toBe(200);
+    await expect(
+      page.getByText('Se envió una recuperación verificada.'),
+    ).toBeVisible();
+    await expect
+      .poll(() => findMailpitMessageIds(request, revokedEmail))
+      .toHaveLength(2);
+    const recoveryMessageIds = await findMailpitMessageIds(
+      request,
+      revokedEmail,
+    );
+    const recoveryMessageId = recoveryMessageIds.find(
+      (messageId) => messageId !== revokedDelivery.messageId,
+    );
+    if (!recoveryMessageId) throw new Error('Recovery email is missing.');
+    const recoveryLink = await readInvitationLink(request, recoveryMessageId);
+    const recoveryContext = await browser.newContext();
+    const recoveryPage = await recoveryContext.newPage();
+    await recoveryPage.goto(recoveryLink);
+    await expect(recoveryPage).toHaveURL(/\/invite\/accept$/u);
+    await recoveryPage
+      .getByRole('button', { name: 'Aceptar invitación' })
+      .click();
+    await expect(recoveryPage).toHaveURL(/\/app\/complete-profile$/u);
+    await recoveryPage
+      .getByLabel('Nombre visible')
+      .fill('Persona Recuperada E2E');
+    await recoveryPage.getByLabel('Contraseña').fill(localPassword);
+    await recoveryPage.getByLabel('Idioma preferido').selectOption('es');
+    await recoveryPage.getByRole('button', { name: 'Activar cuenta' }).click();
+    await expect(recoveryPage).toHaveURL(/\/app\/profile$/u);
+    await recoveryPage.getByRole('button', { name: 'Cerrar sesión' }).click();
+    await signIn(recoveryPage, revokedEmail);
+    await expect(recoveryPage).toHaveURL(/\/app\/profile$/u);
+    await assertCanonicalInvitationState(
+      request,
+      revokedEmail,
+      'Persona Recuperada E2E',
+    );
+    await recoveryContext.close();
+
+    await page.getByRole('link', { name: 'Invitaciones' }).click();
+
+    const expiredEmail = `expired-${suffix}@example.invalid`;
+    const expiredDelivery = await createInvitationFromUi(
+      page,
+      request,
+      expiredEmail,
+    );
+    forceInvitationExpiry(expiredEmail);
+    await page.reload();
+    await expect(
+      page
+        .getByRole('article')
+        .filter({ hasText: expiredEmail })
+        .getByText('Vencida'),
+    ).toBeVisible();
+    await expectInvitationLinkRejected(browser, expiredDelivery.link);
+    await expect
+      .poll(() => findMailpitMessageIds(request, expiredEmail))
+      .toHaveLength(1);
+
+    const mismatchEmail = `actor-mismatch-${suffix}@example.invalid`;
+    const mismatchDelivery = await createInvitationFromUi(
+      page,
+      request,
+      mismatchEmail,
+    );
+    const redirectTo = new URL(mismatchDelivery.link).searchParams.get(
+      'redirect_to',
+    );
+    if (!redirectTo) throw new Error('Invitation callback URL is missing.');
+    await page.goto(redirectTo);
+    await expect(page).toHaveURL(/\/login$/u);
+    await expect(
+      page.getByText(
+        'Esta invitación corresponde a otra cuenta. Inicia sesión con el correo invitado.',
+      ),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(() => {
+        for (const storageKey of Object.keys(localStorage)) {
+          if (localStorage.getItem(storageKey)?.includes('access_token')) {
+            return true;
+          }
+        }
+        return false;
+      }),
+    ).toBe(false);
+    await expect
+      .poll(() => findMailpitMessageIds(request, mismatchEmail))
+      .toHaveLength(1);
   });
 
   test('coordinator can invite volunteer but cannot escalate a manipulated request', async ({

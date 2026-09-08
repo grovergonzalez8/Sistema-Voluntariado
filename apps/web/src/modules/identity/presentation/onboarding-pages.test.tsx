@@ -4,7 +4,7 @@ import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 
-import { success } from '@sistema-voluntariado/shared-kernel';
+import { failure, success } from '@sistema-voluntariado/shared-kernel';
 
 import { createI18n } from '../../../app/providers/i18n';
 import type { OnboardingGateway } from '../application/onboarding-gateway';
@@ -39,6 +39,7 @@ async function renderFlow(status: AccountStatus) {
   const i18n = await createI18n();
   const gateway = createGateway();
   const refreshAccountContext = vi.fn(() => Promise.resolve(success(null)));
+  const signOut = vi.fn(() => Promise.resolve(success(undefined)));
   const identity: IdentityContextValue = {
     account: {
       accountId: 'account-id',
@@ -60,7 +61,7 @@ async function renderFlow(status: AccountStatus) {
       Promise.resolve(
         success({ email: 'invited@example.invalid', id: 'actor' }),
       ),
-    signOut: () => Promise.resolve(success(undefined)),
+    signOut,
     user: { email: 'invited@example.invalid', id: 'actor' },
   };
   const service = new OnboardingService(gateway);
@@ -87,13 +88,14 @@ async function renderFlow(status: AccountStatus) {
               path="/app/complete-profile"
             />
             <Route element={<p>Profile route</p>} path="/app/profile" />
+            <Route element={<p>Login route</p>} path="/login" />
             <Route element={<p>Blocked route</p>} path="/account-blocked" />
           </Routes>
         </MemoryRouter>
       </IdentityContext.Provider>
     </I18nextProvider>,
   );
-  return { gateway, refreshAccountContext, ...rendered };
+  return { gateway, refreshAccountContext, signOut, ...rendered };
 }
 
 describe('onboarding pages', () => {
@@ -114,6 +116,21 @@ describe('onboarding pages', () => {
   it('blocks acceptance for a suspended account', async () => {
     await renderFlow('suspended');
     expect(await screen.findByText('Blocked route')).not.toBeNull();
+  });
+
+  it('signs out after a terminal invitation failure', async () => {
+    const user = userEvent.setup();
+    const { gateway, signOut } = await renderFlow('invited');
+    gateway.acceptCurrentInvitation.mockResolvedValueOnce(
+      failure({ code: 'invitation-revoked', message: 'safe failure' }),
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: 'Aceptar invitación' }),
+    );
+
+    expect(signOut).toHaveBeenCalledOnce();
+    expect(await screen.findByText('Login route')).not.toBeNull();
   });
 
   it('completes the minimum pending profile and activates', async () => {

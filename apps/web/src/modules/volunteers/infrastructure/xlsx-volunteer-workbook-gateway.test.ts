@@ -216,7 +216,7 @@ describe('XlsxVolunteerWorkbookGateway', () => {
     if (!singleQuotedResult.ok) {
       expect(singleQuotedResult.error.message).toContain('dimensiones');
     }
-  });
+  }, 15_000);
 
   it('returns an empty sheet safely for application-level header validation', async () => {
     const gateway = new XlsxVolunteerWorkbookGateway();

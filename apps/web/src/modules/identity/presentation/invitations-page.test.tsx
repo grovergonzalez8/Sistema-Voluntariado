@@ -79,6 +79,9 @@ const createGateway = () => {
     replaceInvitation,
     resendInvitation,
     revokeInvitation,
+    recoverAccountInvitation: vi.fn(() =>
+      Promise.resolve(failure({ code: 'forbidden', message: 'Denied.' })),
+    ),
   };
   return {
     createInvitation,

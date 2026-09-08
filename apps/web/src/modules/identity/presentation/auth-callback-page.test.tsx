@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { success } from '@sistema-voluntariado/shared-kernel';
 
@@ -78,5 +78,90 @@ describe('AuthCallbackPage', () => {
     );
 
     expect(await screen.findByText('challenge-preserved')).not.toBeNull();
+  });
+
+  it('does not treat a prior active session as invitation success', async () => {
+    const i18n = await createI18n();
+    const signOut = vi.fn(() => Promise.resolve(success(undefined)));
+    const identity: IdentityContextValue = {
+      account: {
+        accountId: 'account-id',
+        authorityVersion: '1',
+        permissions: [],
+        status: 'active',
+      },
+      access: {
+        account: {
+          accountId: 'account-id',
+          authorityVersion: '1',
+          permissions: [],
+          status: 'active',
+        },
+        kind: 'active',
+      },
+      refreshAccountContext: () => Promise.resolve(success(null)),
+      signIn: () =>
+        Promise.resolve(success({ email: 'x@example.invalid', id: 'x' })),
+      signOut,
+      user: { email: 'x@example.invalid', id: 'x' },
+    };
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <IdentityContext.Provider value={identity}>
+          <MemoryRouter
+            initialEntries={[
+              `/auth/callback?invitation_challenge=${'a'.repeat(43)}`,
+            ]}
+          >
+            <Routes>
+              <Route element={<AuthCallbackPage />} path="/auth/callback" />
+              <Route element={<p>login</p>} path="/login" />
+            </Routes>
+          </MemoryRouter>
+        </IdentityContext.Provider>
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => {
+      expect(signOut).toHaveBeenCalledOnce();
+    });
+    expect(await screen.findByText('login')).not.toBeNull();
+  });
+
+  it('clears a session when Auth reports an invalid or expired link', async () => {
+    const i18n = await createI18n();
+    const signOut = vi.fn(() => Promise.resolve(success(undefined)));
+    const identity: IdentityContextValue = {
+      account: null,
+      access: { kind: 'unauthenticated' },
+      refreshAccountContext: () => Promise.resolve(success(null)),
+      signIn: () =>
+        Promise.resolve(success({ email: 'x@example.invalid', id: 'x' })),
+      signOut,
+      user: { email: 'x@example.invalid', id: 'x' },
+    };
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <IdentityContext.Provider value={identity}>
+          <MemoryRouter
+            initialEntries={[
+              '/auth/callback?error_code=otp_expired&error_description=redacted',
+            ]}
+          >
+            <Routes>
+              <Route element={<AuthCallbackPage />} path="/auth/callback" />
+              <Route element={<p>login</p>} path="/login" />
+            </Routes>
+          </MemoryRouter>
+        </IdentityContext.Provider>
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => {
+      expect(signOut).toHaveBeenCalledOnce();
+    });
+    expect(await screen.findByText('login')).not.toBeNull();
   });
 });

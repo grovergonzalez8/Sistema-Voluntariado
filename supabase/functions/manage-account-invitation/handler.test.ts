@@ -61,12 +61,15 @@ function dependencies(
           'invitation.create',
           'invitation.resend',
           'invitation.revoke',
+          'invitation.recover',
         ],
       }),
     ),
     inviteAuthUser: vi.fn(() => Promise.resolve({ id: 'auth-user-id' })),
+    sendRecoveryEmail: vi.fn(() => Promise.resolve()),
     prepareAction: vi.fn(() => Promise.resolve(reservation())),
     prepareCreate: vi.fn(() => Promise.resolve(reservation())),
+    prepareRecovery: vi.fn(() => Promise.resolve(reservation())),
     recordSafeEvent: vi.fn(),
     stageAcceptanceChallenge: vi.fn(() => Promise.resolve({ generation: 1 })),
     updateAuthUserInvitation: vi.fn(() => Promise.resolve()),
@@ -114,6 +117,74 @@ async function responseBody(
 }
 
 describe('manage-account-invitation handler', () => {
+  it('parses recovery without accepting an invitation identifier as an account', () => {
+    expect(
+      parseInvitationCommand({
+        accountId: secondId,
+        idempotencyKey: firstId,
+        operation: 'recover',
+        reason: 'Reconciliación Auth y cuenta',
+      }),
+    ).toEqual({
+      accountId: secondId,
+      idempotencyKey: firstId,
+      operation: 'recover',
+      reason: 'Reconciliación Auth y cuenta',
+    });
+  });
+
+  it('uses the real recovery email path and never Auth invite for recovery', async () => {
+    const recoveryReservation = reservation({
+      acknowledgedAuthUserId: 'auth-user-id',
+      operationOutcome: 'execute',
+    });
+    const deps = dependencies({
+      prepareRecovery: vi.fn(() => Promise.resolve(recoveryReservation)),
+    });
+    const response = await createInvitationHandler(deps)(
+      request({
+        accountId: secondId,
+        idempotencyKey: firstId,
+        operation: 'recover',
+        reason: 'Reconciliación Auth y cuenta',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(deps.prepareRecovery).toHaveBeenCalledOnce();
+    expect(deps.inviteAuthUser).not.toHaveBeenCalled();
+    expect(deps.sendRecoveryEmail).toHaveBeenCalledOnce();
+  });
+
+  it('does not rotate the challenge or resend email for an in-progress recovery replay', async () => {
+    const deps = dependencies({
+      prepareRecovery: vi.fn(() =>
+        Promise.resolve(
+          reservation({
+            acknowledgedAuthUserId: 'auth-user-id',
+            operationOutcome: 'in_progress',
+            shouldDeliver: false,
+          }),
+        ),
+      ),
+    });
+    const response = await createInvitationHandler(deps)(
+      request({
+        accountId: secondId,
+        idempotencyKey: firstId,
+        operation: 'recover',
+        reason: 'Reconciliación Auth y cuenta',
+      }),
+    );
+
+    expect(response.status).toBe(202);
+    expect(await responseBody(response)).toMatchObject({
+      outcome: 'in_progress',
+    });
+    expect(deps.stageAcceptanceChallenge).not.toHaveBeenCalled();
+    expect(deps.sendRecoveryEmail).not.toHaveBeenCalled();
+  });
+
   it('rejects an origin outside the configured allowlist', async () => {
     const handler = createInvitationHandler(dependencies());
     const response = await handler(
