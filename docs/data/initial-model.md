@@ -160,7 +160,9 @@ No se admite otra transición. `authority_version` aumenta cuando cambia estado 
 - Estados: `pending`, `sent`, `accepted`, `revoked`, `expired`, `delivery_failed`, `superseded`.
 - `accepted`, `revoked`, `expired` y `superseded` son terminales.
 - Reemplazo crea una sucesora en la misma cuenta: una fila abierta pasa a `superseded`; una fila `revoked`/`expired` conserva su estado terminal y enlaza `superseded_by`. Nunca bifurca otra cuenta y falla cerrado si Auth ya confirmó la identidad.
-- Idempotencia de creación por actor/clave y de resend/replace mediante `invitation_operation_requests`.
+- Si Auth ya confirmó la identidad y la invitación quedó terminal, `recover` solo crea una nueva autorización cuando la igualdad Auth/Account/Invitation se demuestra de forma estricta; la cuenta permanece `invited` hasta aceptar y completar onboarding. Ownership ambiguo falla cerrado.
+- Idempotencia por actor/clave para create, resend, replace, revoke y recover
+  mediante `invitation_operation_requests`.
 - Un lease de entrega evita doble llamada Auth; no se almacena token o digest de enlace.
 - `expires_at` usa una hora local, alineada con `auth.email.otp_expiry`.
 

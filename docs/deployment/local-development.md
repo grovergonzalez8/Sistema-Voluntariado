@@ -47,11 +47,22 @@ No son credenciales de ningún entorno compartido y nunca deben reutilizarse.
 3. Abra `http://127.0.0.1:54324`, seleccione ese correo y siga el enlace local.
 4. Acepte, establezca la contraseña de fixture y complete nombre/idioma.
 
+Para una cuenta `invited` cuya identidad Auth ya fue confirmada por un enlace
+terminal, abra el detalle de cuenta como administrator y use `Recuperar invitación`.
+La operación exige motivo, genera una clave de idempotencia en el navegador y envía
+un correo Auth de recuperación a Mailpit. La cuenta permanece sin permisos hasta
+aceptar el nuevo enlace y completar el perfil; ownership ambiguo falla cerrado.
+
+El acceptance E2E cuenta mensajes por destinatario único, extrae el enlace real sin
+imprimirlo y termina con logout/login del usuario creado. No use conteos globales de
+Mailpit ni inserte estados finales por SQL durante ese recorrido.
+
 No copie cuerpos, tokens o enlaces de Mailpit al repositorio o a logs. El rate limit y TTL locales son fixtures, no configuración productiva.
 
 El template Auth local actual es único: `preferred_locale` se conserva para la
-aplicación, pero todavía no selecciona un email español/inglés versionado. Ese
-trabajo pertenece a FASE B y no cambia la autorización de la invitación.
+aplicación, pero todavía no selecciona un email español/inglés versionado.
+La selección dinámica del template queda como follow-up no bloqueante y no cambia
+la autorización de la invitación.
 
 ## Verificar recuperación de sesión y autoridad
 

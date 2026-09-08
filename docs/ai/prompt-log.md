@@ -101,3 +101,11 @@ resultado se conserva en `docs/exec-plans/0008-invitation-flow-hardening-v1.md`;
 se modificó código productivo, UI, Edge Functions, migraciones, dependencias ni
 versiones. El happy path manual llegó a logout/login; la paridad con Node `22.18.0`
 queda pendiente porque ese runtime no está disponible localmente.
+
+Invitation Flow Hardening V1 0016 (FASE B FINAL):
+`docs/ai/prompts/0016-invitation-flow-hardening-phase-b-final.md`. Continuación
+solicitada por el usuario con Codex GPT-5.6 Luna para implementar el
+callback seguro, actor mismatch, recovery administrativo, Mailpit E2E y cierre
+documental del ExecPlan 0008. Se preservó FASE A/A.1 salvo defectos demostrados;
+no se usaron tokens fabricados ni Supabase remoto. Los gates Docker locales se
+ejecutaron y la paridad exacta de Node con CI queda explícitamente no confirmada.

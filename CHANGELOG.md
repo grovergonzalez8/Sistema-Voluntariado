@@ -6,6 +6,15 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 
 ### Fixed
 
+- El callback Auth ya no confunde una sesión existente con aceptación: procesa
+  errores allowlist, limpia challenge del URL y cierra sesiones activas/mismatch
+  antes de volver a login.
+- La recuperación administrativa de una identidad confirmada es idempotente,
+  auditada y fail-closed: rota challenge, envía correo Auth y conserva la cuenta sin
+  autoridad hasta el onboarding normal; no elimina `auth.users` ni fuerza activación.
+- El acceptance E2E aísla Mailpit por destinatario, exige un único correo y prueba
+  logout/login posterior.
+
 - Create/replace/resend generan y rotan un acceptance challenge por entrega;
   PostgreSQL valida hash, generación y consumo one-time además de la sesión Auth.
 - Replace reanuda finalize desde un ACK durable: los reintentos reconcilian Auth

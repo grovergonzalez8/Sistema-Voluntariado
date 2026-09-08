@@ -32,6 +32,8 @@ Activos: identidades Auth, cuentas, invitaciones, perfiles mínimos, padrón adm
 | Cuenta bloqueada                             | confirmación autoritativa `suspended`/`archived`; estados transitorios separados                                             | invalidación global de refresh token |
 | Recuperación de contraseña                   | Supabase Auth                                                                                                                | Política y mensajes organizacionales |
 | Auditoría manipulada                         | sin insert/update/delete cliente                                                                                             | Exportación y acceso `audit.read`    |
+| Callback con sesión previa                   | allowlist Auth, challenge efímero, comprobación de contexto y sign-out ante actor mismatch                                   | Mensajería Auth del proveedor        |
+| Recovery con ownership ambiguo               | permiso `invitation.recover`, lock/idempotencia, Auth–Account–Invitation bilateral y fail-closed                             | Procedimiento humano de identidad    |
 
 ## Funciones privilegiadas
 
@@ -51,6 +53,12 @@ autoridad. Revoke/expiry/replace/accepted son terminales aun si un artefacto Aut
 antiguo todavía establece sesión. El callback captura el challenge sin persistirlo
 en storage ni registrarlo; Auth/proveedor aceptando la operación no garantiza que el
 mensaje llegue físicamente a la bandeja humana.
+
+El callback nunca convierte una sesión previa en aceptación: errores Auth se reducen
+a mensajes allowlist, query/fragmento se limpia al navegar y el challenge RAW vive
+solo en estado efímero de router. La operación `recover` crea una nueva autorización
+vigente y correo Auth únicamente tras demostrar ownership; mantiene `accounts.status`
+en `invited` y no concede rol hasta el onboarding normal.
 
 El frontend no infiere bloqueo desde ausencia de caché, refetch, 403 de una operación o error de red. Solo una respuesta satisfactoria del contexto de cuenta con `suspended` o `archived` habilita la pantalla bloqueada. La autoridad se particiona por `user_id`; al cambiar de identidad se cancelan consultas anteriores y se elimina la caché privada, evitando que una respuesta tardía transfiera permisos entre sesiones.
 

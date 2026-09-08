@@ -127,8 +127,8 @@ El índice único parcial `(activity_id, volunteer_id) where ended_at is null` i
 
 ## `invitation_operation_requests`
 
-Clave primaria `(actor_user_id, operation, idempotency_key)` para `create`, `resend` y
-`replace` (y las acciones idempotentes equivalentes); conserva fingerprint,
+Clave primaria `(actor_user_id, operation, idempotency_key)` para `create`, `resend`,
+`replace`, `revoke` y `recover` (y las acciones idempotentes equivalentes); conserva fingerprint,
 invitación origen/resultado y `created_at`. No contiene cuerpo ni token.
 
 ## `account_status_history`
@@ -209,6 +209,7 @@ No se guardan tokens, correo, teléfono, nombre, contraseña, valores personales
 - Invitaciones cliente: `list_account_invitations`, `prepare_account_invitation_v3`, `prepare_account_invitation_action_v3`.
 - Helper interno owner-only: `expire_open_invitations` (no tiene ejecución para roles de API).
 - Invitaciones internas `service_role`: `stage_account_invitation_acceptance_challenge`, `get_account_invitation_delivery_recovery_context`, `acknowledge_account_invitation_delivery`, `finalize_account_invitation_delivery_v2`.
+- Recovery administrativo: `prepare_account_invitation_recovery_v1(account_id, idempotency_key, reason)`; solo `authenticated` con `invitation.recover`, valida ownership Auth/Account/Invitation y deja la cuenta `invited`.
 - Las variantes `prepare_account_invitation_v2`, `prepare_account_invitation_action_v2`, `accept_current_account_invitation` y `finalize_account_invitation_delivery` son compatibilidad interna/legacy y no son API de cliente.
 - Administración: `list_accounts`, `get_account_detail`, `change_account_status`, `manage_account_role`.
 - Padrón: `list_volunteers`, `get_volunteer_detail`, `find_volunteer_duplicates`, `create_volunteer`, `update_volunteer`, `preview_volunteer_import_duplicates`, `import_volunteers`, `export_volunteers`.

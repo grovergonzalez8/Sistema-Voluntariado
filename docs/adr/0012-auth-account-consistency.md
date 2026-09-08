@@ -11,7 +11,7 @@ Supabase Auth posee identidades, credenciales, sesiones y enlaces; el dominio ne
 
 Crear `accounts` como fuente del ciclo de vida y enlazarla opcionalmente con `auth.users` mediante `auth_user_id`. La Edge Function reserva primero cuenta/invitación en PostgreSQL, usa una clave idempotente y un lease antes de llamar Auth, y finaliza como `sent` o `delivery_failed`. Constraints diferidos mantienen coherencia entre el enlace de cuenta y el snapshot de invitación. Los reintentos buscan una coincidencia exacta de correo y metadata de invitación emitida por el servidor antes de volver a llamar Auth; cualquier ambigüedad falla de forma segura.
 
-Una invitación terminal conserva la reserva de correo de su cuenta. `revoked` o `expired` puede recibir una sucesora `pending` en esa misma cuenta sin reabrir ni reetiquetar la fila histórica; no se crea una segunda cuenta. PostgreSQL niega el reemplazo si Auth ya confirmó la identidad: el spike local devolvió HTTP 422 al intentar reinvitar un usuario confirmado, por lo que esa excepción requiere revisión humana y nunca supersede primero para fallar después.
+Una invitación terminal conserva la reserva de correo de su cuenta. `revoked` o `expired` puede recibir una sucesora `pending` en esa misma cuenta sin reabrir ni reetiquetar la fila histórica; no se crea una segunda cuenta. PostgreSQL niega el reemplazo si Auth ya confirmó la identidad. En ese caso, un administrador autorizado puede iniciar `recover` únicamente cuando la propiedad Auth/Account/Invitation es inequívoca: la operación es idempotente, auditada, conserva `auth_user_id`, crea una autorización nueva y mantiene la cuenta sin autoridad hasta el flujo normal de aceptación y onboarding. Cualquier ambigüedad falla cerrado.
 
 ## Alternativas
 
@@ -48,7 +48,8 @@ PostgreSQL exige el ID exacto de `app_metadata` firmado y el vínculo bilateral
 Invitation/Auth. El mismo contexto se exige para completar perfil. Links terminales
 pueden autenticar mientras Auth aún los considere válidos, pero no conceden
 autoridad de aplicación. No se eliminan identidades automáticamente; una identidad
-confirmada por link revocado/expirado requiere reconciliación administrativa.
+confirmada por link revocado/expirado requiere `recover` administrativo explícito o
+revisión humana si no puede demostrarse ownership inequívoco.
 
 ## Apéndice 2026-09-05: procedencia por entrega y recuperación
 
@@ -64,3 +65,19 @@ ambiguo o un ACK perdido reconcilia primero Auth mediante Admin API y metadata
 técnica; solo si la evidencia es insuficiente marca `delivery_outcome_unknown` y
 `recovery_required`. Auth aceptando una operación no demuestra entrega física en la
 bandeja humana.
+
+## Apéndice 2026-09-07: recuperación y transiciones de autoridad
+
+Una identidad Auth confirmada cuyo Account siga `invited` y cuya Invitation sea
+terminal solo puede recibir una nueva autorización mediante `recover`: permiso
+exclusivo de administrator, ownership bilateral Auth/Account/Invitation, correo
+coincidente, idempotencia y auditoría. La cuenta no gana autoridad hasta consumir
+el nuevo challenge y completar onboarding.
+
+Las dos transiciones hacia `active` quedan detrás de wrappers forward-only.
+`change_account_status` solo repara `pending_profile` si Auth está confirmado, la
+Invitation aceptada pertenece a la cuenta y consumió su challenge, el perfil está
+completo y el rol inicial sigue vigente. Del mismo modo,
+`complete_current_account_profile_v2` exige consumo probado del challenge antes de
+delegar en la mutación legacy. Los entrypoints legacy permanecen sin EXECUTE para
+clientes; no se fuerza activación ni se modifican internals de Auth.

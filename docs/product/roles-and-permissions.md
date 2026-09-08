@@ -24,7 +24,7 @@ Una cuenta solo obtiene permisos efectivos cuando `accounts.status = 'active'`. 
 | Proyectos               | `project.read_assigned`, `project.manage_assigned`, `project.manage`, `project.propose_assignment`, `project.approve_assignment`              |
 | Placeholders históricos | `activity.create`, `activity.join`, `task.assign`, `task.complete`                                                                            |
 | Finanzas futuras        | `payment.read_self`, `payment.manage`                                                                                                         |
-| Invitaciones            | `invitation.read`, `invitation.create`, `invitation.revoke`, `invitation.resend`                                                              |
+| Invitaciones            | `invitation.read`, `invitation.create`, `invitation.revoke`, `invitation.resend`, `invitation.recover`                                        |
 | Cuentas                 | `account.read`, `account.activate`, `account.suspend`, `account.archive`, `account.reactivate`                                                |
 | Roles                   | `role_assignment.read`, `role_assignment.manage`                                                                                              |
 | Auditoría               | `audit.read`                                                                                                                                  |
@@ -35,7 +35,7 @@ Una cuenta solo obtiene permisos efectivos cuando `accounts.status = 'active'`. 
 - `volunteer`: `volunteer.read_self` y `volunteer.update_self`.
 - `coordinator`: lectura/creación de invitaciones, lectura de cuentas y roles, siempre dentro de cuentas originadas por sus propias invitaciones. Solo puede invitar con rol inicial `volunteer`.
 - `project_manager`: `project.read_assigned` y `project.manage_assigned`; ambos solo son efectivos dentro de un scope activo y junto con cuenta activa y rol vigente.
-- `administrator`: cada permiso del catálogo se concede explícitamente; no existe comodín. Projects usa `project.manage` como autoridad global.
+- `administrator`: cada permiso del catálogo se concede explícitamente; no existe comodín. Incluye `invitation.recover` para la recuperación idempotente y auditada de una identidad Auth confirmada con ownership inequívoco. Projects usa `project.manage` como autoridad global.
 - `accommodation_manager` y `finance`: no reciben administración de cuentas en este hito. Una persona puede acumular `volunteer` para usar el perfil propio.
 
 ## Política de concesión

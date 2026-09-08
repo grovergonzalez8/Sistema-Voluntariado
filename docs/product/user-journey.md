@@ -30,6 +30,13 @@ puede aceptar la invitación vigente. La operación Auth se distingue de la entr
 física del correo; un estado `recovery_required` queda cerrado para autoridad hasta
 que una reconciliación administrativa de FASE B aporte evidencia suficiente.
 
+Si Auth confirmó la identidad pero la cuenta quedó `invited` con una invitación
+terminal, administrator puede usar recuperación verificada. El sistema comprueba
+el vínculo Auth–Account–Invitation, rota challenge y envía un correo Auth; no activa
+la cuenta ni concede rol. La persona destinataria debe aceptar el enlace y completar
+onboarding como en el recorrido normal. Ownership ambiguo termina en
+`recovery_required` sin autoridad.
+
 ## Administración
 
 Administrator puede buscar cuentas, consultar detalle, conceder o retirar roles permitidos, suspender, archivar y reactivar con confirmación y motivo. Coordinator ve exclusivamente el alcance originado por sus invitaciones y solo crea invitaciones `volunteer`. El servidor vuelve a validar cada acción aunque la UI o una petición hayan sido manipuladas.

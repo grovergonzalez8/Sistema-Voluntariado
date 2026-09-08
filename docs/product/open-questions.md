@@ -57,8 +57,8 @@
 10. ¿Reactivar una cuenta archivada requiere doble aprobación?
 11. ¿Debe invalidarse globalmente el refresh token al suspender/archivar, además del bloqueo inmediato en RLS?
 12. ¿Se permitirán cambios de correo y recuperación de contraseña desde la aplicación?
-13. ¿Qué runbook recupera una identidad que Auth confirmó pero cuya invitación PostgreSQL fue revocada o venció antes de aceptarse? GoTrue no permite reinvitar esa identidad.
-14. ¿Se conservará `account.activate` como recuperación administrativa excepcional de un perfil ya completo que quedó `pending_profile`, o requerirá soporte humano fuera de la UI?
+13. Resuelta en Invitation Flow Hardening V1: un administrador con `invitation.recover` usa el recovery idempotente y auditado únicamente cuando Auth/Account/Invitation prueban ownership bilateral; crea una autorización nueva y conserva la cuenta `invited`. Si la prueba falla, se requiere revisión humana y no se modifica Auth.
+14. Resuelta en Invitation Flow Hardening V1: `account.activate` solo recupera un `pending_profile` completo cuando Auth está confirmado, existe invitación aceptada con challenge consumido, rol vigente y perfil completo. Nunca fuerza activación ni salta onboarding.
 15. ¿Qué política de retención, anonimización, archivo y fusión se aplicará al padrón histórico?
 
 Hasta responderlas se aplica la decisión de menor privilegio y se evitan evoluciones que dependan de esas respuestas.

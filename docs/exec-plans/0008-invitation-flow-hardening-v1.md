@@ -1,7 +1,7 @@
 # ExecPlan 0008: Invitation Flow Hardening V1
 
-- Estado: FASE A implementada; gates locales completados;
-  paridad CI bloqueada por runtime Node no disponible
+- Estado: FASE B FINAL cerrada localmente; lista para PRE-MERGE REVIEW;
+  paridad CI no confirmada por diferencia de runtime Node
 - Inicio del diagnóstico: 2026-09-03
 - Responsable: agente principal de Codex, con revisión humana obligatoria
 - Rama autorizada: `fix/invitation-flow-hardening`
@@ -12,9 +12,9 @@
 
 Endurecer el flujo real de invitaciones para que una invitación administrativa pueda recorrerse de extremo a extremo en Supabase local —creación, entrega en Mailpit, consumo del link Auth, onboarding, activación y login posterior— sin manipulación manual de la base entre esos pasos, y para que los fallos, reintentos y carreras relevantes tengan regresiones reproducibles.
 
-El diagnóstico inicial quedó preservado como evidencia histórica. La FASE A añade
-el hardening de backend/Auth/PostgreSQL/Edge Function y las regresiones focales;
-callback/E2E canónico y rediseño frontend permanecen fuera de este incremento.
+El diagnóstico inicial quedó preservado como evidencia histórica. FASE A/A.1
+añadieron el hardening de backend/Auth/PostgreSQL/Edge Function y provenance;
+FASE B FINAL cierra callback, recovery y el E2E canónico sin rediseñar lo anterior.
 
 ## FASE A — contrato implementado
 
@@ -792,3 +792,94 @@ mutación y el código se restauró antes de continuar. El revisor de seguridad 
 el arquitecto emitieron PASS; QA emitió PASS tras corregir la ACL/documentación del
 helper interno, el lector type-safe del callback y el camino de reconciliación
 indisponible. Node 22.18.0 sigue NOT CONFIRMED (runtime local 22.21.0).
+
+## FASE B FINAL — callback, actor mismatch, recovery y acceptance E2E (2026-09-07)
+
+### Implementación
+
+- El callback interpreta errores Auth de query o fragmento mediante una allowlist,
+  elimina el parámetro de challenge al navegar y nunca decide autorización por la
+  mera existencia de una sesión. Solo entrega el challenge efímero a la ruta de
+  aceptación cuando el contexto durable es `invited` o `pending_profile`.
+- Una sesión activa, suspendida, archivada, inexistente o de otro actor con un
+  challenge de invitación termina en cierre de sesión y pantalla de login segura;
+  el challenge no se copia a `localStorage`, logs, auditoría ni mensajes.
+- Se añadieron mensajes seguros para Auth inválido/expirado, challenge inválido,
+  invitation terminal/replay, operación en progreso y `recovery_required`.
+- La recuperación administrativa es una operación separada `recover`, idempotente
+  por `(actor, key)`, auditada y concedida solo por `invitation.recover`. Exige
+  Account `invited`, `auth_user_id` bilateral, Auth confirmado, correo coincidente
+  y una Invitation terminal no aceptada. Crea una nueva Invitation/challenge,
+  conserva la cuenta sin autoridad y envía el correo mediante el flujo Auth de
+  recuperación; nunca borra `auth.users`, activa la cuenta ni salta onboarding.
+- La activación administrativa existente quedó fail-closed: solo puede reparar un
+  `pending_profile` con Auth confirmado, Invitation aceptada con challenge
+  consumido, perfil completo y ownership bilateral demostrado.
+- Una repetición de `recover` con lease fresco devuelve `in_progress` sin volver a
+  generar challenge ni enviar correo; solo un lease stale entra en reconciliación.
+- El E2E canónico exige exactamente un correo Mailpit por destinatario y completa
+  logout/login posterior con la misma cuenta; no imprime tokens ni cuerpos.
+
+### Locale y limitación conocida
+
+`preferred_locale` se conserva en Invitation y metadata Auth. El mecanismo local de
+Supabase no selecciona dinámicamente el template `invite`/`recovery` por idioma;
+no se añadió mailer propio ni se acopló seguridad al template. La localización del
+contenido queda como follow-up no bloqueante.
+
+### Validación FASE B
+
+- `auth-callback` focalizado: 7/7 PASS; la mutación temporal que aceptaba cualquier
+  sesión hizo fallar el test de actor activo y fue restaurada.
+- `test:functions`: 33/33 PASS, incluyendo parsing, envío Auth del recovery y
+  replay `in_progress` sin rotar challenge ni reenviar correo.
+- TypeScript web y Functions: PASS bajo Node local `22.21.0`.
+- `db:reset` PASS; pgTAP focalizado Account/Invitation 122/122 y suite completa
+  583/583 PASS. Auth contract 1/1 y concurrencia Invitation 8/8 PASS.
+- DB lint PASS; el warning de variable de recovery asignada y no leída se eliminó.
+- `pnpm verify` pasó sin overrides: formato, lint, límites arquitectónicos,
+  TypeScript web/Functions, 13 pruebas de orquestación, 44 archivos y 236/236
+  unitarias, 4 integraciones y build de producción.
+- `TURBO_FORCE=true pnpm test:unit` confirmó 236/236 sin caché tras asignar 15 s
+  únicamente al fixture XLSX de 1.000 filas; no se cambió timeout global ni tooling.
+- Playwright completo: 20/20 PASS. El recorrido canónico afirma exactamente un
+  correo, estado Account/Invitation/Profile/Auth/rol, logout/login y audit success
+  único; el recorrido negativo prueba replaced, revoked, expired materializado,
+  replay, actor mismatch con ausencia explícita de sesión persistida y recovery
+  real por segundo correo Mailpit.
+- Mapeo negativo obligatorio: A = link A reemplazado rechazado y B aceptable;
+  B = link revocado sin activación; C = expiry materializado sin sleeps; D = replay
+  del link aceptado sin segunda aceptación/audit success; E = sesión admin cerrada
+  y challenge ajeno rechazado. Token manipulado, resend completo y carreras A–J
+  pertenecen a las regresiones más baratas de FASE A/A.1, no al alcance E2E A–E
+  solicitado para FASE B.
+- Mutation checks: aceptar cualquier sesión rompió callback; eliminar el ownership
+  estricto rompió pgTAP; apuntar el helper a un puerto sin Mailpit rompió el E2E.
+  Las tres mutaciones se restauraron y sus pruebas volvieron a PASS.
+
+### Estado
+
+- [x] Callback seguro, mismatch y negativos de callback.
+- [x] Recovery administrativo fail-closed, idempotente y auditado.
+- [x] E2E canónico actualizado para Mailpit aislado y relogin posterior.
+- [x] Negativos A–E cubiertos con enlaces Auth/Mailpit reales, más recovery integrado.
+- [x] Documentación de locale, threat model, runtime, data dictionary, changelog y
+      trazabilidad AI actualizada.
+- [x] `pnpm verify` final aprobado sin overrides.
+- [x] Dictámenes finales de los cuatro revisores ejecutados: architect GO,
+      database security GO, QA GO y docs governor GO por contenido.
+
+### Dictámenes finales
+
+| Revisor                    | Veredicto | Residuo no bloqueante                                                |
+| -------------------------- | --------- | -------------------------------------------------------------------- |
+| architect                  | GO        | Paridad exacta del runtime Node no confirmada                        |
+| database_security_reviewer | GO        | Ninguno dentro del alcance DB                                        |
+| qa_reviewer                | GO local  | Node 22.21.0 local frente a 22.18.0 requerido; sin `CI=true` local   |
+| docs_governor              | GO        | Hashes finales se registran en el informe de cierre tras los commits |
+
+No se ejecutó PRE-MERGE REVIEW. La selección dinámica de idioma del correo
+permanece como follow-up no bloqueante (TD-011). El pequeño intervalo entre el
+envío Auth de recovery y la actualización final de metadata permanece fail-closed:
+un consumo prematuro no concede autoridad y el administrador puede reintentar con
+la misma clave idempotente.

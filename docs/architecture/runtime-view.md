@@ -124,6 +124,13 @@ El callback transporta el challenge en memoria efímera y la aceptación lo cons
 una sola vez server-side. Auth/proveedor aceptando la operación no equivale a
 entrega física en la bandeja. Nunca se eliminan usuarios automáticamente.
 
+En FASE B, el callback procesa errores Auth con una allowlist, limpia query y
+fragmento y solo entrega el challenge a aceptación cuando el contexto durable es
+`invited` o `pending_profile`. Un actor activo o distinto se cierra y vuelve a
+login. `recover` exige ownership Auth–Account–Invitation, rota la generación y
+envía un correo Auth de recuperación; la cuenta permanece `invited` hasta aceptar
+y completar onboarding, con idempotencia por actor/clave y auditoría sin PII.
+
 ## Padrón administrativo de voluntarios
 
 ```mermaid

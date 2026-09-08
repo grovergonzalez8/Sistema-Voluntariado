@@ -294,3 +294,24 @@ y el E2E existente no prueba logout/login final ni las fronteras distribuidas.
 - Validación: pruebas focales verdes; gates de cierre se ejecutarán una sola vez
   tras integrar revisiones. Node 22.18.0 no está disponible localmente y no se
   actualiza en esta rama.
+
+## Invitation Flow Hardening V1 — FASE B FINAL (2026-09-07)
+
+- Objetivo: cerrar callback seguro, mismatch de actor, recovery administrativo y
+  acceptance E2E real con Mailpit.
+- Herramienta: Codex GPT-5.6 Luna; integración y
+  escritura exclusivamente del agente principal.
+- Cambios: parser callback allowlist y estado efímero; recovery `recover` con
+  challenge Auth, ownership bilateral, idempotencia y auditoría; guard de activación
+  administrativa; logout/login y conteo aislado de correo en E2E; documentación.
+- Privacidad: no se imprimen ni persisten tokens, challenges RAW, JWT, contraseñas,
+  cuerpos de correo ni PII en auditoría.
+- Locale: se conserva `preferred_locale`; el template local Supabase no permite
+  selección dinámica limpia y queda como follow-up no bloqueante.
+- Validación: callback 7/7, Functions 33/33, pgTAP focalizado 122/122,
+  pgTAP completo 583/583, Auth contract 1/1, concurrencia 8/8, Playwright 20/20 y
+  `pnpm verify` completo PASS sin overrides (236/236 unitarias, 4 integraciones,
+  13 de orquestación y build). Architect, database security, QA y docs governor
+  emitieron GO; el detalle se conserva en el ExecPlan 0008.
+- Estado: lista para PRE-MERGE REVIEW, sin ejecutar esa revisión ni realizar push,
+  PR, merge, rebase, amend, deploy u operaciones Supabase remotas.
