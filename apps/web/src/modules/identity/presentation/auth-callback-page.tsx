@@ -15,6 +15,9 @@ export function AuthCallbackPage() {
   useEffect(() => {
     if (handled.current) return;
     const callback = parseAuthCallback(location.search, location.hash);
+    if (callback.failure && identity.access.kind === 'initializing') {
+      return;
+    }
     if (callback.failure) {
       handled.current = true;
       const state = {
