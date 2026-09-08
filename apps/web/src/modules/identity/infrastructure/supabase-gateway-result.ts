@@ -11,8 +11,16 @@ interface SupabaseErrorLike {
 const knownErrors: Readonly<Record<string, AppErrorCode>> = {
   account_blocked: 'account-blocked',
   account_not_found: 'not-found',
+  account_recovery_required: 'server',
   idempotency_conflict: 'conflict',
   invitation_expired: 'invitation-expired',
+  invitation_challenge_invalid: 'invitation-invalid',
+  invitation_challenge_mismatch: 'invitation-invalid',
+  invitation_challenge_unavailable: 'invitation-invalid',
+  invitation_context_invalid: 'invitation-invalid',
+  invitation_context_mismatch: 'invitation-invalid',
+  invitation_delivery_in_progress: 'invitation-in-progress',
+  invitation_recovery_required: 'invitation-recovery-required',
   invitation_not_found: 'not-found',
   invitation_revoked: 'invitation-revoked',
   invitation_reconciliation_required: 'server',
@@ -35,6 +43,12 @@ export function supabaseFailure<T>(error: SupabaseErrorLike): Result<T> {
     conflict: 'La operación entra en conflicto con el estado actual.',
     forbidden: 'No tienes permiso para completar esta operación.',
     'invitation-expired': 'La invitación venció.',
+    'invitation-in-progress':
+      'La invitación todavía se está preparando. Reintenta en unos segundos.',
+    'invitation-invalid':
+      'El enlace de invitación no es válido o ya no está disponible.',
+    'invitation-recovery-required':
+      'La invitación requiere una recuperación administrativa segura.',
     'invitation-revoked': 'La invitación fue revocada.',
     'invitation-superseded': 'La invitación fue sustituida.',
     'invitation-used': 'La invitación ya fue utilizada.',

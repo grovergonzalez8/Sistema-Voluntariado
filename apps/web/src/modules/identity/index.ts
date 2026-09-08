@@ -13,6 +13,7 @@ export type {
   CreateInvitationCommand,
   InvitationAdministrationGateway,
   InvitationIdempotentCommand,
+  RecoverInvitationCommand,
   RevokeInvitationCommand,
 } from './application/invitation-administration-gateway';
 export { InvitationAdministrationService } from './application/invitation-administration-service';

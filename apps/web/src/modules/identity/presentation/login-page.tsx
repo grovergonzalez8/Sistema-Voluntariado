@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 
 import { Button, Field } from '@sistema-voluntariado/ui';
@@ -19,11 +19,34 @@ const loginSchema = z
 
 type LoginValues = z.infer<typeof loginSchema>;
 
+const callbackErrorCodes = new Set([
+  'actorMismatch',
+  'authError',
+  'invalidChallenge',
+  'invitationAccepted',
+  'invitationExpired',
+  'invitationReplaced',
+  'invitationRevoked',
+  'recoveryRequired',
+]);
+
+function callbackError(state: unknown): string | null {
+  if (typeof state !== 'object' || state === null || Array.isArray(state)) {
+    return null;
+  }
+  const value = (state as Record<string, unknown>)['authCallbackError'];
+  return typeof value === 'string' && callbackErrorCodes.has(value)
+    ? value
+    : null;
+}
+
 export function LoginPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const identity = useIdentity();
   const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const callbackErrorCode = callbackError(location.state);
   const {
     formState: { errors, isSubmitting },
     handleSubmit,
@@ -82,6 +105,11 @@ export function LoginPage() {
           {submissionError ? (
             <p className="notice notice--error" role="alert">
               {submissionError}
+            </p>
+          ) : null}
+          {callbackErrorCode ? (
+            <p className="notice notice--error" role="alert">
+              {t(`onboarding.callback.${callbackErrorCode}`)}
             </p>
           ) : null}
           <Button

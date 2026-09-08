@@ -9,6 +9,7 @@ import { createCanonicalInvitationRequest } from '../domain/invitation';
 import type {
   InvitationAdministrationGateway,
   InvitationIdempotentCommand,
+  RecoverInvitationCommand,
 } from './invitation-administration-gateway';
 
 const idempotencyKeyPattern =
@@ -123,6 +124,29 @@ export class InvitationAdministrationService {
     return this.gateway.revokeInvitation({
       idempotencyKey: input.idempotencyKey,
       invitationId: input.invitationId,
+      reason: reason.value,
+    });
+  }
+
+  public recoverAccountInvitation(
+    input: RecoverInvitationCommand,
+  ): Promise<Result<InvitationCommandResult>> {
+    const reason = normalizeAdministrativeReason(input.reason);
+    if (!reason.ok) return Promise.resolve(reason);
+    if (
+      !idempotencyKeyPattern.test(input.accountId) ||
+      !idempotencyKeyPattern.test(input.idempotencyKey)
+    ) {
+      return Promise.resolve(
+        failure({
+          code: 'validation',
+          message: 'La cuenta solicitada no es válida.',
+        }),
+      );
+    }
+    return this.gateway.recoverAccountInvitation({
+      accountId: input.accountId,
+      idempotencyKey: input.idempotencyKey,
       reason: reason.value,
     });
   }

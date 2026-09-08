@@ -6,6 +6,7 @@ import type {
   CreateInvitationCommand,
   InvitationAdministrationGateway,
   InvitationIdempotentCommand,
+  RecoverInvitationCommand,
   RevokeInvitationCommand,
 } from '../application/invitation-administration-gateway';
 import type {
@@ -143,6 +144,12 @@ export class SupabaseInvitationAdministrationGateway implements InvitationAdmini
     input: RevokeInvitationCommand,
   ): Promise<Result<InvitationCommandResult>> {
     return this.invoke({ ...input, operation: 'revoke' });
+  }
+
+  public recoverAccountInvitation(
+    input: RecoverInvitationCommand,
+  ): Promise<Result<InvitationCommandResult>> {
+    return this.invoke({ ...input, operation: 'recover' });
   }
 
   private async invoke(

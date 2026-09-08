@@ -21,6 +21,12 @@ export interface RevokeInvitationCommand {
   readonly reason: string;
 }
 
+export interface RecoverInvitationCommand {
+  readonly accountId: string;
+  readonly idempotencyKey: string;
+  readonly reason: string;
+}
+
 export interface InvitationAdministrationGateway {
   createInvitation(
     input: CreateInvitationCommand,
@@ -35,5 +41,8 @@ export interface InvitationAdministrationGateway {
   ): Promise<Result<InvitationCommandResult>>;
   revokeInvitation(
     input: RevokeInvitationCommand,
+  ): Promise<Result<InvitationCommandResult>>;
+  recoverAccountInvitation(
+    input: RecoverInvitationCommand,
   ): Promise<Result<InvitationCommandResult>>;
 }

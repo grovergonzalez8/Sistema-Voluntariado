@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@sistema-voluntariado/ui';
+import type { AppErrorCode } from '@sistema-voluntariado/shared-kernel';
 
 import type { OnboardingService } from '../application/onboarding-service';
 import {
@@ -22,6 +23,25 @@ function invitationChallenge(state: unknown): string | null {
   return typeof challenge === 'string' ? challenge : null;
 }
 
+function terminalInvitationMessage(code: AppErrorCode): string | null {
+  switch (code) {
+    case 'invitation-expired':
+      return 'invitationExpired';
+    case 'invitation-revoked':
+      return 'invitationRevoked';
+    case 'invitation-superseded':
+      return 'invitationReplaced';
+    case 'invitation-used':
+      return 'invitationAccepted';
+    case 'invitation-invalid':
+      return 'invalidChallenge';
+    case 'invitation-recovery-required':
+      return 'recoveryRequired';
+    default:
+      return null;
+  }
+}
+
 export function InvitationAcceptancePage({
   service,
 }: {
@@ -36,6 +56,7 @@ export function InvitationAcceptancePage({
   const [acceptanceChallenge] = useState(() =>
     invitationChallenge(location.state),
   );
+  const actorMismatchHandled = useRef(false);
 
   useEffect(() => {
     if (
@@ -50,6 +71,30 @@ export function InvitationAcceptancePage({
     identity.access.kind,
     location.pathname,
     location.state,
+    navigate,
+  ]);
+
+  useEffect(() => {
+    if (
+      actorMismatchHandled.current ||
+      !acceptanceChallenge ||
+      identity.access.kind !== 'active'
+    ) {
+      return;
+    }
+    actorMismatchHandled.current = true;
+    const redirect = () => {
+      void navigate('/login', {
+        replace: true,
+        state: { authCallbackError: 'actorMismatch' },
+      });
+    };
+    void identity.signOut().then(redirect, redirect);
+  }, [
+    acceptanceChallenge,
+    identity,
+    identity.access.kind,
+    identity.signOut,
     navigate,
   ]);
 
@@ -85,6 +130,15 @@ export function InvitationAcceptancePage({
       await identity.refreshAccountContext();
       await navigate('/app/complete-profile', { replace: true });
     } else {
+      const callbackMessage = terminalInvitationMessage(result.error.code);
+      if (callbackMessage) {
+        await identity.signOut();
+        await navigate('/login', {
+          replace: true,
+          state: { authCallbackError: callbackMessage },
+        });
+        return;
+      }
       setError(result.error.message);
     }
     setSubmitting(false);

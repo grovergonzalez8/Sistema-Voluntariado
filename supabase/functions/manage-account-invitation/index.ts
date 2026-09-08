@@ -102,6 +102,14 @@ interface EdgeDatabase {
         };
         Returns: readonly ReservationRow[];
       };
+      prepare_account_invitation_recovery_v1: {
+        Args: {
+          requested_account_id: string;
+          requested_idempotency_key: string;
+          requested_reason: string;
+        };
+        Returns: readonly ReservationRow[];
+      };
       stage_account_invitation_acceptance_challenge: {
         Args: {
           requested_challenge_hash: string;
@@ -204,6 +212,7 @@ function mapDatabaseError(error: unknown): InvitationHttpError {
     'email_already_registered',
     'idempotency_conflict',
     'invitation_auth_already_confirmed',
+    'invitation_delivery_in_progress',
     'invitation_not_deliverable',
     'invitation_not_replaceable',
     'invitation_not_resendable',
@@ -486,6 +495,21 @@ const dependencies: InvitationHandlerDependencies = {
     if (error) throw error;
     return { id: data.user.id };
   },
+  sendRecoveryEmail: async (input) => {
+    const recoveryClient = createClient(supabaseUrl, anonKey, {
+      auth: { persistSession: false },
+    });
+    const redirect = new URL('/auth/callback', appOrigin);
+    redirect.searchParams.set(
+      'invitation_challenge',
+      input.acceptanceChallenge,
+    );
+    const { error } = await recoveryClient.auth.resetPasswordForEmail(
+      input.email,
+      { redirectTo: redirect.toString() },
+    );
+    if (error) throw error;
+  },
   updateAuthUserInvitation: async (input) => {
     const { error } = await getAdminClient().auth.admin.updateUserById(
       input.authUserId,
@@ -528,6 +552,19 @@ const dependencies: InvitationHandlerDependencies = {
       requested_locale: input.preferredLocale,
       requested_role_code: input.requestedInitialRoleCode,
     });
+    if (error) throw mapDatabaseError(error);
+    return mapReservation(data);
+  },
+  prepareRecovery: async (authorization, input) => {
+    const client = createUserClient(supabaseUrl, anonKey, authorization);
+    const { data, error } = await client.rpc(
+      'prepare_account_invitation_recovery_v1',
+      {
+        requested_account_id: input.accountId,
+        requested_idempotency_key: input.idempotencyKey,
+        requested_reason: input.reason,
+      },
+    );
     if (error) throw mapDatabaseError(error);
     return mapReservation(data);
   },

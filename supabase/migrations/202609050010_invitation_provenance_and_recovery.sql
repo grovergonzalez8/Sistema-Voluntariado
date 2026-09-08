@@ -211,6 +211,7 @@ begin
     raise exception 'auth_user_reconciliation_mismatch' using errcode = '23514';
   end if;
   if auth_confirmed_at is not null
+    and invitation_record.delivery_operation <> 'recover'
     and (auth_invited_at is null or auth_confirmed_at < auth_invited_at)
   then
     raise exception 'auth_user_confirmed_before_delivery' using errcode = '23514';

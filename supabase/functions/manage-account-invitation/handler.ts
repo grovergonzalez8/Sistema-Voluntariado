@@ -1,4 +1,5 @@
-export type InvitationOperation = 'create' | 'replace' | 'resend' | 'revoke';
+export type InvitationOperation =
+  'create' | 'replace' | 'resend' | 'revoke' | 'recover';
 
 interface AccountContext {
   readonly accountStatus: string;
@@ -62,7 +63,15 @@ interface RevokeInput {
   readonly reason: string;
 }
 
-type CommandInput = CreateInput | IdempotentActionInput | RevokeInput;
+interface RecoveryInput {
+  readonly accountId: string;
+  readonly idempotencyKey: string;
+  readonly operation: 'recover';
+  readonly reason: string;
+}
+
+type CommandInput =
+  CreateInput | IdempotentActionInput | RevokeInput | RecoveryInput;
 
 export interface InvitationHandlerDependencies {
   readonly acknowledgeDelivery: (input: {
@@ -100,6 +109,10 @@ export interface InvitationHandlerDependencies {
     readonly invitationId: string;
     readonly locale: 'en' | 'es';
   }) => Promise<{ readonly id: string }>;
+  readonly sendRecoveryEmail: (input: {
+    readonly acceptanceChallenge: string;
+    readonly email: string;
+  }) => Promise<void>;
   readonly updateAuthUserInvitation: (input: {
     readonly acceptanceChallengeHash: string;
     readonly authUserId: string;
@@ -121,6 +134,10 @@ export interface InvitationHandlerDependencies {
   readonly prepareCreate: (
     authorization: string,
     input: CreateInput,
+  ) => Promise<DeliveryReservation>;
+  readonly prepareRecovery: (
+    authorization: string,
+    input: RecoveryInput,
   ) => Promise<DeliveryReservation>;
   readonly recordSafeEvent: (
     event: string,
@@ -274,6 +291,21 @@ export function parseInvitationCommand(body: unknown): CommandInput {
     };
   }
 
+  if (operation === 'recover') {
+    rejectUnknownKeys(body, [
+      'accountId',
+      'idempotencyKey',
+      'operation',
+      'reason',
+    ]);
+    return {
+      accountId: requiredUuid(body['accountId'], 'accountId'),
+      idempotencyKey: requiredUuid(body['idempotencyKey'], 'idempotencyKey'),
+      operation,
+      reason: requiredString(body['reason'], 'reason', 3, 500),
+    };
+  }
+
   throw new InvitationHttpError(
     400,
     'invalid_body',
@@ -328,6 +360,7 @@ function providerFailure(error: unknown): {
 function requiredPermission(operation: InvitationOperation): string {
   if (operation === 'create') return 'invitation.create';
   if (operation === 'revoke') return 'invitation.revoke';
+  if (operation === 'recover') return 'invitation.recover';
   return 'invitation.resend';
 }
 
@@ -413,7 +446,9 @@ export function createInvitationHandler(
       const reservation =
         command.operation === 'create'
           ? await dependencies.prepareCreate(authorization, command)
-          : await dependencies.prepareAction(authorization, command);
+          : command.operation === 'recover'
+            ? await dependencies.prepareRecovery(authorization, command)
+            : await dependencies.prepareAction(authorization, command);
 
       if (reservation.operationOutcome !== 'execute') {
         const outcome = reservation.operationOutcome;
@@ -482,7 +517,10 @@ export function createInvitationHandler(
       };
 
       let authUser: { readonly id: string };
-      if (reservation.acknowledgedAuthUserId) {
+      if (
+        reservation.acknowledgedAuthUserId &&
+        command.operation !== 'recover'
+      ) {
         authUser = { id: reservation.acknowledgedAuthUserId };
       } else {
         let shouldCallProvider = reservation.shouldDeliver;
@@ -508,16 +546,27 @@ export function createInvitationHandler(
             invitationId: reservation.invitationId,
           });
           try {
-            authUser = await dependencies.inviteAuthUser({
-              acceptanceChallenge: challenge.raw,
-              acceptanceChallengeHash: challenge.hash,
-              deliveryAttemptId,
-              deliveryGeneration: staged.generation,
-              displayName: reservation.displayName,
-              email: reservation.normalizedEmail,
-              invitationId: reservation.invitationId,
-              locale: reservation.preferredLocale,
-            });
+            if (command.operation === 'recover') {
+              if (!reservation.acknowledgedAuthUserId) {
+                throw reconciliationRequired();
+              }
+              await dependencies.sendRecoveryEmail({
+                acceptanceChallenge: challenge.raw,
+                email: reservation.normalizedEmail,
+              });
+              authUser = { id: reservation.acknowledgedAuthUserId };
+            } else {
+              authUser = await dependencies.inviteAuthUser({
+                acceptanceChallenge: challenge.raw,
+                acceptanceChallengeHash: challenge.hash,
+                deliveryAttemptId,
+                deliveryGeneration: staged.generation,
+                displayName: reservation.displayName,
+                email: reservation.normalizedEmail,
+                invitationId: reservation.invitationId,
+                locale: reservation.preferredLocale,
+              });
+            }
           } catch (error) {
             const failure = providerFailure(error);
             const reconciliation = await reconcileDelivery();
