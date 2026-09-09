@@ -133,6 +133,9 @@ const sharedEnglish = {
       'Open the most recently delivered invitation link to continue.',
     profileDescription: 'Set a password and complete the minimum profile.',
     profileTitle: 'Complete your profile',
+    sessionCleanupFailed:
+      'We could not close the current session. Try again before continuing.',
+    signingOut: 'Closing the current session…',
     validatingLink: 'Validating the secure invitation link…',
     validation: 'Check the name, language, and password fields.',
     callback: {
@@ -479,6 +482,9 @@ const sharedSpanish = {
       'Abre el enlace de invitación entregado más recientemente para continuar.',
     profileDescription: 'Define una contraseña y completa el perfil mínimo.',
     profileTitle: 'Completa tu perfil',
+    sessionCleanupFailed:
+      'No se pudo cerrar la sesión actual. Reintenta antes de continuar.',
+    signingOut: 'Cerrando la sesión actual…',
     validatingLink: 'Validando el enlace seguro de invitación…',
     validation: 'Revisa el nombre, idioma y contraseña.',
     callback: {

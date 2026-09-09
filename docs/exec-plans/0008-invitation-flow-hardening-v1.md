@@ -883,3 +883,32 @@ permanece como follow-up no bloqueante (TD-011). El pequeño intervalo entre el
 envío Auth de recovery y la actualización final de metadata permanece fail-closed:
 un consumo prematuro no concede autoridad y el administrador puede reintentar con
 la misma clave idempotente.
+
+## Correctivo de limpieza de sesión fail-closed (2026-09-08)
+
+Una revisión posterior detectó que callback y acceptance navegaban a `/login`
+después del settlement de `signOut`, pero sin comprobar `Result.ok`; además, la
+rama de rechazo de Promise ejecutaba el mismo redirect. Una sesión persistida podía
+por tanto sobrevivir al cleanup, llegar a Login y ser redirigida de nuevo a perfil.
+
+El correctivo queda limitado a presentación de Identity. Un controlador común
+serializa el intento, exige `Result.ok` antes del redirect, captura rejection sin
+mostrar detalles internos y conserva una acción de retry. `Result.failure` o
+rejection mantienen el actor en una pantalla segura; el retry vuelve a llamar
+`signOut` y navega exactamente una vez solo después del primer éxito confirmado.
+`InvitationAcceptancePage` también impide que un actor `active` con challenge
+renderice `/app/profile` durante el cleanup, y una Invitation terminal no puede
+reanudar acceptance/onboarding.
+
+Las regresiones focalizadas cubren failure, rejection, actor mismatch, terminal de
+Invitation, retry failure→success y orden logout→navigate. La mutación temporal que
+invocó el redirect sobre `Result.failure` hizo fallar tanto callback como actor
+mismatch y fue restaurada. No cambia el happy path válido ni hay cambios DB, Edge
+Functions, contratos de aplicación, dependencias o persistencia.
+
+Validación final con Node `22.18.0` y pnpm `11.9.0`: callback, acceptance e
+IdentityProvider 24/24 PASS; `pnpm typecheck`, `pnpm lint`, `pnpm verify` y
+`git diff --check` PASS. `verify` confirmó 243 unitarias, 4 integraciones, 13 pruebas
+del orquestador y build. No se ejecutaron DB, pgTAP, runtime/tests de Functions,
+concurrencia ni E2E. Arquitectura y QA emitieron PASS sin bloqueantes; docs
+governance quedó conforme tras dos precisiones menores de trazabilidad.

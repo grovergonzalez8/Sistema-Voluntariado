@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
@@ -12,6 +12,8 @@ import {
   ForbiddenAccessPage,
 } from './account-access-route';
 import { useIdentity } from './identity-context';
+import { SessionCleanupNotice } from './session-cleanup-notice';
+import { useSessionCleanup } from './use-session-cleanup';
 
 function invitationChallenge(state: unknown): string | null {
   if (typeof state !== 'object' || state === null || Array.isArray(state)) {
@@ -57,6 +59,27 @@ export function InvitationAcceptancePage({
     invitationChallenge(location.state),
   );
   const actorMismatchHandled = useRef(false);
+  const [cleanupRedirectMessage, setCleanupRedirectMessage] = useState<
+    string | null
+  >(null);
+  const {
+    retry: retrySessionCleanup,
+    start: startSessionCleanup,
+    status: sessionCleanupStatus,
+  } = useSessionCleanup(identity.signOut);
+
+  const startCleanup = useCallback(
+    (callbackMessage: string) => {
+      setCleanupRedirectMessage(callbackMessage);
+      startSessionCleanup(() => {
+        void navigate('/login', {
+          replace: true,
+          state: { authCallbackError: callbackMessage },
+        });
+      });
+    },
+    [navigate, startSessionCleanup],
+  );
 
   useEffect(() => {
     if (
@@ -83,25 +106,38 @@ export function InvitationAcceptancePage({
       return;
     }
     actorMismatchHandled.current = true;
-    const redirect = () => {
-      void navigate('/login', {
-        replace: true,
-        state: { authCallbackError: 'actorMismatch' },
-      });
-    };
-    void identity.signOut().then(redirect, redirect);
-  }, [
-    acceptanceChallenge,
-    identity,
-    identity.access.kind,
-    identity.signOut,
-    navigate,
-  ]);
+    startCleanup('actorMismatch');
+  }, [acceptanceChallenge, identity, identity.access.kind, startCleanup]);
+
+  if (cleanupRedirectMessage) {
+    return (
+      <main className="auth-layout">
+        <section className="auth-card">
+          <SessionCleanupNotice
+            onRetry={retrySessionCleanup}
+            status={sessionCleanupStatus}
+          />
+        </section>
+      </main>
+    );
+  }
 
   switch (identity.access.kind) {
     case 'pending-profile':
       return <Navigate replace to="/app/complete-profile" />;
     case 'active':
+      if (acceptanceChallenge) {
+        return (
+          <main className="auth-layout">
+            <section className="auth-card">
+              <SessionCleanupNotice
+                onRetry={retrySessionCleanup}
+                status={sessionCleanupStatus}
+              />
+            </section>
+          </main>
+        );
+      }
       return <Navigate replace to="/app/profile" />;
     case 'invited':
       break;
@@ -132,11 +168,8 @@ export function InvitationAcceptancePage({
     } else {
       const callbackMessage = terminalInvitationMessage(result.error.code);
       if (callbackMessage) {
-        await identity.signOut();
-        await navigate('/login', {
-          replace: true,
-          state: { authCallbackError: callbackMessage },
-        });
+        setSubmitting(false);
+        startCleanup(callbackMessage);
         return;
       }
       setError(result.error.message);

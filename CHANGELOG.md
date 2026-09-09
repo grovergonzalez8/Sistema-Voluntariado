@@ -6,6 +6,9 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 
 ### Fixed
 
+- Los caminos terminales de callback y aceptación solo vuelven a login después de
+  confirmar un `signOut` exitoso; un fallo o rechazo conserva la pantalla
+  fail-closed con un reintento seguro.
 - El callback Auth ya no confunde una sesión existente con aceptación: procesa
   errores allowlist, limpia challenge del URL y cierra sesiones activas/mismatch
   antes de volver a login.

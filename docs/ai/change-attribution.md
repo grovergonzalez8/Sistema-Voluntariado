@@ -315,3 +315,19 @@ y el E2E existente no prueba logout/login final ni las fronteras distribuidas.
   emitieron GO; el detalle se conserva en el ExecPlan 0008.
 - Estado: lista para PRE-MERGE REVIEW, sin ejecutar esa revisión ni realizar push,
   PR, merge, rebase, amend, deploy u operaciones Supabase remotas.
+
+## Invitation Flow Hardening — cleanup de sesión fail-closed (2026-09-08)
+
+- Objetivo: corregir exclusivamente la navegación posterior a cleanup fallido en
+  callback y acceptance terminales.
+- Herramienta: agente principal de Codex como único escritor; revisiones de
+  arquitectura, QA y documentación en modo de solo lectura.
+- Rama/HEAD inicial: `fix/invitation-flow-hardening@56d993a`.
+- Prompt: `docs/ai/prompts/0017-invitation-session-cleanup-fail-closed.md`.
+- Plan: correctivo 2026-09-08 de
+  `docs/exec-plans/0008-invitation-flow-hardening-v1.md`.
+- Cambios: contrato común que exige `Result.ok`, pantalla segura sin detalle
+  interno, retry serializado y bloqueo de redirects a login/perfil mientras la
+  sesión siga viva; regresiones focalizadas y mutation check restaurado.
+- Fuera de alcance: DB, pgTAP, Edge Functions, concurrencia, dependencias y cambios
+  al happy path válido.

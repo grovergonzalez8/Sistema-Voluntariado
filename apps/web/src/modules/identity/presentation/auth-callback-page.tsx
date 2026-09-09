@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 
 import { useIdentity } from './identity-context';
 import { callbackFailureMessage, parseAuthCallback } from './auth-callback';
+import { SessionCleanupNotice } from './session-cleanup-notice';
+import { useSessionCleanup } from './use-session-cleanup';
 
 export function AuthCallbackPage() {
   const identity = useIdentity();
@@ -11,6 +13,11 @@ export function AuthCallbackPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const handled = useRef(false);
+  const {
+    retry: retrySessionCleanup,
+    start: startSessionCleanup,
+    status: sessionCleanupStatus,
+  } = useSessionCleanup(identity.signOut);
 
   useEffect(() => {
     if (handled.current) return;
@@ -27,7 +34,7 @@ export function AuthCallbackPage() {
         void navigate('/login', { replace: true, state });
       };
       if (identity.user) {
-        void identity.signOut().then(redirect, redirect);
+        startSessionCleanup(redirect);
       } else {
         redirect();
       }
@@ -60,7 +67,7 @@ export function AuthCallbackPage() {
         void navigate('/login', { replace: true, state });
       };
       if (identity.user) {
-        void identity.signOut().then(redirect, redirect);
+        startSessionCleanup(redirect);
       } else {
         redirect();
       }
@@ -73,16 +80,23 @@ export function AuthCallbackPage() {
   }, [
     identity,
     identity.access.kind,
-    identity.signOut,
     identity.user,
     location.hash,
     location.search,
     navigate,
+    startSessionCleanup,
   ]);
 
   return (
     <main className="centered-status" role="status">
-      {t('onboarding.validatingLink')}
+      {sessionCleanupStatus === 'idle' ? (
+        t('onboarding.validatingLink')
+      ) : (
+        <SessionCleanupNotice
+          onRetry={retrySessionCleanup}
+          status={sessionCleanupStatus}
+        />
+      )}
     </main>
   );
 }

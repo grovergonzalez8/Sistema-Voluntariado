@@ -35,11 +35,15 @@ function accessKind(status: AccountStatus) {
   return status === 'pending_profile' ? 'pending-profile' : status;
 }
 
-async function renderFlow(status: AccountStatus) {
+async function renderFlow(
+  status: AccountStatus,
+  signOut: IdentityContextValue['signOut'] = vi.fn(() =>
+    Promise.resolve(success(undefined)),
+  ),
+) {
   const i18n = await createI18n();
   const gateway = createGateway();
   const refreshAccountContext = vi.fn(() => Promise.resolve(success(null)));
-  const signOut = vi.fn(() => Promise.resolve(success(undefined)));
   const identity: IdentityContextValue = {
     account: {
       accountId: 'account-id',
@@ -131,6 +135,55 @@ describe('onboarding pages', () => {
 
     expect(signOut).toHaveBeenCalledOnce();
     expect(await screen.findByText('Login route')).not.toBeNull();
+  });
+
+  it('fails closed on actor mismatch when session cleanup returns failure', async () => {
+    const signOut = vi.fn(() =>
+      Promise.resolve(
+        failure({ code: 'unexpected', message: 'internal logout detail' }),
+      ),
+    );
+    const { gateway } = await renderFlow('active', signOut);
+
+    expect(
+      await screen.findByText(
+        'No se pudo cerrar la sesión actual. Reintenta antes de continuar.',
+      ),
+    ).not.toBeNull();
+    expect(signOut).toHaveBeenCalledOnce();
+    expect(gateway.acceptCurrentInvitation).not.toHaveBeenCalled();
+    expect(screen.queryByText('Login route')).toBeNull();
+    expect(screen.queryByText('Profile route')).toBeNull();
+    expect(screen.queryByText('internal logout detail')).toBeNull();
+  });
+
+  it('fails closed when cleanup after a terminal invitation result fails', async () => {
+    const user = userEvent.setup();
+    const signOut = vi.fn(() =>
+      Promise.resolve(
+        failure({ code: 'unexpected', message: 'internal logout detail' }),
+      ),
+    );
+    const { gateway } = await renderFlow('invited', signOut);
+    gateway.acceptCurrentInvitation.mockResolvedValueOnce(
+      failure({ code: 'invitation-revoked', message: 'safe failure' }),
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: 'Aceptar invitación' }),
+    );
+
+    expect(
+      await screen.findByText(
+        'No se pudo cerrar la sesión actual. Reintenta antes de continuar.',
+      ),
+    ).not.toBeNull();
+    expect(signOut).toHaveBeenCalledOnce();
+    expect(gateway.acceptCurrentInvitation).toHaveBeenCalledOnce();
+    expect(screen.queryByText('Login route')).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: 'Aceptar invitación' }),
+    ).toBeNull();
   });
 
   it('completes the minimum pending profile and activates', async () => {

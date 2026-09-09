@@ -109,3 +109,9 @@ callback seguro, actor mismatch, recovery administrativo, Mailpit E2E y cierre
 documental del ExecPlan 0008. Se preservó FASE A/A.1 salvo defectos demostrados;
 no se usaron tokens fabricados ni Supabase remoto. Los gates Docker locales se
 ejecutaron y la paridad exacta de Node con CI queda explícitamente no confirmada.
+
+Correctivo Invitation Flow Hardening 0017:
+`docs/ai/prompts/0017-invitation-session-cleanup-fail-closed.md`. Corrige
+exclusivamente el cleanup de actor en callback y acceptance: solo `Result.ok`
+habilita `/login`; failure o rejection permanecen fail-closed con retry seguro.
+No incluye DB, Edge Functions, concurrencia ni cambios al happy path.
