@@ -43,6 +43,25 @@ El seed local crea, entre otras identidades de prueba, `administrator@example.in
 
 Mailpit está disponible en `http://127.0.0.1:54324`. Use solamente destinatarios `.invalid`; no guarde enlaces ni cuerpos de invitación en Git.
 
+Mailpit es siempre el transporte predeterminado. Los comandos de arranque rechazan
+un stack ya activo para no conservar silenciosamente el transporte anterior. Para
+una prueba manual opt-in con Gmail SMTP, copie `supabase/.env.real-email.example` a
+`supabase/.env.real-email.local`, complete las tres variables con una cuenta y una
+contraseña de aplicación de Google, detenga cualquier stack local activo y ejecute:
+
+```powershell
+corepack pnpm db:stop
+corepack pnpm db:start:real-email
+```
+
+El modo real usa `smtp.gmail.com:587` con STARTTLS. Nunca se activa desde tests ni
+CI. Para volver a Mailpit, detenga el stack y use el comando normal:
+
+```powershell
+corepack pnpm db:stop
+corepack pnpm db:start
+```
+
 ## Verificación
 
 ```powershell

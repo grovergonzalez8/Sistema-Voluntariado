@@ -254,9 +254,17 @@ test('keeps process ownership aligned across scripts, Playwright, and Actions', 
   const webPackage = JSON.parse(readFileSync('apps/web/package.json', 'utf8'));
   const playwright = readFileSync('apps/web/playwright.config.ts', 'utf8');
   const supabaseConfig = readFileSync('supabase/config.toml', 'utf8');
+  const supabaseStart = readFileSync(
+    'scripts/start-local-supabase.mjs',
+    'utf8',
+  );
   const workflow = readFileSync('.github/workflows/quality.yml', 'utf8');
 
-  assert.match(rootPackage.scripts['db:start'], /exclude edge-runtime/u);
+  assert.equal(
+    rootPackage.scripts['db:start'],
+    'node scripts/start-local-supabase.mjs',
+  );
+  assert.match(supabaseStart, /'--exclude',\s*'edge-runtime'/u);
   assert.equal(
     rootPackage.scripts['db:reset'],
     'node scripts/reset-local-database.mjs',

@@ -233,15 +233,16 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
-# Use a production-ready SMTP server
-# [auth.email.smtp]
-# enabled = true
-# host = "smtp.sendgrid.net"
-# port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# External SMTP remains disabled unless the explicit local real-email command
+# overrides it for one Supabase CLI process. Port 587 negotiates STARTTLS.
+[auth.email.smtp]
+enabled = false
+host = "smtp.gmail.com"
+port = 587
+user = "env(LOCAL_REAL_SMTP_USER)"
+pass = "env(LOCAL_REAL_SMTP_PASS)"
+admin_email = "env(LOCAL_REAL_SMTP_SENDER)"
+sender_name = "Sistema Voluntariado (local)"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
