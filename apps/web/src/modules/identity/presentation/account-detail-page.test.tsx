@@ -9,6 +9,8 @@ import { success } from '@sistema-voluntariado/shared-kernel';
 import { createI18n } from '../../../app/providers/i18n';
 import type { AccountAdministrationGateway } from '../application/account-administration-gateway';
 import { AccountAdministrationService } from '../application/account-administration-service';
+import type { InvitationAdministrationGateway } from '../application/invitation-administration-gateway';
+import { InvitationAdministrationService } from '../application/invitation-administration-service';
 import type { AccountDetail } from '../domain/account-administration';
 import { AccountDetailPage } from './account-detail-page';
 import { IdentityContext, type IdentityContextValue } from './identity-context';
@@ -76,6 +78,7 @@ const renderPage = async (
   userId = 'actor-id',
   refreshAccountContext: IdentityContextValue['refreshAccountContext'] = () =>
     Promise.resolve(success(null)),
+  invitationGateway?: InvitationAdministrationGateway,
 ) => {
   const i18n = await createI18n();
   const identity: IdentityContextValue = {
@@ -111,6 +114,13 @@ const renderPage = async (
               element={
                 <AccountDetailPage
                   service={new AccountAdministrationService(gateway)}
+                  {...(invitationGateway
+                    ? {
+                        invitationService: new InvitationAdministrationService(
+                          invitationGateway,
+                        ),
+                      }
+                    : {})}
                 />
               }
               path="/app/admin/accounts/:id"
@@ -192,5 +202,56 @@ describe('AccountDetailPage', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Suspender' }));
     expect(refreshAccountContext).toHaveBeenCalledOnce();
+  });
+
+  it('reuses the recovery idempotency key while delivery is in progress', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { gateway } = createGateway();
+    const invitedGateway: AccountAdministrationGateway = {
+      ...gateway,
+      getAccountDetail: () =>
+        Promise.resolve(success({ ...detail, status: 'invited' })),
+    };
+    const recoverAccountInvitation = vi.fn<
+      InvitationAdministrationGateway['recoverAccountInvitation']
+    >(() =>
+      Promise.resolve(
+        success({
+          accountId,
+          invitationId: '00000000-0000-4000-8000-000000000032',
+          outcome: 'in_progress',
+          status: 'pending',
+        }),
+      ),
+    );
+    const invitationGateway: InvitationAdministrationGateway = {
+      createInvitation: vi.fn(),
+      getInvitationDetail: vi.fn(),
+      listInvitations: vi.fn(),
+      recoverAccountInvitation,
+      replaceInvitation: vi.fn(),
+      resendInvitation: vi.fn(),
+      revokeInvitation: vi.fn(),
+    };
+    await renderPage(
+      invitedGateway,
+      ['invitation.recover'],
+      'actor-id',
+      undefined,
+      invitationGateway,
+    );
+
+    const button = await screen.findByRole('button', {
+      name: 'Recuperar invitación',
+    });
+    await user.click(button);
+    await screen.findByText('La operación de invitación sigue en curso.');
+    await user.click(button);
+
+    expect(recoverAccountInvitation).toHaveBeenCalledTimes(2);
+    const first = recoverAccountInvitation.mock.calls[0]?.[0];
+    const second = recoverAccountInvitation.mock.calls[1]?.[0];
+    expect(first?.idempotencyKey).toBe(second?.idempotencyKey);
   });
 });

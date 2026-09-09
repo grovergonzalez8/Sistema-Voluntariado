@@ -4,7 +4,7 @@ import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 
-import { success } from '@sistema-voluntariado/shared-kernel';
+import { failure, success } from '@sistema-voluntariado/shared-kernel';
 
 import { createI18n } from '../../../app/providers/i18n';
 import type { OnboardingGateway } from '../application/onboarding-gateway';
@@ -35,7 +35,12 @@ function accessKind(status: AccountStatus) {
   return status === 'pending_profile' ? 'pending-profile' : status;
 }
 
-async function renderFlow(status: AccountStatus) {
+async function renderFlow(
+  status: AccountStatus,
+  signOut: IdentityContextValue['signOut'] = vi.fn(() =>
+    Promise.resolve(success(undefined)),
+  ),
+) {
   const i18n = await createI18n();
   const gateway = createGateway();
   const refreshAccountContext = vi.fn(() => Promise.resolve(success(null)));
@@ -60,14 +65,23 @@ async function renderFlow(status: AccountStatus) {
       Promise.resolve(
         success({ email: 'invited@example.invalid', id: 'actor' }),
       ),
-    signOut: () => Promise.resolve(success(undefined)),
+    signOut,
     user: { email: 'invited@example.invalid', id: 'actor' },
   };
   const service = new OnboardingService(gateway);
   const rendered = render(
     <I18nextProvider i18n={i18n}>
       <IdentityContext.Provider value={identity}>
-        <MemoryRouter initialEntries={['/invite/accept']}>
+        <MemoryRouter
+          initialEntries={[
+            {
+              pathname: '/invite/accept',
+              state: {
+                invitationAcceptanceChallenge: 'a'.repeat(43),
+              },
+            },
+          ]}
+        >
           <Routes>
             <Route
               element={<InvitationAcceptancePage service={service} />}
@@ -78,13 +92,14 @@ async function renderFlow(status: AccountStatus) {
               path="/app/complete-profile"
             />
             <Route element={<p>Profile route</p>} path="/app/profile" />
+            <Route element={<p>Login route</p>} path="/login" />
             <Route element={<p>Blocked route</p>} path="/account-blocked" />
           </Routes>
         </MemoryRouter>
       </IdentityContext.Provider>
     </I18nextProvider>,
   );
-  return { gateway, refreshAccountContext, ...rendered };
+  return { gateway, refreshAccountContext, signOut, ...rendered };
 }
 
 describe('onboarding pages', () => {
@@ -96,12 +111,79 @@ describe('onboarding pages', () => {
       screen.getByRole('button', { name: 'Aceptar invitación' }),
     );
     expect(gateway.acceptCurrentInvitation).toHaveBeenCalledOnce();
+    expect(gateway.acceptCurrentInvitation).toHaveBeenCalledWith(
+      'a'.repeat(43),
+    );
     expect(refreshAccountContext).toHaveBeenCalledOnce();
   });
 
   it('blocks acceptance for a suspended account', async () => {
     await renderFlow('suspended');
     expect(await screen.findByText('Blocked route')).not.toBeNull();
+  });
+
+  it('signs out after a terminal invitation failure', async () => {
+    const user = userEvent.setup();
+    const { gateway, signOut } = await renderFlow('invited');
+    gateway.acceptCurrentInvitation.mockResolvedValueOnce(
+      failure({ code: 'invitation-revoked', message: 'safe failure' }),
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: 'Aceptar invitación' }),
+    );
+
+    expect(signOut).toHaveBeenCalledOnce();
+    expect(await screen.findByText('Login route')).not.toBeNull();
+  });
+
+  it('fails closed on actor mismatch when session cleanup returns failure', async () => {
+    const signOut = vi.fn(() =>
+      Promise.resolve(
+        failure({ code: 'unexpected', message: 'internal logout detail' }),
+      ),
+    );
+    const { gateway } = await renderFlow('active', signOut);
+
+    expect(
+      await screen.findByText(
+        'No se pudo cerrar la sesión actual. Reintenta antes de continuar.',
+      ),
+    ).not.toBeNull();
+    expect(signOut).toHaveBeenCalledOnce();
+    expect(gateway.acceptCurrentInvitation).not.toHaveBeenCalled();
+    expect(screen.queryByText('Login route')).toBeNull();
+    expect(screen.queryByText('Profile route')).toBeNull();
+    expect(screen.queryByText('internal logout detail')).toBeNull();
+  });
+
+  it('fails closed when cleanup after a terminal invitation result fails', async () => {
+    const user = userEvent.setup();
+    const signOut = vi.fn(() =>
+      Promise.resolve(
+        failure({ code: 'unexpected', message: 'internal logout detail' }),
+      ),
+    );
+    const { gateway } = await renderFlow('invited', signOut);
+    gateway.acceptCurrentInvitation.mockResolvedValueOnce(
+      failure({ code: 'invitation-revoked', message: 'safe failure' }),
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: 'Aceptar invitación' }),
+    );
+
+    expect(
+      await screen.findByText(
+        'No se pudo cerrar la sesión actual. Reintenta antes de continuar.',
+      ),
+    ).not.toBeNull();
+    expect(signOut).toHaveBeenCalledOnce();
+    expect(gateway.acceptCurrentInvitation).toHaveBeenCalledOnce();
+    expect(screen.queryByText('Login route')).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: 'Aceptar invitación' }),
+    ).toBeNull();
   });
 
   it('completes the minimum pending profile and activates', async () => {

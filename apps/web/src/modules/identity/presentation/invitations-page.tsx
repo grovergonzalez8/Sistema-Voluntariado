@@ -153,11 +153,24 @@ function ScopedInvitationsPage({
       requestedInitialRoleCode: role,
     });
     if (generation !== operationGeneration.current) return;
-    if (result.ok) {
+    if (
+      result.ok &&
+      result.value.outcome !== 'in_progress' &&
+      result.value.outcome !== 'failed'
+    ) {
       createIdempotencyKeys.current.delete(fingerprint);
       setEmail('');
       setDisplayName('');
       setMessage(t('invitations.created'));
+      await load();
+    } else if (result.ok && result.value.outcome === 'in_progress') {
+      setMessage(t('invitations.actionInProgress'));
+    } else if (result.ok) {
+      createIdempotencyKeys.current.delete(fingerprint);
+      setError({
+        code: 'unexpected',
+        message: t('invitations.actionFailed'),
+      });
       await load();
     } else {
       setError(result.error);
@@ -181,6 +194,7 @@ function ScopedInvitationsPage({
     const result =
       operation === 'revoke'
         ? await service.revokeInvitation({
+            idempotencyKey,
             invitationId: invitation.id,
             reason,
           })
@@ -191,10 +205,25 @@ function ScopedInvitationsPage({
             invitationId: invitation.id,
           });
     if (generation !== operationGeneration.current) return;
-    if (result.ok) {
+    if (
+      result.ok &&
+      result.value.outcome !== 'in_progress' &&
+      result.value.outcome !== 'failed'
+    ) {
       actionIdempotencyKeys.current.delete(actionKey);
       setMessage(t('invitations.actionCompleted'));
       setError(null);
+      await load();
+    } else if (result.ok && result.value.outcome === 'in_progress') {
+      setMessage(t('invitations.actionInProgress'));
+      setError(null);
+    } else if (result.ok) {
+      actionIdempotencyKeys.current.delete(actionKey);
+      setMessage(null);
+      setError({
+        code: 'unexpected',
+        message: t('invitations.actionFailed'),
+      });
       await load();
     } else {
       setError(result.error);

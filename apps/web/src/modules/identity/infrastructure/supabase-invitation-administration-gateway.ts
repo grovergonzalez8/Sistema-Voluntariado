@@ -6,6 +6,7 @@ import type {
   CreateInvitationCommand,
   InvitationAdministrationGateway,
   InvitationIdempotentCommand,
+  RecoverInvitationCommand,
   RevokeInvitationCommand,
 } from '../application/invitation-administration-gateway';
 import type {
@@ -47,16 +48,21 @@ function parseCommandResult(value: unknown): Result<InvitationCommandResult> {
   if (!isRecord(value)) return unknownFailure();
   const accountId = value['accountId'];
   const invitationId = value['invitationId'];
+  const outcome = value['outcome'];
   const status = value['status'];
   if (
     typeof accountId !== 'string' ||
     typeof invitationId !== 'string' ||
+    (outcome !== 'completed' &&
+      outcome !== 'failed' &&
+      outcome !== 'in_progress' &&
+      outcome !== 'replayed') ||
     typeof status !== 'string' ||
     !isInvitationStatus(status)
   ) {
     return unknownFailure();
   }
-  return success({ accountId, invitationId, status });
+  return success({ accountId, invitationId, outcome, status });
 }
 
 async function parseFunctionFailure<T>(error: unknown): Promise<Result<T>> {
@@ -138,6 +144,12 @@ export class SupabaseInvitationAdministrationGateway implements InvitationAdmini
     input: RevokeInvitationCommand,
   ): Promise<Result<InvitationCommandResult>> {
     return this.invoke({ ...input, operation: 'revoke' });
+  }
+
+  public recoverAccountInvitation(
+    input: RecoverInvitationCommand,
+  ): Promise<Result<InvitationCommandResult>> {
+    return this.invoke({ ...input, operation: 'recover' });
   }
 
   private async invoke(

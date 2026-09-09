@@ -49,7 +49,7 @@ flowchart TD
   P -->|No| X
   P -->|Sí| B["Reservar operación idempotente con JWT"]
   B --> L{"Lease de entrega"}
-  L -->|No| O["Devolver estado existente"]
+  L -->|No| O["Devolver replayed, in_progress o failed"]
   L -->|Sí| S["Crear cliente Auth Admin"]
   S --> A["Invitar o reconciliar identidad"]
   A --> F["Finalizar sent o delivery_failed"]
@@ -99,20 +99,37 @@ sequenceDiagram
   EF->>DB: reservar cuenta/invitación y lease
   DB-->>EF: IDs + should_deliver
   alt Debe entregar
-    EF->>AU: inviteUserByEmail
+    EF->>EF: generar challenge RAW y conservar solo hash en PostgreSQL
+    EF->>AU: inviteUserByEmail + redirect challenge + app_metadata técnico
     alt Auth confirma
       AU-->>EF: auth_user_id
-      EF->>DB: enlace bilateral + sent
-    else Auth falla
-      AU-->>EF: error proveedor
-      EF->>DB: delivery_failed con código seguro
+      EF->>DB: ACK durable
+      EF->>DB: enlace bilateral + sent + completed
+    else Auth falla o ACK incierto
+      AU-->>EF: error/estado actual
+      EF->>AU: reconciliar primero con Admin API y metadata exacta
+      EF->>DB: delivery_failed solo si la evidencia sigue ambigua
     end
   else Replay o lease vigente
     EF-->>UI: estado ya reservado
   end
 ```
 
-No existe transacción distribuida. La idempotencia, el lease exclusivo con actor/correlación por intento, el snapshot bilateral de `auth_user_id`, constraints diferidos y la reconciliación por correo exacto + identificador de invitación en metadata emitida por el servidor limitan divergencias. Los casos ambiguos o una identidad ya confirmada quedan fallidos para intervención; nunca se enlazan ni eliminan usuarios automáticamente.
+No existe transacción distribuida. La idempotencia, el lease exclusivo con actor/
+correlación, el ACK Auth durable, el snapshot bilateral de `auth_user_id`,
+constraints diferidos y la generación/challenge en `app_metadata` limitan
+divergencias. Un retry con ACK incierto reconcilia Auth antes de marcar
+`delivery_outcome_unknown`; si demuestra aplicación, persiste el ACK sin reenviar.
+El callback transporta el challenge en memoria efímera y la aceptación lo consume
+una sola vez server-side. Auth/proveedor aceptando la operación no equivale a
+entrega física en la bandeja. Nunca se eliminan usuarios automáticamente.
+
+En FASE B, el callback procesa errores Auth con una allowlist, limpia query y
+fragmento y solo entrega el challenge a aceptación cuando el contexto durable es
+`invited` o `pending_profile`. Un actor activo o distinto se cierra y vuelve a
+login. `recover` exige ownership Auth–Account–Invitation, rota la generación y
+envía un correo Auth de recuperación; la cuenta permanece `invited` hasta aceptar
+y completar onboarding, con idempotencia por actor/clave y auditoría sin PII.
 
 ## Padrón administrativo de voluntarios
 

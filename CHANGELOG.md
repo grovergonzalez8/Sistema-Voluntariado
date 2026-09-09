@@ -6,6 +6,27 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 
 ### Fixed
 
+- Los caminos terminales de callback y aceptación solo vuelven a login después de
+  confirmar un `signOut` exitoso; un fallo o rechazo conserva la pantalla
+  fail-closed con un reintento seguro.
+- El callback Auth ya no confunde una sesión existente con aceptación: procesa
+  errores allowlist, limpia challenge del URL y cierra sesiones activas/mismatch
+  antes de volver a login.
+- La recuperación administrativa de una identidad confirmada es idempotente,
+  auditada y fail-closed: rota challenge, envía correo Auth y conserva la cuenta sin
+  autoridad hasta el onboarding normal; no elimina `auth.users` ni fuerza activación.
+- El acceptance E2E aísla Mailpit por destinatario, exige un único correo y prueba
+  logout/login posterior.
+
+- Create/replace/resend generan y rotan un acceptance challenge por entrega;
+  PostgreSQL valida hash, generación y consumo one-time además de la sesión Auth.
+- Replace reanuda finalize desde un ACK durable: los reintentos reconcilian Auth
+  antes de declarar `delivery_outcome_unknown` y no duplican entrega.
+- Create/resend/replace/revoke distinguen `completed`, `replayed`, `in_progress` y
+  `failed`; revoke es idempotente y no duplica transición ni auditoría.
+- Invitaciones revoked/expired/replaced/accepted no pueden aceptar ni completar el
+  onboarding de otra generación aunque exista una sesión Auth; el callback limpia
+  el challenge del query string sin persistirlo.
 - La carrera asignar/cerrar proyecto queda protegida por una regresión PostgreSQL determinista que comprueba ambos órdenes de locks, estados finales, auditoría e invariante histórica.
 - Las RPC del padrón rechazan parámetros estructurales requeridos `NULL` y payloads incompletos; solo un booleano `true` explícito confirma duplicados durante importación.
 - La lectura `.xlsx` inspecciona el ZIP antes del parser, limita expansión/dimensiones, rechaza hojas adicionales y preconfigura `Celular` como texto en la plantilla.
@@ -18,6 +39,9 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 
 ### Added
 
+- Diagnóstico reproducible y ExecPlan de Invitation Flow Hardening V1, con flujo
+  real UI–Edge–PostgreSQL–Auth–Mailpit–onboarding, state machines, causas raíz y
+  estrategia de regresión; la implementación queda deliberadamente pendiente.
 - Workspace pnpm/Turborepo con calidad reproducible.
 - Gobernanza, documentación arquitectónica, ADRs, agentes y skills.
 - Supabase local con autorización por permisos, RLS, auditoría y pruebas pgTAP.

@@ -249,3 +249,85 @@ cuatro RPC mínimas y auditoría sin PII.
   regresó a 36/36 sin modificar la protección autoritativa ni su cobertura pgTAP.
 - Estado: completo y listo para PRE-MERGE REVIEW; sin push, merge, rebase, amend,
   despliegue, cambio en main ni operación Supabase remota.
+
+## Invitation Flow Hardening V1 0014 — diagnóstico
+
+- Objetivo: reproducir y diagnosticar el flujo real de invitaciones antes de
+  implementar correcciones.
+- Herramienta: agente principal de Codex como único escritor; revisiones
+  especializadas de solo lectura.
+- Rama/base/HEAD inicial: `fix/invitation-flow-hardening`, `main@34c25dd`,
+  `34c25dd`.
+- Prompt: `docs/ai/prompts/0014-invitation-flow-hardening-v1.md`.
+- Plan: `docs/exec-plans/0008-invitation-flow-hardening-v1.md`.
+- Cambios: documentación de baseline, arquitectura real, reproducciones A–J,
+  estados, seguridad, email/redirect, concurrencia, causas raíz, estrategia y
+  criterios de aceptación futuros.
+- Validación: frozen install, `pnpm verify`, reset/lint DB, 553 pgTAP, 21 Functions
+  y 19 E2E; reproducción manual local desde UI y Mailpit hasta logout/login, con
+  evidencia sanitizada. Estos gates fueron PASS local bajo Node `22.21.0`; la
+  paridad con el `22.18.0` fijado es NOT EXECUTED porque el runtime no está
+  disponible y no se actualizó.
+- Revisión: architect, database security, QA y docs governor emitieron GO para el
+  commit documental tras integrar sus hallazgos; todos mantuvieron NO-GO para
+  implementación y docs governor también para release.
+- Estado: diagnóstico completado; implementación no iniciada. Sin cambios
+  productivos, push, merge, rebase, amend, despliegue, modificación de `main` ni
+  operación Supabase remota.
+
+Hallazgos materiales: replace envía una sucesora no reconciliable; revoke/expiry no
+invalidan el artefacto Auth; callback infiere éxito por sesión; replays en progreso
+parecen éxito terminal; revoke carece de idempotencia; locale no controla el correo;
+y el E2E existente no prueba logout/login final ni las fronteras distribuidas.
+
+## Invitation Flow Hardening V1 — FASE A.1 (2026-09-05)
+
+- Objetivo: cerrar exclusivamente provenance por delivery, recuperación tras ACK
+  incierto, conflicto idempotente concurrente y harness accept↔replace.
+- Herramienta: Codex GPT-5.6 Sol como escritor; revisiones finales solicitadas a
+  database security, QA y architect en modo solo lectura.
+- Cambios: migración forward-only con hash/generación/consumo de challenge y RPC
+  v3; callback efímero; reconciliación Auth Admin antes de unknown; advisory lock
+  por clave; regresiones Auth/pgTAP/Functions/concurrencia; documentación alineada.
+- Privacidad: ningún challenge RAW, token, JWT, correo o dato personal se añadió a
+  logs, auditoría o documentación.
+- Validación: pruebas focales verdes; gates de cierre se ejecutarán una sola vez
+  tras integrar revisiones. Node 22.18.0 no está disponible localmente y no se
+  actualiza en esta rama.
+
+## Invitation Flow Hardening V1 — FASE B FINAL (2026-09-07)
+
+- Objetivo: cerrar callback seguro, mismatch de actor, recovery administrativo y
+  acceptance E2E real con Mailpit.
+- Herramienta: Codex GPT-5.6 Luna; integración y
+  escritura exclusivamente del agente principal.
+- Cambios: parser callback allowlist y estado efímero; recovery `recover` con
+  challenge Auth, ownership bilateral, idempotencia y auditoría; guard de activación
+  administrativa; logout/login y conteo aislado de correo en E2E; documentación.
+- Privacidad: no se imprimen ni persisten tokens, challenges RAW, JWT, contraseñas,
+  cuerpos de correo ni PII en auditoría.
+- Locale: se conserva `preferred_locale`; el template local Supabase no permite
+  selección dinámica limpia y queda como follow-up no bloqueante.
+- Validación: callback 7/7, Functions 33/33, pgTAP focalizado 122/122,
+  pgTAP completo 583/583, Auth contract 1/1, concurrencia 8/8, Playwright 20/20 y
+  `pnpm verify` completo PASS sin overrides (236/236 unitarias, 4 integraciones,
+  13 de orquestación y build). Architect, database security, QA y docs governor
+  emitieron GO; el detalle se conserva en el ExecPlan 0008.
+- Estado: lista para PRE-MERGE REVIEW, sin ejecutar esa revisión ni realizar push,
+  PR, merge, rebase, amend, deploy u operaciones Supabase remotas.
+
+## Invitation Flow Hardening — cleanup de sesión fail-closed (2026-09-08)
+
+- Objetivo: corregir exclusivamente la navegación posterior a cleanup fallido en
+  callback y acceptance terminales.
+- Herramienta: agente principal de Codex como único escritor; revisiones de
+  arquitectura, QA y documentación en modo de solo lectura.
+- Rama/HEAD inicial: `fix/invitation-flow-hardening@56d993a`.
+- Prompt: `docs/ai/prompts/0017-invitation-session-cleanup-fail-closed.md`.
+- Plan: correctivo 2026-09-08 de
+  `docs/exec-plans/0008-invitation-flow-hardening-v1.md`.
+- Cambios: contrato común que exige `Result.ok`, pantalla segura sin detalle
+  interno, retry serializado y bloqueo de redirects a login/perfil mientras la
+  sesión siga viva; regresiones focalizadas y mutation check restaurado.
+- Fuera de alcance: DB, pgTAP, Edge Functions, concurrencia, dependencias y cambios
+  al happy path válido.

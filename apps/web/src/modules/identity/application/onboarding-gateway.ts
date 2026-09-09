@@ -9,7 +9,9 @@ export interface InvitationAcceptanceResult {
 }
 
 export interface OnboardingGateway {
-  acceptCurrentInvitation(): Promise<Result<InvitationAcceptanceResult>>;
+  acceptCurrentInvitation(
+    acceptanceChallenge: string,
+  ): Promise<Result<InvitationAcceptanceResult>>;
   completeProfileAndActivate(
     input: Omit<OnboardingCompletionRequest, 'password'>,
   ): Promise<Result<OnboardingCompletion>>;

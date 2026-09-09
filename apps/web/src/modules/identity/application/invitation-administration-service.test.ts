@@ -8,6 +8,7 @@ import { InvitationAdministrationService } from './invitation-administration-ser
 const operationResult = {
   accountId: '00000000-0000-4000-8000-000000000101',
   invitationId: '00000000-0000-4000-8000-000000000102',
+  outcome: 'completed' as const,
   status: 'pending' as const,
 };
 
@@ -45,6 +46,9 @@ const createGateway = () => ({
   revokeInvitation: vi.fn<InvitationAdministrationGateway['revokeInvitation']>(
     () => Promise.resolve(success(operationResult)),
   ),
+  recoverAccountInvitation: vi.fn<
+    InvitationAdministrationGateway['recoverAccountInvitation']
+  >(() => Promise.resolve(success(operationResult))),
 });
 
 describe('InvitationAdministrationService', () => {
@@ -82,6 +86,7 @@ describe('InvitationAdministrationService', () => {
     ).toMatchObject({ error: { code: 'validation' }, ok: false });
     expect(
       await service.revokeInvitation({
+        idempotencyKey: 'invalid',
         invitationId: operationResult.invitationId,
         reason: 'x',
       }),
@@ -108,6 +113,7 @@ describe('InvitationAdministrationService', () => {
     });
     expect(
       await service.revokeInvitation({
+        idempotencyKey: command.idempotencyKey,
         invitationId: operationResult.invitationId,
         reason: '  Revocación autorizada  ',
       }),
@@ -120,8 +126,27 @@ describe('InvitationAdministrationService', () => {
     expect(gateway.resendInvitation).toHaveBeenCalledWith(command);
     expect(gateway.replaceInvitation).toHaveBeenCalledWith(command);
     expect(gateway.revokeInvitation).toHaveBeenCalledWith({
+      idempotencyKey: command.idempotencyKey,
       invitationId: operationResult.invitationId,
       reason: 'Revocación autorizada',
+    });
+  });
+
+  it('validates and dispatches a recovery with a fresh idempotency key', async () => {
+    const gateway = createGateway();
+    const service = new InvitationAdministrationService(gateway);
+
+    await expect(
+      service.recoverAccountInvitation({
+        accountId: operationResult.accountId,
+        idempotencyKey: '00000000-0000-4000-8000-000000000105',
+        reason: '  Auth ownership comprobado  ',
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(gateway.recoverAccountInvitation).toHaveBeenCalledWith({
+      accountId: operationResult.accountId,
+      idempotencyKey: '00000000-0000-4000-8000-000000000105',
+      reason: 'Auth ownership comprobado',
     });
   });
 });

@@ -1,17 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import { Button, Field } from '@sistema-voluntariado/ui';
 
 import type { AccountAdministrationService } from '../application/account-administration-service';
+import type { InvitationAdministrationService } from '../application/invitation-administration-service';
 import type { AccountDetail } from '../domain/account-administration';
 import type { AccountStatus } from '../domain/account-lifecycle';
 import { useIdentity } from './identity-context';
 
 export function AccountDetailPage({
+  invitationService,
   service,
 }: {
+  readonly invitationService?: InvitationAdministrationService;
   readonly service: AccountAdministrationService;
 }) {
   const { id = '' } = useParams();
@@ -20,10 +23,12 @@ export function AccountDetailPage({
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const recoveryIdempotencyKeys = useRef(new Map<string, string>());
   const identity = useIdentity();
   const { t } = useTranslation();
   const permissions = identity.account?.permissions ?? [];
   const canActivate = permissions.includes('account.activate');
+  const canRecover = permissions.includes('invitation.recover');
   const canArchive = permissions.includes('account.archive');
   const canManageRoles = permissions.includes('role_assignment.manage');
   const canReactivate = permissions.includes('account.reactivate');
@@ -90,6 +95,43 @@ export function AccountDetailPage({
     setSubmitting(false);
   };
 
+  const recoverInvitation = async () => {
+    if (!invitationService || !window.confirm(t('accounts.confirm.recover'))) {
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    setMessage(null);
+    const idempotencyKey =
+      recoveryIdempotencyKeys.current.get(id) ?? crypto.randomUUID();
+    recoveryIdempotencyKeys.current.set(id, idempotencyKey);
+    const result = await invitationService.recoverAccountInvitation({
+      accountId: id,
+      idempotencyKey,
+      reason,
+    });
+    if (
+      result.ok &&
+      result.value.outcome !== 'in_progress' &&
+      result.value.outcome !== 'failed'
+    ) {
+      recoveryIdempotencyKeys.current.delete(id);
+      const refreshed = await service.getAccountDetail(id);
+      if (refreshed.ok) setAccount(refreshed.value);
+      setMessage(t('invitations.recoveryStarted'));
+      setError(null);
+    } else if (result.ok && result.value.outcome === 'in_progress') {
+      setMessage(t('invitations.actionInProgress'));
+      setError(null);
+    } else if (result.ok) {
+      recoveryIdempotencyKeys.current.delete(id);
+      setError(t('invitations.actionFailed'));
+    } else {
+      setError(result.error.message);
+    }
+    setSubmitting(false);
+  };
+
   if (error && !account) return <p className="notice notice--error">{error}</p>;
   if (!account) return <p role="status">{t('common.loading')}</p>;
 
@@ -122,6 +164,14 @@ export function AccountDetailPage({
                 onClick={() => void changeStatus('active')}
               >
                 {t('accounts.activate')}
+              </Button>
+            ) : null}
+            {account.status === 'invited' && canRecover ? (
+              <Button
+                disabled={submitting}
+                onClick={() => void recoverInvitation()}
+              >
+                {t('accounts.recoverInvitation')}
               </Button>
             ) : null}
             {account.status === 'active' && canSuspend ? (

@@ -15,6 +15,7 @@
 | 0011 | 2026-08-26 | Implementar Project Activities V1                | Codex       | Completado; gates locales aprobados | `21db0cd`, `bb1a16a` y cierre documental                                             |
 | 0012 | 2026-09-01 | Diseñar Activity Participation V1                | Codex       | Diseño inicial; baseline aprobada   | `0457cbb`                                                                            |
 | 0013 | 2026-09-02 | Implementar Activity Participation V1            | Codex       | Completado; gates locales aprobados | `4fecd5c`, `a1264d4`, `1c88cc6`, `8162d39` y cierre de trazabilidad                  |
+| 0014 | 2026-09-03 | Diagnosticar Invitation Flow Hardening V1        | Codex       | Diagnóstico; paridad CI pendiente   | cierre documental                                                                    |
 
 Detalle: `docs/ai/prompts/0001-bootstrap-foundation.md`.
 
@@ -91,3 +92,26 @@ contaba auditoría global de Volunteer y Manager Assignment mientras los tres ar
 corrían en paralelo. El archivo aislado aprobó 7/7 y, tras limitar las aserciones al
 estado y auditoría del Project propio, la suite combinada regresó a 36/36 sin cambios
 SQL.
+
+Invitation Flow Hardening V1 0014:
+`docs/ai/prompts/0014-invitation-flow-hardening-v1.md`. La primera fase se limita a
+baseline, reconstrucción del flujo real, reproducción local con Mailpit, diagnóstico,
+causas raíz, estrategia de corrección, ExecPlan y revisiones de solo lectura. El
+resultado se conserva en `docs/exec-plans/0008-invitation-flow-hardening-v1.md`; no
+se modificó código productivo, UI, Edge Functions, migraciones, dependencias ni
+versiones. El happy path manual llegó a logout/login; la paridad con Node `22.18.0`
+queda pendiente porque ese runtime no está disponible localmente.
+
+Invitation Flow Hardening V1 0016 (FASE B FINAL):
+`docs/ai/prompts/0016-invitation-flow-hardening-phase-b-final.md`. Continuación
+solicitada por el usuario con Codex GPT-5.6 Luna para implementar el
+callback seguro, actor mismatch, recovery administrativo, Mailpit E2E y cierre
+documental del ExecPlan 0008. Se preservó FASE A/A.1 salvo defectos demostrados;
+no se usaron tokens fabricados ni Supabase remoto. Los gates Docker locales se
+ejecutaron y la paridad exacta de Node con CI queda explícitamente no confirmada.
+
+Correctivo Invitation Flow Hardening 0017:
+`docs/ai/prompts/0017-invitation-session-cleanup-fail-closed.md`. Corrige
+exclusivamente el cleanup de actor en callback y acceptance: solo `Result.ok`
+habilita `/login`; failure o rejection permanecen fail-closed con retry seguro.
+No incluye DB, Edge Functions, concurrencia ni cambios al happy path.

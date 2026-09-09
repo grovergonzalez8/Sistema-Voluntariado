@@ -27,16 +27,17 @@ const sharedEnglish = {
     suspended: 'Suspended',
   },
   accounts: {
-    activate: 'Activate',
+    activate: 'Recover verified account',
     addRole: 'Add {{role}}',
     archive: 'Archive',
     audit: 'Authorized audit',
     confirm: {
-      active: 'Reactivate this account?',
+      active: 'Recover this verified account?',
       archived: 'Archive this account?',
       grant: 'Assign this role?',
       revoke: 'Remove this role?',
       suspended: 'Suspend this account?',
+      recover: 'Send a new verified recovery invitation?',
     },
     description: 'Review account state and authorized assignments.',
     detailTitle: 'Account detail',
@@ -53,6 +54,7 @@ const sharedEnglish = {
     suspend: 'Suspend',
     title: 'Accounts',
     updated: 'Account updated.',
+    recoverInvitation: 'Recover invitation',
     view: 'View detail',
   },
   admin: { eyebrow: 'Secure administration' },
@@ -76,6 +78,9 @@ const sharedEnglish = {
   },
   invitations: {
     actionCompleted: 'Invitation updated.',
+    actionFailed:
+      'The invitation operation failed safely. Start a new intent to retry.',
+    actionInProgress: 'The invitation operation is still in progress.',
     confirm: {
       replace: 'Replace this invitation?',
       resend: 'Resend this invitation?',
@@ -104,6 +109,7 @@ const sharedEnglish = {
     resend: 'Resend',
     revoke: 'Revoke',
     sentAt: 'Sent',
+    recoveryStarted: 'A verified recovery invitation was sent.',
     title: 'Invitations',
     view: 'View detail',
   },
@@ -123,10 +129,31 @@ const sharedEnglish = {
     activate: 'Activate account',
     activating: 'Activating…',
     eyebrow: 'Account activation',
+    invalidInvitationLink:
+      'Open the most recently delivered invitation link to continue.',
     profileDescription: 'Set a password and complete the minimum profile.',
     profileTitle: 'Complete your profile',
+    sessionCleanupFailed:
+      'We could not close the current session. Try again before continuing.',
+    signingOut: 'Closing the current session…',
     validatingLink: 'Validating the secure invitation link…',
     validation: 'Check the name, language, and password fields.',
+    callback: {
+      actorMismatch:
+        'This invitation belongs to a different account. Sign in with the invited email.',
+      authError:
+        'The invitation link could not be validated. Request a new link.',
+      invalidChallenge:
+        'The invitation link is invalid or incomplete. Request a new link.',
+      invitationAccepted:
+        'This invitation was already used. Sign in normally to continue.',
+      invitationExpired: 'This invitation expired. Request a new link.',
+      invitationReplaced:
+        'This invitation was replaced. Open the most recent email.',
+      invitationRevoked: 'This invitation was revoked by an administrator.',
+      recoveryRequired:
+        'This invitation requires secure administrative recovery.',
+    },
   },
   roles: {
     accommodation_manager: 'Accommodation manager',
@@ -347,16 +374,17 @@ const sharedSpanish = {
     suspended: 'Suspendida',
   },
   accounts: {
-    activate: 'Activar',
+    activate: 'Recuperar cuenta verificada',
     addRole: 'Agregar {{role}}',
     archive: 'Archivar',
     audit: 'Auditoría autorizada',
     confirm: {
-      active: '¿Reactivar esta cuenta?',
+      active: '¿Recuperar esta cuenta verificada?',
       archived: '¿Archivar esta cuenta?',
       grant: '¿Asignar este rol?',
       revoke: '¿Retirar este rol?',
       suspended: '¿Suspender esta cuenta?',
+      recover: '¿Enviar una nueva recuperación verificada?',
     },
     description: 'Revisa estados y asignaciones autorizadas.',
     detailTitle: 'Detalle de cuenta',
@@ -373,6 +401,7 @@ const sharedSpanish = {
     suspend: 'Suspender',
     title: 'Cuentas',
     updated: 'Cuenta actualizada.',
+    recoverInvitation: 'Recuperar invitación',
     view: 'Ver detalle',
   },
   admin: { eyebrow: 'Administración segura' },
@@ -396,6 +425,9 @@ const sharedSpanish = {
   },
   invitations: {
     actionCompleted: 'Invitación actualizada.',
+    actionFailed:
+      'La operación falló de forma segura. Inicia una intención nueva para reintentar.',
+    actionInProgress: 'La operación de invitación sigue en curso.',
     confirm: {
       replace: '¿Sustituir esta invitación?',
       resend: '¿Reenviar esta invitación?',
@@ -425,6 +457,7 @@ const sharedSpanish = {
     resend: 'Reenviar',
     revoke: 'Revocar',
     sentAt: 'Enviada',
+    recoveryStarted: 'Se envió una recuperación verificada.',
     title: 'Invitaciones',
     view: 'Ver detalle',
   },
@@ -445,10 +478,31 @@ const sharedSpanish = {
     activate: 'Activar cuenta',
     activating: 'Activando…',
     eyebrow: 'Activación de cuenta',
+    invalidInvitationLink:
+      'Abre el enlace de invitación entregado más recientemente para continuar.',
     profileDescription: 'Define una contraseña y completa el perfil mínimo.',
     profileTitle: 'Completa tu perfil',
+    sessionCleanupFailed:
+      'No se pudo cerrar la sesión actual. Reintenta antes de continuar.',
+    signingOut: 'Cerrando la sesión actual…',
     validatingLink: 'Validando el enlace seguro de invitación…',
     validation: 'Revisa el nombre, idioma y contraseña.',
+    callback: {
+      actorMismatch:
+        'Esta invitación corresponde a otra cuenta. Inicia sesión con el correo invitado.',
+      authError:
+        'No se pudo validar el enlace de invitación. Solicita un enlace nuevo.',
+      invalidChallenge:
+        'El enlace de invitación no es válido o está incompleto. Solicita uno nuevo.',
+      invitationAccepted:
+        'Esta invitación ya fue utilizada. Inicia sesión normalmente para continuar.',
+      invitationExpired: 'Esta invitación venció. Solicita un enlace nuevo.',
+      invitationReplaced:
+        'Esta invitación fue sustituida. Abre el correo más reciente.',
+      invitationRevoked: 'Esta invitación fue revocada por un administrador.',
+      recoveryRequired:
+        'Esta invitación requiere una recuperación administrativa segura.',
+    },
   },
   roles: {
     accommodation_manager: 'Gestión de alojamiento',

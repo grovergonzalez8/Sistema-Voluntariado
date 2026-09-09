@@ -4,33 +4,36 @@
 
 Activos: identidades Auth, cuentas, invitaciones, perfiles mínimos, padrón administrativo de voluntarios, proyectos/participaciones/Activities históricas, roles/policies/permisos, estados e historial/auditoría. Datos médicos, documentos de identidad, emergencia, geolocalización personal o estructurada y finanzas no se capturan; Activity conserva únicamente ubicación textual operativa. Fronteras: navegador no confiable, analizador/generador Excel, Edge Function, Supabase Auth/Data API y PostgreSQL protegido por RLS.
 
-| Amenaza                            | Control inicial                                                                                   | Pendiente                            |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| Acceso horizontal                  | `auth.uid()`, RLS, prueba con dos usuarios                                                        | Revisar cada tabla futura            |
-| Escalamiento de privilegios        | permiso + policy explícita + RPC; sin grants cliente                                              | scopes organizacionales              |
-| Campo protegido modificado         | grants de columna + trigger de guarda                                                             | Revisar nuevos campos                |
-| Claves expuestas                   | solo anon en navegador; env ignorados                                                             | Rotación por entorno                 |
-| Inyección                          | SDK parametrizado, checks y sin SQL cliente                                                       | Revisar RPC futuras                  |
-| XSS                                | React escapa texto; sin HTML arbitrario                                                           | CSP al desplegar                     |
-| CSRF                               | tokens Bearer; no cookies propias                                                                 | Reevaluar si cambia sesión           |
-| Carga Excel abusiva                | 5 MiB/1.000 filas; ZIP estricto, 100 entradas, 20 MiB reales, límites por entry, ratio y una hoja | reevaluar límites con uso real       |
-| Fórmulas/formatos destructivos     | parser no ejecuta fórmulas; preview usa valor cacheado y exporta texto; celular exige texto       | valor cacheado puede estar obsoleto  |
-| Exfiltración del padrón            | permisos exclusivos, RPC proyectadas, exportación filtrada y auditoría                            | MFA/alertas productivas              |
-| Logs con PII                       | auditoría solo metadatos; sin console de perfil                                                   | Retención y monitoreo                |
-| RLS incorrecta                     | denegar por defecto y pgTAP real                                                                  | Revisión en cada migración           |
-| Invitaciones abusivas              | signup off, permiso/policy, TTL e idempotencia                                                    | cuotas productivas y alertas         |
-| Replay/doble clic                  | fingerprint, clave por actor, lease e índices                                                     | monitoreo productivo                 |
-| Duplicado/carrera de proyecto      | locks comunes por proyecto/scope, índices parciales y finalización monotónica                     | capacidad futura                     |
-| Carrera Activity/cierre/scope      | locks account–scope–Project–Activity, guard de cierre y harness con conexiones reales             | capacidad futura                     |
-| Carrera Participation/eligibilidad | orden account–scope–Project–Assignment–Activity–Participation, rechecks e índice parcial          | attendance/RSVP futuros              |
-| Token de invitación filtrado       | Auth es único custodio; no DB/UI/log/audit                                                        | plantilla/canal productivo           |
-| `service_role` expuesto            | Edge env productivo; runner E2E local solo en Node; ninguna variable `VITE_`; scans               | rotación y secret manager            |
-| Auth/DB divergentes                | reserva, estado de entrega y reconciliación exacta                                                | runbook y observabilidad             |
-| CORS/origin abusivo                | método/content type, allowlist exacta y `.env.local` no versionado                                | dominios de preview/producción       |
-| Último admin eliminado             | advisory lock común + conteo transaccional                                                        | recuperación humana de emergencia    |
-| Cuenta bloqueada                   | confirmación autoritativa `suspended`/`archived`; estados transitorios separados                  | invalidación global de refresh token |
-| Recuperación de contraseña         | Supabase Auth                                                                                     | Política y mensajes organizacionales |
-| Auditoría manipulada               | sin insert/update/delete cliente                                                                  | Exportación y acceso `audit.read`    |
+| Amenaza                                      | Control inicial                                                                                                              | Pendiente                            |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Acceso horizontal                            | `auth.uid()`, RLS, prueba con dos usuarios                                                                                   | Revisar cada tabla futura            |
+| Escalamiento de privilegios                  | permiso + policy explícita + RPC; sin grants cliente                                                                         | scopes organizacionales              |
+| Campo protegido modificado                   | grants de columna + trigger de guarda                                                                                        | Revisar nuevos campos                |
+| Claves expuestas                             | solo anon en navegador; env ignorados                                                                                        | Rotación por entorno                 |
+| Inyección                                    | SDK parametrizado, checks y sin SQL cliente                                                                                  | Revisar RPC futuras                  |
+| XSS                                          | React escapa texto; sin HTML arbitrario                                                                                      | CSP al desplegar                     |
+| CSRF                                         | tokens Bearer; no cookies propias                                                                                            | Reevaluar si cambia sesión           |
+| Carga Excel abusiva                          | 5 MiB/1.000 filas; ZIP estricto, 100 entradas, 20 MiB reales, límites por entry, ratio y una hoja                            | reevaluar límites con uso real       |
+| Fórmulas/formatos destructivos               | parser no ejecuta fórmulas; preview usa valor cacheado y exporta texto; celular exige texto                                  | valor cacheado puede estar obsoleto  |
+| Exfiltración del padrón                      | permisos exclusivos, RPC proyectadas, exportación filtrada y auditoría                                                       | MFA/alertas productivas              |
+| Logs con PII                                 | auditoría solo metadatos; sin console de perfil                                                                              | Retención y monitoreo                |
+| RLS incorrecta                               | denegar por defecto y pgTAP real                                                                                             | Revisión en cada migración           |
+| Invitaciones abusivas                        | signup off, permiso/policy, TTL e idempotencia                                                                               | cuotas productivas y alertas         |
+| Replay/doble clic                            | fingerprint, clave por actor, lease, estados durable y replay explícito                                                      | monitoreo productivo                 |
+| Duplicado/carrera de proyecto                | locks comunes por proyecto/scope, índices parciales y finalización monotónica                                                | capacidad futura                     |
+| Carrera Activity/cierre/scope                | locks account–scope–Project–Activity, guard de cierre y harness con conexiones reales                                        | capacidad futura                     |
+| Carrera Participation/eligibilidad           | orden account–scope–Project–Assignment–Activity–Participation, rechecks e índice parcial                                     | attendance/RSVP futuros              |
+| Token de invitación filtrado                 | Auth es único custodio; no DB/UI/log/audit                                                                                   | plantilla/canal productivo           |
+| `service_role` expuesto                      | Edge env productivo; runner E2E local solo en Node; ninguna variable `VITE_`; scans                                          | rotación y secret manager            |
+| Auth/DB divergentes                          | reserva, ACK Auth durable, generación en `app_metadata` y reconciliación exacta                                              | runbook de identidad confirmada      |
+| Challenge de invitación filtrado/reutilizado | challenge RAW solo en redirect/callback efímero; hash y generación en PostgreSQL; comparación server-side y consumo one-time | recuperación administrativa FASE B   |
+| CORS/origin abusivo                          | método/content type, allowlist exacta y `.env.local` no versionado                                                           | dominios de preview/producción       |
+| Último admin eliminado                       | advisory lock común + conteo transaccional                                                                                   | recuperación humana de emergencia    |
+| Cuenta bloqueada                             | confirmación autoritativa `suspended`/`archived`; estados transitorios separados                                             | invalidación global de refresh token |
+| Recuperación de contraseña                   | Supabase Auth                                                                                                                | Política y mensajes organizacionales |
+| Auditoría manipulada                         | sin insert/update/delete cliente                                                                                             | Exportación y acceso `audit.read`    |
+| Callback con sesión previa                   | allowlist Auth, challenge efímero, comprobación de contexto y sign-out ante actor mismatch                                   | Mensajería Auth del proveedor        |
+| Recovery con ownership ambiguo               | permiso `invitation.recover`, lock/idempotencia, Auth–Account–Invitation bilateral y fail-closed                             | Procedimiento humano de identidad    |
 
 ## Funciones privilegiadas
 
@@ -41,6 +44,21 @@ El padrón sigue el mismo RBAC por permisos. La tabla `volunteers` mantiene RLS 
 Projects mantiene `project.manage` como autoridad global exclusiva de administrator. `project_manager` recibe `project.read_assigned` y `project.manage_assigned`, pero cada RPC contextual exige además cuenta activa, rol vigente y scope activo para el proyecto. `projects`, `project_volunteer_assignments`, `project_manager_assignments`, `project_activities` y `project_activity_participations` mantienen RLS sin policies ni grants de tabla; las RPC proyectan solo campos aprobados. Activity nace `scheduled`, terminaliza una vez y no admite DELETE. Activity Participation enlaza exclusivamente Activity y `volunteers`, exige Assignment activa del Project exacto al crear, es monotónica y no admite DELETE/reactivación. El orden account–scope–Project–Assignment–Activity–Participation serializa elegibilidad, lifecycle y revocación; un índice parcial impide duplicado activo. El guard de finish Assignment rechaza solo Participations no finalizadas en Activities programadas del mismo Project. Auditoría y read models Participation usan IDs técnicos y nombre mínimo del candidato; no copian email, teléfono, `phone_match_key`, contenido Activity ni metadata Auth.
 
 La Edge Function valida Origin, método, Content-Type, esquema, JWT, estado, permiso y policy antes de construir el cliente Auth Admin. Responde con IDs/estado, traduce errores a códigos seguros y registra solo correlación/operación/códigos allowlist; nunca correo completo, JWT, enlace o stack.
+
+Una sesión Auth no equivale a autorización de invitación. Aceptación y finalización
+de onboarding comparan el claim firmado `app_metadata.account_invitation_id` con la
+Invitation exacta, su `auth_user_id`, generación y acceptance challenge hash vigentes
+en PostgreSQL. `user_metadata` es editable por el usuario y nunca participa en
+autoridad. Revoke/expiry/replace/accepted son terminales aun si un artefacto Auth
+antiguo todavía establece sesión. El callback captura el challenge sin persistirlo
+en storage ni registrarlo; Auth/proveedor aceptando la operación no garantiza que el
+mensaje llegue físicamente a la bandeja humana.
+
+El callback nunca convierte una sesión previa en aceptación: errores Auth se reducen
+a mensajes allowlist, query/fragmento se limpia al navegar y el challenge RAW vive
+solo en estado efímero de router. La operación `recover` crea una nueva autorización
+vigente y correo Auth únicamente tras demostrar ownership; mantiene `accounts.status`
+en `invited` y no concede rol hasta el onboarding normal.
 
 El frontend no infiere bloqueo desde ausencia de caché, refetch, 403 de una operación o error de red. Solo una respuesta satisfactoria del contexto de cuenta con `suspended` o `archived` habilita la pantalla bloqueada. La autoridad se particiona por `user_id`; al cambiar de identidad se cancelan consultas anteriores y se elimina la caché privada, evitando que una respuesta tardía transfiera permisos entre sesiones.
 

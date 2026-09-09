@@ -18,7 +18,9 @@ describe('OnboardingService', () => {
     };
 
     expect(
-      await new OnboardingService(gateway).acceptCurrentInvitation(),
+      await new OnboardingService(gateway).acceptCurrentInvitation(
+        'delivery-challenge',
+      ),
     ).toEqual(success({ accountId: 'account-id', status: 'pending_profile' }));
   });
 

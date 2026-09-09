@@ -39,6 +39,8 @@ const gateway = (
     Promise.resolve(failure({ code: 'forbidden', message: 'Denied.' })),
   revokeInvitation: () =>
     Promise.resolve(failure({ code: 'forbidden', message: 'Denied.' })),
+  recoverAccountInvitation: () =>
+    Promise.resolve(failure({ code: 'forbidden', message: 'Denied.' })),
 });
 
 async function renderDetail(

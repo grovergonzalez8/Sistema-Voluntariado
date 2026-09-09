@@ -62,6 +62,7 @@ export interface AccountDetail extends AccountSummary {
 export interface InvitationCommandResult {
   readonly accountId: string;
   readonly invitationId: string;
+  readonly outcome: 'completed' | 'failed' | 'in_progress' | 'replayed';
   readonly status: InvitationStatus;
 }
 

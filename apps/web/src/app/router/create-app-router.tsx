@@ -97,6 +97,7 @@ export function createAppRouter(
                         {
                           element: (
                             <AccountDetailPage
+                              invitationService={services.invitations}
                               service={services.accountAdministration}
                             />
                           ),

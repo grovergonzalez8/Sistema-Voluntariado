@@ -64,6 +64,13 @@ jobs:
         timeout-minutes: 2
         run: pnpm projects:test:concurrency
 
+      - name: Test invitation Auth contract and concurrency
+        timeout-minutes: 3
+        run: |
+          pnpm invitations:test:auth-contract
+          pnpm invitations:test:concurrency
+          pnpm db:reset
+
       - name: Test Edge Function handler
         run: pnpm test:functions
 
