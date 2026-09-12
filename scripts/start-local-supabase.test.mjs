@@ -14,6 +14,7 @@ const secretContents = [
   'LOCAL_REAL_SMTP_PASS="app password value"',
   'LOCAL_REAL_SMTP_SENDER=sender@gmail.com',
 ].join('\n');
+const environmentOutsideCi = { CI: '' };
 
 function tomlSection(contents, name) {
   const marker = `[${name}]`;
@@ -143,21 +144,23 @@ test('default orchestration refuses to reuse a possibly real-email stack', () =>
 });
 
 test('real email is disabled explicitly in CI', () => {
-  let commandCalled = false;
-  assert.throws(
-    () =>
-      startLocalSupabase({
-        mode: 'real-email',
-        pnpmCli: '/pnpm.cjs',
-        environmentOptions: { environment: { CI: 'true' } },
-        runCommand: () => {
-          commandCalled = true;
-          return { status: 0 };
-        },
-      }),
-    /disabled when CI is set/u,
-  );
-  assert.equal(commandCalled, false);
+  for (const ci of ['true', '1']) {
+    let commandCalled = false;
+    assert.throws(
+      () =>
+        startLocalSupabase({
+          mode: 'real-email',
+          pnpmCli: '/pnpm.cjs',
+          environmentOptions: { environment: { CI: ci } },
+          runCommand: () => {
+            commandCalled = true;
+            return { status: 0 };
+          },
+        }),
+      /disabled when CI is set/u,
+    );
+    assert.equal(commandCalled, false);
+  }
 });
 
 test('real email refuses to reuse an already running local stack', () => {
@@ -168,7 +171,7 @@ test('real email refuses to reuse an already running local stack', () => {
         mode: 'real-email',
         pnpmCli: '/pnpm.cjs',
         environmentOptions: {
-          environment: {},
+          environment: environmentOutsideCi,
           fileExists: () => true,
           readFile: () => secretContents,
         },
@@ -189,7 +192,7 @@ test('real email preflights status then starts with Gmail overrides', () => {
     mode: 'real-email',
     pnpmCli: '/pnpm.cjs',
     environmentOptions: {
-      environment: {},
+      environment: environmentOutsideCi,
       fileExists: () => true,
       readFile: () => secretContents,
     },
