@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
+import { LoadingState, Notice, PageHeader } from '@sistema-voluntariado/ui';
+
 import type { VolunteerRegistryService } from '../application/volunteer-registry-service';
 import type { RegisteredVolunteer } from '../domain/registered-volunteer';
 
@@ -27,26 +29,33 @@ export function VolunteerDetailPage({
     };
   }, [id, service]);
 
-  if (error) return <p className="notice notice--error">{error}</p>;
-  if (!volunteer) return <p role="status">{t('common.loading')}</p>;
+  if (error) return <Notice tone="error">{error}</Notice>;
+  if (!volunteer) return <LoadingState>{t('common.loading')}</LoadingState>;
 
   return (
     <section className="admin-page">
-      <header className="page-heading page-heading--actions">
-        <div>
-          <p className="eyebrow">{t('admin.eyebrow')}</p>
-          <h1 className="dynamic-title">{volunteer.fullName}</h1>
-          <p className="muted">{t('volunteers.detailDescription')}</p>
-        </div>
-        <div className="button-row">
-          <Link className="button" to={`/app/admin/volunteers/${id}/projects`}>
-            {t('volunteers.projectsAction')}
-          </Link>
-          <Link className="button" to={`/app/admin/volunteers/${id}/edit`}>
-            {t('volunteers.editAction')}
-          </Link>
-        </div>
-      </header>
+      <PageHeader
+        actions={
+          <div className="button-row toolbar-actions">
+            <Link
+              className="button"
+              to={`/app/admin/volunteers/${id}/projects`}
+            >
+              {t('volunteers.projectsAction')}
+            </Link>
+            <Link
+              className="button button--primary"
+              to={`/app/admin/volunteers/${id}/edit`}
+            >
+              {t('volunteers.editAction')}
+            </Link>
+          </div>
+        }
+        description={t('volunteers.detailDescription')}
+        eyebrow={t('admin.eyebrow')}
+        title={volunteer.fullName}
+        titleClassName="dynamic-title"
+      />
       <dl className="panel volunteer-detail">
         <div>
           <dt>{t('volunteers.email')}</dt>

@@ -1,6 +1,6 @@
 # ExecPlan 0010: UI/UX Polish V1
 
-- Estado: en ejecución; Fase 1 y corrección visual 1.1 completadas
+- Estado: en ejecución; Fases 1, 1.1 y 2 completadas
 - Fecha: 2026-09-11
 - Rama autorizada: `feat/ui-ux-polish-v1`
 - Commit base: `33678c1bb708fc0872496a575b4b3cdb35f6c1b3`
@@ -443,7 +443,7 @@ Preparar una matriz antes/después con datos `.invalid` en `1280×800`, `1024×7
 - [x] Aprobar este ExecPlan antes de cualquier implementación.
 - [x] Ejecutar Fase 1.
 - [x] Ejecutar corrección visual Fase 1.1 de shell, overflow, títulos y densidad.
-- [ ] Ejecutar Fase 2.
+- [x] Ejecutar Fase 2.
 - [ ] Ejecutar Fase 3 y cerrar el plan con evidencia.
 
 ## Verificaciones de esta entrega documental
@@ -504,11 +504,21 @@ incorporadas.
   ni el orden de los enlaces.
 - Los nombres dinámicos usan una escala tipográfica menor y `overflow-wrap` para
   preservar palabras normales y partir únicamente cadenas que no caben.
+- Fase 2 reutiliza las primitivas de Fase 1 directamente desde presentación. Los
+  mapeos de estados de cuenta e invitación a tonos viven en
+  `identity/presentation` y no deciden estados, permisos ni transiciones.
+- El selector de archivo conserva el `input` nativo, `accept`, handler y condición
+  `disabled`; el contenedor visible obtiene foco mediante `:focus-within` y el
+  preview anuncia actualizaciones mediante una región live.
+- Formularios, filtros y acciones sensibles conservaron handlers, guards y copy
+  contractual. Solo se añadieron títulos de sección visuales para separar creación,
+  listado y preparación del libro.
 
-## Resultado final
+## Resultado actual
 
-Fase 1 y corrección visual 1.1 completadas. El shell, las fundaciones visuales y
-los estados compartidos están implementados; Fases 2 y 3 permanecen pendientes.
+Fases 1, 1.1 y 2 completadas. El shell, las fundaciones visuales, los estados
+compartidos y los recorridos de identidad, perfil y registro están implementados;
+Fase 3 permanece pendiente.
 La validación 1.1 cubrió perfil y voluntarios en escritorio, tablet `768px`,
 invitaciones a `440px` y un proyecto existente de 44 caracteres a `390px`, con
 `documentElement.scrollWidth === clientWidth`. La regresión E2E del shell verifica
@@ -533,3 +543,31 @@ Las capturas de perfil `1440px`, voluntarios `1440px`, tablet `768px`,
 invitaciones `440px` y proyecto largo `390px` se conservaron únicamente en
 `/tmp`; no se añadieron al repositorio. El host mantuvo el warning conocido de
 Node `22.21.0` frente a `22.18.0`; pnpm coincidió en `11.9.0`.
+
+### Evidencia de Fase 2
+
+| Gate                                     | Resultado                                                                                   |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `corepack pnpm typecheck`                | PASS                                                                                        |
+| `corepack pnpm lint`                     | PASS                                                                                        |
+| `corepack pnpm lint:boundaries`          | PASS                                                                                        |
+| `corepack pnpm test:unit`                | PASS; 44 archivos, 243 pruebas                                                              |
+| `corepack pnpm test:integration`         | PASS; 2 archivos, 4 pruebas                                                                 |
+| `corepack pnpm build`                    | PASS; 482 módulos transformados                                                             |
+| `corepack pnpm verify`                   | PASS; formato, arquitectura, tipos, funciones, orquestación, unitarias, integración y build |
+| `corepack pnpm test:e2e`                 | 19/21 PASS; un callback largo agotó el timeout de 30 s y un escenario no se ejecutó         |
+| E2E focal de account lifecycle           | PASS; 4/4 con timeout ampliado a 120 s, confirmando lentitud del entorno local              |
+| `git diff --check` y patrones prohibidos | PASS; sin patrones prohibidos ni cambios de backend en el diff                              |
+| `db:test` y concurrencia dedicada        | No ejecutados por alcance explícito                                                         |
+
+La inspección visual con fixtures `.invalid` cubrió login `1440/390`, perfil
+`1440`, invitaciones `1440/440`, cuentas `768`, voluntarios `1440/390` e
+importación `390`. En todos los casos medidos,
+`documentElement.scrollWidth === clientWidth`; el overflow de la tabla de
+Voluntarios quedó confinado a `TableRegion`. Las capturas se conservaron solo en
+`/tmp/ui-polish-phase2-*.png`.
+
+Las revisiones de QA y arquitectura no detectaron bloqueantes P0/P1. Arquitectura
+confirmó que las primitivas visuales no conocen dominio, autorización, servicios
+ni infraestructura; QA confirmó la conservación de guards, condiciones disabled,
+acciones, estados terminales y copy contractual.
