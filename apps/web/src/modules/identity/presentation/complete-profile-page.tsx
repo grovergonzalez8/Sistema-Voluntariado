@@ -3,7 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 
-import { Button, Field } from '@sistema-voluntariado/ui';
+import { Button, Field, Notice, PageHeader } from '@sistema-voluntariado/ui';
 
 import type { OnboardingService } from '../application/onboarding-service';
 import {
@@ -80,9 +80,11 @@ export function CompleteProfilePage({
   return (
     <main className="auth-layout">
       <section className="auth-card">
-        <p className="eyebrow">{t('onboarding.eyebrow')}</p>
-        <h1>{t('onboarding.profileTitle')}</h1>
-        <p className="muted">{t('onboarding.profileDescription')}</p>
+        <PageHeader
+          description={t('onboarding.profileDescription')}
+          eyebrow={t('onboarding.eyebrow')}
+          title={t('onboarding.profileTitle')}
+        />
         <form className="stack" onSubmit={(event) => void submit(event)}>
           <Field
             autoComplete="name"
@@ -119,11 +121,12 @@ export function CompleteProfilePage({
               <option value="en">English</option>
             </select>
           </label>
-          {error ? <p className="notice notice--error">{error}</p> : null}
+          {error ? <Notice tone="error">{error}</Notice> : null}
           <Button
-            className="button--primary"
+            busy={submitting}
             disabled={submitting}
             type="submit"
+            variant="primary"
           >
             {submitting ? t('onboarding.activating') : t('onboarding.activate')}
           </Button>

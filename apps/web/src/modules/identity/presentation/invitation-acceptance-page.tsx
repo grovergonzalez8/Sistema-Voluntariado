@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
-import { Button } from '@sistema-voluntariado/ui';
+import { Button, Notice, PageHeader } from '@sistema-voluntariado/ui';
 import type { AppErrorCode } from '@sistema-voluntariado/shared-kernel';
 
 import type { OnboardingService } from '../application/onboarding-service';
@@ -180,18 +180,21 @@ export function InvitationAcceptancePage({
   return (
     <main className="auth-layout">
       <section className="auth-card">
-        <p className="eyebrow">{t('onboarding.eyebrow')}</p>
-        <h1>{t('onboarding.acceptTitle')}</h1>
-        <p className="muted">{t('onboarding.acceptDescription')}</p>
+        <PageHeader
+          description={t('onboarding.acceptDescription')}
+          eyebrow={t('onboarding.eyebrow')}
+          title={t('onboarding.acceptTitle')}
+        />
         {error || !acceptanceChallenge ? (
-          <p className="notice notice--error" role="alert">
+          <Notice tone="error">
             {error ?? t('onboarding.invalidInvitationLink')}
-          </p>
+          </Notice>
         ) : null}
         <Button
-          className="button--primary"
+          busy={submitting}
           disabled={submitting || !acceptanceChallenge}
           onClick={() => void accept()}
+          variant="primary"
         >
           {submitting ? t('onboarding.accepting') : t('onboarding.accept')}
         </Button>

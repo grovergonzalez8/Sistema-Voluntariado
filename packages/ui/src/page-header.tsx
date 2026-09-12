@@ -6,6 +6,8 @@ export interface PageHeaderProps {
   readonly description?: ReactNode;
   readonly eyebrow?: ReactNode;
   readonly title: ReactNode;
+  readonly titleClassName?: string;
+  readonly titleId?: string;
 }
 
 export function PageHeader({
@@ -14,12 +16,16 @@ export function PageHeader({
   description,
   eyebrow,
   title,
+  titleClassName,
+  titleId,
 }: PageHeaderProps) {
   return (
     <header className={`page-header${actions ? ' page-header--actions' : ''}`}>
       <div>
         {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
-        <h1>{title}</h1>
+        <h1 className={titleClassName} id={titleId}>
+          {title}
+        </h1>
         {description ? <p className="muted">{description}</p> : null}
         {children}
       </div>

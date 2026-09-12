@@ -10,11 +10,20 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
 import type { AppError } from '@sistema-voluntariado/shared-kernel';
-import { Button, Field } from '@sistema-voluntariado/ui';
+import {
+  Button,
+  EmptyState,
+  Field,
+  LoadingState,
+  Notice,
+  PageHeader,
+  StatusBadge,
+} from '@sistema-voluntariado/ui';
 
 import type { InvitationAdministrationService } from '../application/invitation-administration-service';
 import type { InvitationSummary } from '../domain/account-administration';
 import { useIdentity } from './identity-context';
+import { getInvitationStatusTone } from './status-badge-tone';
 
 const allInitialRoles = [
   'volunteer',
@@ -235,15 +244,21 @@ function ScopedInvitationsPage({
 
   return (
     <section className="admin-page">
-      <header className="page-heading">
-        <p className="eyebrow">{t('admin.eyebrow')}</p>
-        <h1>{t('invitations.title')}</h1>
-        <p className="muted">{t('invitations.description')}</p>
-      </header>
+      <PageHeader
+        description={t('invitations.description')}
+        eyebrow={t('admin.eyebrow')}
+        title={t('invitations.title')}
+      />
       <form
-        className="panel compact-form"
+        aria-labelledby="invitation-create-title"
+        className="panel compact-form invitation-create-form"
         onSubmit={(event) => void create(event)}
       >
+        <div className="form-heading">
+          <h2 id="invitation-create-title">
+            {t('invitations.createSectionTitle')}
+          </h2>
+        </div>
         <Field
           label={t('login.email')}
           name="invitationEmail"
@@ -289,98 +304,127 @@ function ScopedInvitationsPage({
             ))}
           </select>
         </label>
-        <Button className="button--primary" disabled={submitting} type="submit">
+        <Button
+          busy={submitting}
+          disabled={submitting}
+          type="submit"
+          variant="primary"
+        >
           {submitting ? t('common.saving') : t('invitations.create')}
         </Button>
       </form>
-      {canRevoke ? (
-        <Field
-          label={t('invitations.reason')}
-          minLength={3}
-          name="invitationReason"
-          onChange={(event) => {
-            setReason(event.target.value);
-          }}
-          value={reason}
-        />
-      ) : null}
-      {error ? (
-        <p className="notice notice--error">
-          {getInvitationErrorMessage(error, t)}
-        </p>
-      ) : null}
-      {message ? <p className="notice notice--success">{message}</p> : null}
-      {loading ? <p role="status">{t('common.loading')}</p> : null}
-      {!loading && invitations.length === 0 ? (
-        <p>{t('invitations.empty')}</p>
-      ) : null}
-      <div className="data-list">
-        {invitations.map((invitation) => (
-          <article className="data-card" key={invitation.id}>
-            <div>
-              <strong>{invitation.normalizedEmail}</strong>
-              <p>{invitation.displayName ?? t('common.notProvided')}</p>
+      <section aria-labelledby="invitation-list-title" className="data-section">
+        <div className="section-heading">
+          <div>
+            <h2 id="invitation-list-title">{t('invitations.listTitle')}</h2>
+          </div>
+          {canRevoke ? (
+            <div className="list-toolbar">
+              <Field
+                label={t('invitations.reason')}
+                minLength={3}
+                name="invitationReason"
+                onChange={(event) => {
+                  setReason(event.target.value);
+                }}
+                value={reason}
+              />
             </div>
-            <dl>
-              <dt>{t('common.status')}</dt>
-              <dd>{t(`invitationStatus.${invitation.status}`)}</dd>
-              <dt>{t('invitations.initialRole')}</dt>
-              <dd>{t(`roles.${invitation.requestedInitialRoleCode}`)}</dd>
-              <dt>{t('invitations.expires')}</dt>
-              <dd>{new Date(invitation.expiresAt).toLocaleString()}</dd>
-            </dl>
-            <Link to={`/app/admin/invitations/${invitation.id}`}>
-              {t('invitations.view')}
-            </Link>
-            {(canResend &&
-              (['pending', 'sent', 'delivery_failed'].includes(
-                invitation.status,
-              ) ||
-                (['revoked', 'expired'].includes(invitation.status) &&
-                  !invitation.supersededBy))) ||
-            (canRevoke &&
-              ['pending', 'sent', 'delivery_failed'].includes(
-                invitation.status,
-              )) ? (
-              <div className="button-row">
-                {canResend &&
-                ['sent', 'delivery_failed'].includes(invitation.status) ? (
-                  <Button
-                    disabled={submitting}
-                    onClick={() => void act(invitation, 'resend')}
+          ) : null}
+        </div>
+        <div className="feedback-stack">
+          {error ? (
+            <Notice tone="error">{getInvitationErrorMessage(error, t)}</Notice>
+          ) : null}
+          {message ? <Notice tone="success">{message}</Notice> : null}
+        </div>
+        {loading ? <LoadingState>{t('common.loading')}</LoadingState> : null}
+        {!loading && invitations.length === 0 ? (
+          <EmptyState title={t('invitations.empty')} />
+        ) : null}
+        <div className="data-list invitation-list">
+          {invitations.map((invitation) => (
+            <article
+              className="data-card data-card--invitation"
+              key={invitation.id}
+            >
+              <div>
+                <strong>{invitation.normalizedEmail}</strong>
+                <p>{invitation.displayName ?? t('common.notProvided')}</p>
+              </div>
+              <dl className="data-card__meta">
+                <dt>{t('common.status')}</dt>
+                <dd>
+                  <StatusBadge
+                    tone={getInvitationStatusTone(invitation.status)}
                   >
-                    {t('invitations.resend')}
-                  </Button>
-                ) : null}
-                {canResend &&
+                    {t(`invitationStatus.${invitation.status}`)}
+                  </StatusBadge>
+                </dd>
+                <dt>{t('invitations.initialRole')}</dt>
+                <dd>
+                  <StatusBadge>
+                    {t(`roles.${invitation.requestedInitialRoleCode}`)}
+                  </StatusBadge>
+                </dd>
+                <dt>{t('invitations.expires')}</dt>
+                <dd>{new Date(invitation.expiresAt).toLocaleString()}</dd>
+              </dl>
+              <div className="data-card__link">
+                <Link to={`/app/admin/invitations/${invitation.id}`}>
+                  {t('invitations.view')}
+                </Link>
+              </div>
+              {(canResend &&
                 (['pending', 'sent', 'delivery_failed'].includes(
                   invitation.status,
                 ) ||
                   (['revoked', 'expired'].includes(invitation.status) &&
-                    !invitation.supersededBy)) ? (
-                  <Button
-                    disabled={submitting}
-                    onClick={() => void act(invitation, 'replace')}
-                  >
-                    {t('invitations.replace')}
-                  </Button>
-                ) : null}
-                {canRevoke &&
+                    !invitation.supersededBy))) ||
+              (canRevoke &&
                 ['pending', 'sent', 'delivery_failed'].includes(
                   invitation.status,
-                ) ? (
-                  <Button
-                    disabled={submitting}
-                    onClick={() => void act(invitation, 'revoke')}
-                  >
-                    {t('invitations.revoke')}
-                  </Button>
-                ) : null}
-              </div>
-            ) : null}
-          </article>
-        ))}
-      </div>
+                )) ? (
+                <div className="button-row data-card__actions">
+                  {canResend &&
+                  ['sent', 'delivery_failed'].includes(invitation.status) ? (
+                    <Button
+                      disabled={submitting}
+                      onClick={() => void act(invitation, 'resend')}
+                    >
+                      {t('invitations.resend')}
+                    </Button>
+                  ) : null}
+                  {canResend &&
+                  (['pending', 'sent', 'delivery_failed'].includes(
+                    invitation.status,
+                  ) ||
+                    (['revoked', 'expired'].includes(invitation.status) &&
+                      !invitation.supersededBy)) ? (
+                    <Button
+                      disabled={submitting}
+                      onClick={() => void act(invitation, 'replace')}
+                    >
+                      {t('invitations.replace')}
+                    </Button>
+                  ) : null}
+                  {canRevoke &&
+                  ['pending', 'sent', 'delivery_failed'].includes(
+                    invitation.status,
+                  ) ? (
+                    <Button
+                      disabled={submitting}
+                      onClick={() => void act(invitation, 'revoke')}
+                    >
+                      {t('invitations.revoke')}
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      </section>
     </section>
   );
 }

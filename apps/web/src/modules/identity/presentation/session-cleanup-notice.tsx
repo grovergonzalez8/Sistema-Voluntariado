@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
-import { Button } from '@sistema-voluntariado/ui';
+import { Button, LoadingState, Notice } from '@sistema-voluntariado/ui';
 
 import type { SessionCleanupStatus } from './use-session-cleanup';
 
@@ -16,15 +16,13 @@ export function SessionCleanupNotice({
   if (status === 'failed') {
     return (
       <>
-        <p className="notice notice--error" role="alert">
-          {t('onboarding.sessionCleanupFailed')}
-        </p>
-        <Button className="button--primary" onClick={onRetry}>
+        <Notice tone="error">{t('onboarding.sessionCleanupFailed')}</Notice>
+        <Button onClick={onRetry} variant="primary">
           {t('common.retry')}
         </Button>
       </>
     );
   }
 
-  return <p className="muted">{t('onboarding.signingOut')}</p>;
+  return <LoadingState>{t('onboarding.signingOut')}</LoadingState>;
 }

@@ -2,13 +2,21 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
-import { Button, Field } from '@sistema-voluntariado/ui';
+import {
+  Button,
+  Field,
+  LoadingState,
+  Notice,
+  PageHeader,
+  StatusBadge,
+} from '@sistema-voluntariado/ui';
 
 import type { AccountAdministrationService } from '../application/account-administration-service';
 import type { InvitationAdministrationService } from '../application/invitation-administration-service';
 import type { AccountDetail } from '../domain/account-administration';
 import type { AccountStatus } from '../domain/account-lifecycle';
 import { useIdentity } from './identity-context';
+import { getAccountStatusTone } from './status-badge-tone';
 
 export function AccountDetailPage({
   invitationService,
@@ -132,24 +140,25 @@ export function AccountDetailPage({
     setSubmitting(false);
   };
 
-  if (error && !account) return <p className="notice notice--error">{error}</p>;
-  if (!account) return <p role="status">{t('common.loading')}</p>;
+  if (error && !account) return <Notice tone="error">{error}</Notice>;
+  if (!account) return <LoadingState>{t('common.loading')}</LoadingState>;
 
   return (
     <section className="admin-page">
-      <header className="page-heading">
-        <p className="eyebrow">{t('admin.eyebrow')}</p>
-        <h1 className="dynamic-title">
-          {account.displayName ?? t('accounts.detailTitle')}
-        </h1>
-        <p className="muted">{account.email ?? t('common.notAvailable')}</p>
-      </header>
-      {error ? <p className="notice notice--error">{error}</p> : null}
-      {message ? <p className="notice notice--success">{message}</p> : null}
+      <PageHeader
+        description={account.email ?? t('common.notAvailable')}
+        eyebrow={t('admin.eyebrow')}
+        title={account.displayName ?? t('accounts.detailTitle')}
+        titleClassName="dynamic-title"
+      />
+      {error ? <Notice tone="error">{error}</Notice> : null}
+      {message ? <Notice tone="success">{message}</Notice> : null}
       <div className="detail-grid">
         <section className="panel">
           <h2>{t('accounts.statusAndActions')}</h2>
-          <p>{t(`accountStatus.${account.status}`)}</p>
+          <StatusBadge tone={getAccountStatusTone(account.status)}>
+            {t(`accountStatus.${account.status}`)}
+          </StatusBadge>
           <Field
             label={t('accounts.reason')}
             minLength={3}
@@ -164,6 +173,7 @@ export function AccountDetailPage({
               <Button
                 disabled={submitting}
                 onClick={() => void changeStatus('active')}
+                variant="primary"
               >
                 {t('accounts.activate')}
               </Button>
@@ -172,6 +182,7 @@ export function AccountDetailPage({
               <Button
                 disabled={submitting}
                 onClick={() => void recoverInvitation()}
+                variant="primary"
               >
                 {t('accounts.recoverInvitation')}
               </Button>
@@ -180,6 +191,7 @@ export function AccountDetailPage({
               <Button
                 disabled={submitting}
                 onClick={() => void changeStatus('suspended')}
+                variant="danger"
               >
                 {t('accounts.suspend')}
               </Button>
@@ -189,6 +201,7 @@ export function AccountDetailPage({
               <Button
                 disabled={submitting}
                 onClick={() => void changeStatus('archived')}
+                variant="danger"
               >
                 {t('accounts.archive')}
               </Button>
@@ -199,6 +212,7 @@ export function AccountDetailPage({
               <Button
                 disabled={submitting}
                 onClick={() => void changeStatus('active')}
+                variant="primary"
               >
                 {t('accounts.reactivate')}
               </Button>
@@ -210,7 +224,7 @@ export function AccountDetailPage({
           {account.roles.length === 0 ? <p>{t('accounts.noRoles')}</p> : null}
           {account.roles.map((role) => (
             <div className="inline-item" key={role}>
-              <span>{t(`roles.${role}`)}</span>
+              <StatusBadge>{t(`roles.${role}`)}</StatusBadge>
               {canManageRoles ? (
                 <Button
                   disabled={submitting || account.status !== 'active'}
@@ -242,7 +256,9 @@ export function AccountDetailPage({
           <ol className="timeline">
             {account.history.map((entry) => (
               <li key={`${entry.changedAt}-${entry.toStatus}`}>
-                <strong>{t(`accountStatus.${entry.toStatus}`)}</strong>
+                <StatusBadge tone={getAccountStatusTone(entry.toStatus)}>
+                  {t(`accountStatus.${entry.toStatus}`)}
+                </StatusBadge>
                 <span>{entry.reason}</span>
                 <time>{new Date(entry.changedAt).toLocaleString()}</time>
               </li>
