@@ -139,7 +139,9 @@ export function AccountDetailPage({
     <section className="admin-page">
       <header className="page-heading">
         <p className="eyebrow">{t('admin.eyebrow')}</p>
-        <h1>{account.displayName ?? t('accounts.detailTitle')}</h1>
+        <h1 className="dynamic-title">
+          {account.displayName ?? t('accounts.detailTitle')}
+        </h1>
         <p className="muted">{account.email ?? t('common.notAvailable')}</p>
       </header>
       {error ? <p className="notice notice--error">{error}</p> : null}

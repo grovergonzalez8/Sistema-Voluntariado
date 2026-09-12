@@ -35,7 +35,7 @@ export function VolunteerDetailPage({
       <header className="page-heading page-heading--actions">
         <div>
           <p className="eyebrow">{t('admin.eyebrow')}</p>
-          <h1>{volunteer.fullName}</h1>
+          <h1 className="dynamic-title">{volunteer.fullName}</h1>
           <p className="muted">{t('volunteers.detailDescription')}</p>
         </div>
         <div className="button-row">

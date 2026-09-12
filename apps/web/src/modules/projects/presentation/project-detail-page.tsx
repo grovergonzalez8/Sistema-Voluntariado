@@ -208,7 +208,7 @@ export function ProjectDetailPage({
       <header className="page-heading page-heading--actions">
         <div>
           <p className="eyebrow">{t('admin.eyebrow')}</p>
-          <h1>{project.name}</h1>
+          <h1 className="dynamic-title">{project.name}</h1>
           <p className="muted">
             {project.description ?? t('common.notProvided')}
           </p>

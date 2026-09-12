@@ -1,4 +1,5 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@sistema-voluntariado/ui';
@@ -8,7 +9,16 @@ import { useIdentity } from '../../modules/identity';
 export function AppShell() {
   const { t } = useTranslation();
   const identity = useIdentity();
+  const location = useLocation();
   const navigate = useNavigate();
+  const navigationRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const activeLink = navigationRef.current?.querySelector<HTMLElement>(
+      'a[aria-current="page"]',
+    );
+    activeLink?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [location.pathname]);
 
   const handleSignOut = async () => {
     const result = await identity.signOut();
@@ -32,7 +42,11 @@ export function AppShell() {
         </Button>
       </header>
       <div className="app-body">
-        <nav aria-label={t('navigation.mainLabel')} className="app-nav">
+        <nav
+          aria-label={t('navigation.mainLabel')}
+          className="app-nav"
+          ref={navigationRef}
+        >
           <NavLink to="/app/profile">{t('navigation.profile')}</NavLink>
           {identity.account?.permissions.includes('invitation.read') ? (
             <NavLink to="/app/admin/invitations">

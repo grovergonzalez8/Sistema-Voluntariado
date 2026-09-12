@@ -1,6 +1,6 @@
 # ExecPlan 0010: UI/UX Polish V1
 
-- Estado: propuesto; auditoría completada, implementación no iniciada
+- Estado: en ejecución; Fase 1 y corrección visual 1.1 completadas
 - Fecha: 2026-09-11
 - Rama autorizada: `feat/ui-ux-polish-v1`
 - Commit base: `33678c1bb708fc0872496a575b4b3cdb35f6c1b3`
@@ -440,8 +440,9 @@ Preparar una matriz antes/después con datos `.invalid` en `1280×800`, `1024×7
 - [x] Revisar aplicación local en escritorio, tablet y móvil sin ejecutar mutaciones.
 - [x] Incorporar revisiones especializadas de arquitectura, QA y contratos de
       dominio/seguridad.
-- [ ] Aprobar este ExecPlan antes de cualquier implementación.
-- [ ] Ejecutar Fase 1.
+- [x] Aprobar este ExecPlan antes de cualquier implementación.
+- [x] Ejecutar Fase 1.
+- [x] Ejecutar corrección visual Fase 1.1 de shell, overflow, títulos y densidad.
 - [ ] Ejecutar Fase 2.
 - [ ] Ejecutar Fase 3 y cerrar el plan con evidencia.
 
@@ -495,8 +496,40 @@ incorporadas.
   visual versionable deberá usar fixtures seguros y deterministas.
 - El bug potencial de candidatos de manager tras cierre queda documentado, pero no
   se resolverá dentro de un polish sin autorización funcional explícita.
+- La corrección 1.1 eliminó `overflow-x: hidden` del `body` y resolvió el ancho en
+  los componentes responsables. Solo navegación y `TableRegion` conservan scroll
+  horizontal intencional.
+- El destino activo de la navegación se desplaza a la zona visible al cambiar de
+  ruta. Este efecto es exclusivamente presentacional y no modifica rutas, permisos
+  ni el orden de los enlaces.
+- Los nombres dinámicos usan una escala tipográfica menor y `overflow-wrap` para
+  preservar palabras normales y partir únicamente cadenas que no caben.
 
 ## Resultado final
 
-Pendiente. Este documento planifica la implementación; no se ha modificado código
-productivo, comportamiento, base de datos ni infraestructura.
+Fase 1 y corrección visual 1.1 completadas. El shell, las fundaciones visuales y
+los estados compartidos están implementados; Fases 2 y 3 permanecen pendientes.
+La validación 1.1 cubrió perfil y voluntarios en escritorio, tablet `768px`,
+invitaciones a `440px` y un proyecto existente de 44 caracteres a `390px`, con
+`documentElement.scrollWidth === clientWidth`. La regresión E2E del shell verifica
+logout visible, targets de navegación de al menos `44px`, item activo alcanzable,
+focus visible y ausencia de overflow global. No se modificaron reglas, permisos,
+servicios, contratos, base de datos ni infraestructura.
+
+### Evidencia de Fase 1.1
+
+| Gate                                                   | Resultado                                                              |
+| ------------------------------------------------------ | ---------------------------------------------------------------------- |
+| `corepack pnpm typecheck`                              | PASS                                                                   |
+| `corepack pnpm lint` y `corepack pnpm lint:boundaries` | PASS                                                                   |
+| `corepack pnpm test:unit`                              | PASS; 44 archivos, 243 pruebas                                         |
+| `corepack pnpm build`                                  | PASS                                                                   |
+| `corepack pnpm verify`                                 | PASS; formato, arquitectura, tipos, unitarias, 4 integraciones y build |
+| `corepack pnpm test:e2e`                               | PASS; 21/21, incluida la regresión responsive nueva                    |
+| `git diff --check` y escaneo de patrones prohibidos    | PASS                                                                   |
+| `db:test` y scripts de concurrencia dedicados          | No ejecutados por alcance explícito de Fase 1.1                        |
+
+Las capturas de perfil `1440px`, voluntarios `1440px`, tablet `768px`,
+invitaciones `440px` y proyecto largo `390px` se conservaron únicamente en
+`/tmp`; no se añadieron al repositorio. El host mantuvo el warning conocido de
+Node `22.21.0` frente a `22.18.0`; pnpm coincidió en `11.9.0`.
