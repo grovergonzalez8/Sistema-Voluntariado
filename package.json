@@ -30,11 +30,13 @@
     "test:e2e": "node scripts/e2e-service-orchestrator.mjs",
     "functions:serve": "node scripts/serve-local-function.mjs",
     "account-lifecycle:test": "corepack pnpm test:functions && corepack pnpm db:reset && corepack pnpm exec supabase db lint --local --level warning && corepack pnpm db:test && corepack pnpm invitations:test:auth-contract && corepack pnpm invitations:test:concurrency && corepack pnpm db:reset && corepack pnpm projects:test:concurrency && corepack pnpm test:e2e",
-    "db:start": "supabase start --exclude edge-runtime",
+    "db:start": "node scripts/start-local-supabase.mjs",
+    "db:start:real-email": "node scripts/start-local-supabase.mjs --real-email",
     "db:stop": "supabase stop",
     "db:reset": "node scripts/reset-local-database.mjs",
     "db:test": "supabase test db",
-    "verify": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm lint:boundaries && corepack pnpm lint:architecture && corepack pnpm typecheck && corepack pnpm typecheck:functions && corepack pnpm test:ci-orchestration && corepack pnpm test:unit && corepack pnpm test:integration && corepack pnpm build"
+    "test:local-smtp-orchestration": "node --test scripts/start-local-supabase.test.mjs",
+    "verify": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm lint:boundaries && corepack pnpm lint:architecture && corepack pnpm typecheck && corepack pnpm typecheck:functions && corepack pnpm test:ci-orchestration && corepack pnpm test:local-smtp-orchestration && corepack pnpm test:unit && corepack pnpm test:integration && corepack pnpm build"
   },
   "devDependencies": {
     "@sistema-voluntariado/eslint-config": "workspace:*",
