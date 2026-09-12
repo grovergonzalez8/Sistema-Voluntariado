@@ -19,9 +19,12 @@ export function AppShell() {
 
   return (
     <div className="app-layout">
+      <a className="skip-link" href="#main-content">
+        {t('navigation.skipToContent')}
+      </a>
       <header className="app-header">
         <div>
-          <strong>Sistema-Voluntariado</strong>
+          <strong className="app-brand">Sistema-Voluntariado</strong>
           <p>{t('shell.activeSession')}</p>
         </div>
         <Button onClick={() => void handleSignOut()}>
@@ -52,7 +55,7 @@ export function AppShell() {
             </NavLink>
           ) : null}
         </nav>
-        <main className="app-content">
+        <main className="app-content" id="main-content" tabIndex={-1}>
           <Outlet />
         </main>
       </div>

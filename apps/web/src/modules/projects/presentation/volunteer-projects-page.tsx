@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
+import { TableRegion } from '@sistema-voluntariado/ui';
+
 import type { ProjectManagementService } from '../application/project-management-service';
 import type { VolunteerProjectAssignment } from '../domain/project-assignment';
 
@@ -49,7 +51,7 @@ export function VolunteerProjectsPage({
         <p className="muted">{t('projects.noVolunteerProjects')}</p>
       ) : null}
       {!loading && assignments.length > 0 ? (
-        <div className="table-scroll">
+        <TableRegion aria-label={t('projects.volunteerHistoryTitle')}>
           <table className="data-table">
             <thead>
               <tr>
@@ -78,7 +80,7 @@ export function VolunteerProjectsPage({
               ))}
             </tbody>
           </table>
-        </div>
+        </TableRegion>
       ) : null}
     </section>
   );

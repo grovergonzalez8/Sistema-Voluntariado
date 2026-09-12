@@ -119,6 +119,7 @@ const sharedEnglish = {
     mainLabel: 'Main navigation',
     profile: 'My profile',
     projects: 'Projects',
+    skipToContent: 'Skip to main content',
     volunteers: 'Volunteers',
   },
   onboarding: {
@@ -467,6 +468,7 @@ const sharedSpanish = {
     mainLabel: 'Navegación principal',
     profile: 'Mi perfil',
     projects: 'Proyectos',
+    skipToContent: 'Saltar al contenido principal',
     volunteers: 'Voluntarios',
   },
   onboarding: {

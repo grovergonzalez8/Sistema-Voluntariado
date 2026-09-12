@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Button } from '@sistema-voluntariado/ui';
+import { Button, TableRegion } from '@sistema-voluntariado/ui';
 
 import type { ProjectActivityService } from '../application/project-activity-service';
 import type { ProjectActivityParticipationService } from '../application/project-activity-participation-service';
@@ -133,7 +133,7 @@ export function ProjectActivitiesSection({
         <p className="muted">{t('projects.activities.empty')}</p>
       ) : null}
       {activities.length > 0 ? (
-        <div className="table-scroll">
+        <TableRegion aria-label={t('projects.activities.title')}>
           <table className="data-table">
             <thead>
               <tr>
@@ -209,7 +209,7 @@ export function ProjectActivitiesSection({
               })}
             </tbody>
           </table>
-        </div>
+        </TableRegion>
       ) : null}
       {selectedActivity ? (
         <ProjectActivityParticipantsSection

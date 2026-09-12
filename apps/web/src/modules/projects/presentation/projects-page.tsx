@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type SyntheticEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
-import { Button, Field } from '@sistema-voluntariado/ui';
+import { Button, Field, TableRegion } from '@sistema-voluntariado/ui';
 
 import type { ProjectManagementService } from '../application/project-management-service';
 import type { Project } from '../domain/project';
@@ -99,7 +99,7 @@ export function ProjectsPage({
       {!loading && projects.length > 0 ? (
         <>
           <p className="muted">{t('projects.results', { count: total })}</p>
-          <div className="table-scroll">
+          <TableRegion aria-label={t('projects.title')}>
             <table className="data-table">
               <thead>
                 <tr>
@@ -124,7 +124,7 @@ export function ProjectsPage({
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableRegion>
           <nav
             aria-label={t('projects.paginationLabel')}
             className="pagination"

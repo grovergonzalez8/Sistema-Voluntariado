@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type SyntheticEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
-import { Button, Field } from '@sistema-voluntariado/ui';
+import { Button, Field, TableRegion } from '@sistema-voluntariado/ui';
 
 import type { VolunteerRegistryService } from '../application/volunteer-registry-service';
 import type {
@@ -151,7 +151,7 @@ export function VolunteersPage({
       {!loading && volunteers.length > 0 ? (
         <>
           <p className="muted">{t('volunteers.results', { count: total })}</p>
-          <div className="table-scroll">
+          <TableRegion aria-label={t('volunteers.title')}>
             <table className="data-table">
               <thead>
                 <tr>
@@ -182,7 +182,7 @@ export function VolunteersPage({
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableRegion>
           <nav
             aria-label={t('volunteers.paginationLabel')}
             className="pagination"

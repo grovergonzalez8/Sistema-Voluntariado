@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { isActiveProjectAssignment } from '../domain/project-assignment';
 
-import { Button, Field } from '@sistema-voluntariado/ui';
+import { Button, Field, TableRegion } from '@sistema-voluntariado/ui';
 
 import type { ProjectManagementService } from '../application/project-management-service';
 import type { ProjectActivityService } from '../application/project-activity-service';
@@ -294,7 +294,7 @@ export function ProjectDetailPage({
         {assignments.length === 0 ? (
           <p className="muted">{t('projects.noParticipants')}</p>
         ) : (
-          <div className="table-scroll">
+          <TableRegion aria-label={t('projects.participantsTitle')}>
             <table className="data-table">
               <thead>
                 <tr>
@@ -341,7 +341,7 @@ export function ProjectDetailPage({
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableRegion>
         )}
       </section>
       {capabilities?.manage ? (
@@ -383,7 +383,7 @@ export function ProjectDetailPage({
           {managerAssignments.length === 0 ? (
             <p className="muted">{t('projects.noManagers')}</p>
           ) : (
-            <div className="table-scroll">
+            <TableRegion aria-label={t('projects.managersTitle')}>
               <table className="data-table">
                 <thead>
                   <tr>
@@ -421,7 +421,7 @@ export function ProjectDetailPage({
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableRegion>
           )}
         </section>
       ) : null}
