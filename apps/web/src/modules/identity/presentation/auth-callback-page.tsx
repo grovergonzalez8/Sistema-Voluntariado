@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
+import { LoadingState } from '@sistema-voluntariado/ui';
+
 import { useIdentity } from './identity-context';
 import { callbackFailureMessage, parseAuthCallback } from './auth-callback';
 import { SessionCleanupNotice } from './session-cleanup-notice';
@@ -88,9 +90,9 @@ export function AuthCallbackPage() {
   ]);
 
   return (
-    <main className="centered-status" role="status">
+    <main className="centered-status">
       {sessionCleanupStatus === 'idle' ? (
-        t('onboarding.validatingLink')
+        <LoadingState>{t('onboarding.validatingLink')}</LoadingState>
       ) : (
         <SessionCleanupNotice
           onRetry={retrySessionCleanup}

@@ -2,7 +2,13 @@ import { useState, type ChangeEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
-import { Button } from '@sistema-voluntariado/ui';
+import {
+  Button,
+  LoadingState,
+  Notice,
+  PageHeader,
+  StatusBadge,
+} from '@sistema-voluntariado/ui';
 
 import {
   volunteerImportLimits,
@@ -88,21 +94,30 @@ export function VolunteerImportPage({
 
   return (
     <section className="admin-page">
-      <header className="page-heading">
-        <p className="eyebrow">{t('admin.eyebrow')}</p>
-        <h1>{t('volunteers.import.title')}</h1>
-        <p className="muted">{t('volunteers.import.description')}</p>
-      </header>
-      <section className="panel import-controls">
-        <p>{t('volunteers.import.requirements')}</p>
+      <PageHeader
+        description={t('volunteers.import.description')}
+        eyebrow={t('admin.eyebrow')}
+        title={t('volunteers.import.title')}
+      />
+      <section
+        aria-labelledby="import-controls-title"
+        className="panel import-controls"
+      >
+        <h2 id="import-controls-title">
+          {t('volunteers.import.controlsTitle')}
+        </h2>
+        <p className="muted" id="import-requirements">
+          {t('volunteers.import.requirements')}
+        </p>
         <div className="button-row">
           <Button disabled={processing} onClick={() => void downloadTemplate()}>
             {t('volunteers.import.template')}
           </Button>
-          <label className="button file-button">
+          <label className="button file-button file-picker">
             {t('volunteers.import.select')}
             <input
               accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              aria-describedby="import-requirements"
               disabled={processing}
               onChange={(event) => void selectFile(event)}
               type="file"
@@ -111,18 +126,18 @@ export function VolunteerImportPage({
         </div>
       </section>
       {processing ? (
-        <p role="status">{t('volunteers.import.processing')}</p>
+        <LoadingState>{t('volunteers.import.processing')}</LoadingState>
       ) : null}
-      {error ? <p className="notice notice--error">{error}</p> : null}
+      {error ? <Notice tone="error">{error}</Notice> : null}
       {message ? (
-        <p className="notice notice--success">
+        <Notice tone="success">
           {message}{' '}
           <Link to="/app/admin/volunteers">{t('volunteers.import.view')}</Link>
-        </p>
+        </Notice>
       ) : null}
       {preview ? (
         <section className="import-preview">
-          <div className="summary-grid">
+          <div aria-live="polite" className="summary-grid">
             <div>
               <strong>{preview.totalDetected}</strong>
               <span>{t('volunteers.import.detected')}</span>
@@ -184,20 +199,25 @@ export function VolunteerImportPage({
                       {t('volunteers.import.includeDuplicate')}
                     </label>
                   ) : row.errors.length === 0 ? (
-                    t('volunteers.import.ready')
+                    <StatusBadge tone="success">
+                      {t('volunteers.import.ready')}
+                    </StatusBadge>
                   ) : (
-                    t('volunteers.import.excluded')
+                    <StatusBadge tone="danger">
+                      {t('volunteers.import.excluded')}
+                    </StatusBadge>
                   )}
                 </div>
               </article>
             ))}
           </div>
           <Button
-            className="button--primary"
+            busy={processing}
             disabled={
               processing || preview.validCount + acceptedDuplicates.size === 0
             }
             onClick={() => void confirm()}
+            variant="primary"
           >
             {t('volunteers.import.confirm')}
           </Button>

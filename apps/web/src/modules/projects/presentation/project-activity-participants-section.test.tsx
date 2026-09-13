@@ -129,6 +129,9 @@ describe('ProjectActivityParticipantsSection', () => {
       participationId,
     );
     expect(screen.queryByText(/correo|teléfono|celular/iu)).toBeNull();
+    expect(
+      screen.queryByText(new RegExp(volunteerId.slice(0, 8), 'u')),
+    ).toBeNull();
   });
 
   it.each([

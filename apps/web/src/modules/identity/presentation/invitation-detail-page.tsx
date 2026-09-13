@@ -2,8 +2,16 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 
+import {
+  LoadingState,
+  Notice,
+  PageHeader,
+  StatusBadge,
+} from '@sistema-voluntariado/ui';
+
 import type { InvitationAdministrationService } from '../application/invitation-administration-service';
 import type { InvitationSummary } from '../domain/account-administration';
+import { getInvitationStatusTone } from './status-badge-tone';
 
 export function InvitationDetailPage({
   service,
@@ -34,26 +42,34 @@ export function InvitationDetailPage({
   }, [id, service]);
 
   if (result.id === id && result.error) {
-    return <p className="notice notice--error">{result.error}</p>;
+    return <Notice tone="error">{result.error}</Notice>;
   }
   if (result.id !== id || !result.invitation) {
-    return <p role="status">{t('common.loading')}</p>;
+    return <LoadingState>{t('common.loading')}</LoadingState>;
   }
   const invitation = result.invitation;
 
   return (
     <section className="admin-page">
-      <header className="page-heading">
-        <p className="eyebrow">{t('admin.eyebrow')}</p>
-        <h1>{t('invitations.detailTitle')}</h1>
-        <p className="muted">{invitation.normalizedEmail}</p>
-      </header>
-      <section className="panel">
-        <dl>
+      <PageHeader
+        description={invitation.normalizedEmail}
+        eyebrow={t('admin.eyebrow')}
+        title={t('invitations.detailTitle')}
+      />
+      <section className="panel detail-panel">
+        <dl className="detail-list">
           <dt>{t('common.status')}</dt>
-          <dd>{t(`invitationStatus.${invitation.status}`)}</dd>
+          <dd>
+            <StatusBadge tone={getInvitationStatusTone(invitation.status)}>
+              {t(`invitationStatus.${invitation.status}`)}
+            </StatusBadge>
+          </dd>
           <dt>{t('invitations.initialRole')}</dt>
-          <dd>{t(`roles.${invitation.requestedInitialRoleCode}`)}</dd>
+          <dd>
+            <StatusBadge>
+              {t(`roles.${invitation.requestedInitialRoleCode}`)}
+            </StatusBadge>
+          </dd>
           <dt>{t('invitations.locale')}</dt>
           <dd>{invitation.preferredLocale}</dd>
           <dt>{t('invitations.createdAt')}</dt>

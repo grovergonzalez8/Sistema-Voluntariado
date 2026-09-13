@@ -87,6 +87,7 @@ const sharedEnglish = {
       revoke: 'Revoke this invitation?',
     },
     create: 'Create invitation',
+    createSectionTitle: 'New invitation',
     createdAt: 'Created',
     created: 'Invitation created.',
     description: 'Create and track invitations within your authority.',
@@ -103,6 +104,7 @@ const sharedEnglish = {
     },
     expires: 'Expires',
     initialRole: 'Initial role',
+    listTitle: 'Issued invitations',
     locale: 'Language',
     reason: 'Reason for revocation',
     replace: 'Replace',
@@ -119,6 +121,7 @@ const sharedEnglish = {
     mainLabel: 'Main navigation',
     profile: 'My profile',
     projects: 'Projects',
+    skipToContent: 'Skip to main content',
     volunteers: 'Volunteers',
   },
   onboarding: {
@@ -299,6 +302,7 @@ const sharedEnglish = {
         'The selected rows are inserted as one transaction: all or none.',
       completed: '{{count}} volunteer(s) imported.',
       confirm: 'Confirm import',
+      controlsTitle: 'Prepare the workbook',
       detected: 'Detected',
       description:
         'Validate the workbook, review errors and explicitly include legitimate duplicates.',
@@ -434,6 +438,7 @@ const sharedSpanish = {
       revoke: '¿Revocar esta invitación?',
     },
     create: 'Crear invitación',
+    createSectionTitle: 'Nueva invitación',
     createdAt: 'Creada',
     created: 'Invitación creada.',
     description: 'Crea y consulta invitaciones dentro de tu autoridad.',
@@ -451,6 +456,7 @@ const sharedSpanish = {
     },
     expires: 'Vence',
     initialRole: 'Rol inicial',
+    listTitle: 'Invitaciones emitidas',
     locale: 'Idioma',
     reason: 'Motivo de revocación',
     replace: 'Sustituir',
@@ -467,6 +473,7 @@ const sharedSpanish = {
     mainLabel: 'Navegación principal',
     profile: 'Mi perfil',
     projects: 'Proyectos',
+    skipToContent: 'Saltar al contenido principal',
     volunteers: 'Voluntarios',
   },
   onboarding: {
@@ -652,6 +659,7 @@ const sharedSpanish = {
         'Las filas seleccionadas se insertan en una transacción: todas o ninguna.',
       completed: 'Se importaron {{count}} voluntario(s).',
       confirm: 'Confirmar importación',
+      controlsTitle: 'Preparar el libro',
       detected: 'Detectadas',
       description:
         'Valida el libro, revisa errores e incluye explícitamente duplicados legítimos.',

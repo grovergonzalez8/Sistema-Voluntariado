@@ -9,7 +9,13 @@ import {
   AppResultError,
   unwrapResult,
 } from '@sistema-voluntariado/shared-kernel';
-import { Button, Field } from '@sistema-voluntariado/ui';
+import {
+  Button,
+  Field,
+  LoadingState,
+  Notice,
+  PageHeader,
+} from '@sistema-voluntariado/ui';
 
 import type { ProfileService } from '../application/profile-service';
 import { getProfileQueryKey } from './profile-query-cache';
@@ -105,16 +111,17 @@ export function ProfilePage({
   }, [i18n, profileQuery.data, reset]);
 
   if (profileQuery.isPending) {
-    return <p role="status">{t('profile.loading')}</p>;
+    return <LoadingState>{t('profile.loading')}</LoadingState>;
   }
 
   if (profileQuery.isError) {
     return (
       <section aria-labelledby="profile-error-title" className="panel">
-        <h1 id="profile-error-title">{t('profile.errorTitle')}</h1>
-        <p className="notice notice--error" role="alert">
-          {getErrorMessage(profileQuery.error)}
-        </p>
+        <PageHeader
+          title={t('profile.errorTitle')}
+          titleId="profile-error-title"
+        />
+        <Notice tone="error">{getErrorMessage(profileQuery.error)}</Notice>
         <Button onClick={() => void profileQuery.refetch()}>
           {t('common.retry')}
         </Button>
@@ -133,11 +140,12 @@ export function ProfilePage({
 
   return (
     <section aria-labelledby="profile-title" className="panel profile-panel">
-      <div>
-        <p className="eyebrow">{t('profile.eyebrow')}</p>
-        <h1 id="profile-title">{t('profile.title')}</h1>
-        <p className="muted">{t('profile.description')}</p>
-      </div>
+      <PageHeader
+        description={t('profile.description')}
+        eyebrow={t('profile.eyebrow')}
+        title={t('profile.title')}
+        titleId="profile-title"
+      />
 
       <form
         className="stack"
@@ -177,20 +185,17 @@ export function ProfilePage({
         </label>
 
         {updateProfile.isError ? (
-          <p className="notice notice--error" role="alert">
-            {getErrorMessage(updateProfile.error)}
-          </p>
+          <Notice tone="error">{getErrorMessage(updateProfile.error)}</Notice>
         ) : null}
         {updateProfile.isSuccess ? (
-          <p className="notice notice--success" role="status">
-            {t('profile.saved')}
-          </p>
+          <Notice tone="success">{t('profile.saved')}</Notice>
         ) : null}
 
         <Button
-          className="button--primary"
+          busy={updateProfile.isPending}
           disabled={!isDirty || updateProfile.isPending}
           type="submit"
+          variant="primary"
         >
           {updateProfile.isPending ? t('profile.saving') : t('profile.save')}
         </Button>

@@ -1,7 +1,7 @@
 import { useState, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Button, Field } from '@sistema-voluntariado/ui';
+import { Button, Field, Notice } from '@sistema-voluntariado/ui';
 
 import type { ProjectManagementService } from '../application/project-management-service';
 import {
@@ -50,7 +50,7 @@ export function ProjectForm({
   };
 
   return (
-    <form className="panel volunteer-form" onSubmit={submit}>
+    <form className="panel volunteer-form project-form" onSubmit={submit}>
       <Field
         error={errors.name}
         label={t('projects.name')}
@@ -81,8 +81,13 @@ export function ProjectForm({
           <span className="field__error">{errors.description}</span>
         ) : null}
       </label>
-      {error ? <p className="notice notice--error">{error}</p> : null}
-      <Button className="button--primary" disabled={submitting} type="submit">
+      {error ? <Notice tone="error">{error}</Notice> : null}
+      <Button
+        busy={submitting}
+        disabled={submitting}
+        type="submit"
+        variant="primary"
+      >
         {submitting ? t('common.saving') : t('projects.save')}
       </Button>
     </form>

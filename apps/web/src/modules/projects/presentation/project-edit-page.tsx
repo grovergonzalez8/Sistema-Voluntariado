@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
+import { LoadingState, Notice, PageHeader } from '@sistema-voluntariado/ui';
+
 import type { ProjectManagementService } from '../application/project-management-service';
 import type { Project } from '../domain/project';
 import { ProjectForm } from './project-form';
@@ -29,14 +31,15 @@ export function ProjectEditPage({
     };
   }, [id, service]);
 
-  if (error) return <p className="notice notice--error">{error}</p>;
-  if (!project) return <p role="status">{t('common.loading')}</p>;
+  if (error) return <Notice tone="error">{error}</Notice>;
+  if (!project) return <LoadingState>{t('common.loading')}</LoadingState>;
   return (
     <section className="admin-page">
-      <header className="page-heading">
-        <p className="eyebrow">{t('admin.eyebrow')}</p>
-        <h1>{t('projects.editTitle')}</h1>
-      </header>
+      <PageHeader
+        description={project.name}
+        eyebrow={t('admin.eyebrow')}
+        title={t('projects.editTitle')}
+      />
       <ProjectForm
         initialValue={{
           description: project.description ?? '',

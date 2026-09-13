@@ -2,7 +2,15 @@ import { useEffect, useRef, useState, type SyntheticEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
-import { Button, Field } from '@sistema-voluntariado/ui';
+import {
+  Button,
+  EmptyState,
+  Field,
+  LoadingState,
+  Notice,
+  PageHeader,
+  TableRegion,
+} from '@sistema-voluntariado/ui';
 
 import type { VolunteerRegistryService } from '../application/volunteer-registry-service';
 import type {
@@ -76,33 +84,34 @@ export function VolunteersPage({
 
   return (
     <section className="admin-page">
-      <header className="page-heading page-heading--actions">
-        <div>
-          <p className="eyebrow">{t('admin.eyebrow')}</p>
-          <h1>{t('volunteers.title')}</h1>
-          <p className="muted">{t('volunteers.description')}</p>
-        </div>
-        <div className="button-row">
-          <Button
-            disabled={exporting}
-            onClick={() => void exportCurrentResults()}
-          >
-            {exporting
-              ? t('volunteers.exporting')
-              : t('volunteers.exportAction')}
-          </Button>
-          <Link className="button" to="/app/admin/volunteers/import">
-            {t('volunteers.importAction')}
-          </Link>
-          <Link
-            className="button button--primary"
-            to="/app/admin/volunteers/new"
-          >
-            {t('volunteers.createAction')}
-          </Link>
-        </div>
-      </header>
-      <form className="search-row" onSubmit={submitSearch}>
+      <PageHeader
+        actions={
+          <div className="button-row toolbar-actions">
+            <Button
+              busy={exporting}
+              disabled={exporting}
+              onClick={() => void exportCurrentResults()}
+            >
+              {exporting
+                ? t('volunteers.exporting')
+                : t('volunteers.exportAction')}
+            </Button>
+            <Link className="button" to="/app/admin/volunteers/import">
+              {t('volunteers.importAction')}
+            </Link>
+            <Link
+              className="button button--primary"
+              to="/app/admin/volunteers/new"
+            >
+              {t('volunteers.createAction')}
+            </Link>
+          </div>
+        }
+        description={t('volunteers.description')}
+        eyebrow={t('admin.eyebrow')}
+        title={t('volunteers.title')}
+      />
+      <form className="search-row toolbar-form" onSubmit={submitSearch}>
         <Field
           label={t('volunteers.search')}
           maxLength={100}
@@ -128,30 +137,37 @@ export function VolunteersPage({
             <option value="name_desc">{t('volunteers.sort.nameDesc')}</option>
           </select>
         </label>
-        <Button type="submit">{t('volunteers.searchAction')}</Button>
+        <Button type="submit" variant="primary">
+          {t('volunteers.searchAction')}
+        </Button>
       </form>
-      {error ? <p className="notice notice--error">{error}</p> : null}
-      {loading ? <p role="status">{t('common.loading')}</p> : null}
+      {error ? <Notice tone="error">{error}</Notice> : null}
+      {loading ? <LoadingState>{t('common.loading')}</LoadingState> : null}
       {!loading && volunteers.length === 0 ? (
-        <section className="panel empty-state">
-          <h2>
-            {search ? t('volunteers.noResults') : t('volunteers.emptyTitle')}
-          </h2>
-          <p>{t('volunteers.emptyDescription')}</p>
-          <div className="button-row">
-            <Link className="button" to="/app/admin/volunteers/new">
-              {t('volunteers.createAction')}
-            </Link>
-            <Link className="button" to="/app/admin/volunteers/import">
-              {t('volunteers.importAction')}
-            </Link>
-          </div>
-        </section>
+        <EmptyState
+          actions={
+            <>
+              <Link
+                className="button button--primary"
+                to="/app/admin/volunteers/new"
+              >
+                {t('volunteers.createAction')}
+              </Link>
+              <Link className="button" to="/app/admin/volunteers/import">
+                {t('volunteers.importAction')}
+              </Link>
+            </>
+          }
+          description={t('volunteers.emptyDescription')}
+          title={
+            search ? t('volunteers.noResults') : t('volunteers.emptyTitle')
+          }
+        />
       ) : null}
       {!loading && volunteers.length > 0 ? (
         <>
           <p className="muted">{t('volunteers.results', { count: total })}</p>
-          <div className="table-scroll">
+          <TableRegion aria-label={t('volunteers.title')}>
             <table className="data-table">
               <thead>
                 <tr>
@@ -165,7 +181,7 @@ export function VolunteersPage({
               <tbody>
                 {volunteers.map((volunteer) => (
                   <tr key={volunteer.id}>
-                    <td>{volunteer.fullName}</td>
+                    <td className="table-primary-cell">{volunteer.fullName}</td>
                     <td>{volunteer.email ?? t('common.notProvided')}</td>
                     <td>{volunteer.phone ?? t('common.notProvided')}</td>
                     <td>
@@ -182,7 +198,7 @@ export function VolunteersPage({
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableRegion>
           <nav
             aria-label={t('volunteers.paginationLabel')}
             className="pagination"

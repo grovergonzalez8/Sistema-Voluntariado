@@ -1,7 +1,7 @@
 import { useState, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Button, Field } from '@sistema-voluntariado/ui';
+import { Button, Field, Notice } from '@sistema-voluntariado/ui';
 
 import type { VolunteerRegistryService } from '../application/volunteer-registry-service';
 import {
@@ -109,9 +109,9 @@ export function VolunteerForm({
         type="tel"
         value={input.phone}
       />
-      {error ? <p className="notice notice--error">{error}</p> : null}
+      {error ? <Notice tone="error">{error}</Notice> : null}
       {duplicateMatches.length > 0 ? (
-        <section className="notice notice--warning" role="alert">
+        <Notice tone="warning" role="alert">
           <strong>{t('volunteers.duplicateTitle')}</strong>
           <p>{t('volunteers.duplicateDescription')}</p>
           <ul>
@@ -121,12 +121,21 @@ export function VolunteerForm({
               </li>
             ))}
           </ul>
-          <Button disabled={submitting} onClick={() => void save(true)}>
+          <Button
+            busy={submitting}
+            disabled={submitting}
+            onClick={() => void save(true)}
+          >
             {t('volunteers.saveDuplicate')}
           </Button>
-        </section>
+        </Notice>
       ) : null}
-      <Button className="button--primary" disabled={submitting} type="submit">
+      <Button
+        busy={submitting}
+        disabled={submitting}
+        type="submit"
+        variant="primary"
+      >
         {submitting ? t('common.saving') : t('volunteers.save')}
       </Button>
     </form>

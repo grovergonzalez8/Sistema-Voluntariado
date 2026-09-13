@@ -1,7 +1,7 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
-import { Button } from '@sistema-voluntariado/ui';
+import { Button, LoadingState, PageHeader } from '@sistema-voluntariado/ui';
 
 import type { AccountContext } from '../domain/account-administration';
 import { useIdentity } from './identity-context';
@@ -19,8 +19,8 @@ function operationalHome(account: AccountContext): string {
 export function AuthorityLoadingPage() {
   const { t } = useTranslation();
   return (
-    <main className="centered-status" role="status">
-      {t('access.loadingAuthority')}
+    <main className="centered-status">
+      <LoadingState>{t('access.loadingAuthority')}</LoadingState>
     </main>
   );
 }
@@ -31,12 +31,14 @@ export function AuthorityRecoveryPage() {
   return (
     <main className="auth-layout">
       <section className="auth-card">
-        <p className="eyebrow">{t('access.eyebrow')}</p>
-        <h1>{t('access.recoveryTitle')}</h1>
-        <p className="muted">{t('access.recoveryDescription')}</p>
+        <PageHeader
+          description={t('access.recoveryDescription')}
+          eyebrow={t('access.eyebrow')}
+          title={t('access.recoveryTitle')}
+        />
         <Button
-          className="button--primary"
           onClick={() => void identity.refreshAccountContext()}
+          variant="primary"
         >
           {t('common.retry')}
         </Button>
@@ -50,9 +52,11 @@ export function ForbiddenAccessPage() {
   return (
     <main className="auth-layout">
       <section className="auth-card">
-        <p className="eyebrow">{t('access.eyebrow')}</p>
-        <h1>{t('access.forbiddenTitle')}</h1>
-        <p className="muted">{t('access.forbiddenDescription')}</p>
+        <PageHeader
+          description={t('access.forbiddenDescription')}
+          eyebrow={t('access.eyebrow')}
+          title={t('access.forbiddenTitle')}
+        />
       </section>
     </main>
   );
@@ -127,11 +131,11 @@ export function AccountBlockedPage() {
       return (
         <main className="auth-layout">
           <section className="auth-card">
-            <p className="eyebrow">{t('access.eyebrow')}</p>
-            <h1>{t('access.blockedTitle')}</h1>
-            <p className="muted">
-              {t(`access.${identity.access.account.status}`)}
-            </p>
+            <PageHeader
+              description={t(`access.${identity.access.account.status}`)}
+              eyebrow={t('access.eyebrow')}
+              title={t('access.blockedTitle')}
+            />
           </section>
         </main>
       );

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
+import { LoadingState, Notice, PageHeader } from '@sistema-voluntariado/ui';
+
 import type { VolunteerRegistryService } from '../application/volunteer-registry-service';
 import type { RegisteredVolunteer } from '../domain/registered-volunteer';
 import { VolunteerForm } from './volunteer-form';
@@ -29,16 +31,16 @@ export function VolunteerEditPage({
     };
   }, [id, service]);
 
-  if (error) return <p className="notice notice--error">{error}</p>;
-  if (!volunteer) return <p role="status">{t('common.loading')}</p>;
+  if (error) return <Notice tone="error">{error}</Notice>;
+  if (!volunteer) return <LoadingState>{t('common.loading')}</LoadingState>;
 
   return (
     <section className="admin-page">
-      <header className="page-heading">
-        <p className="eyebrow">{t('admin.eyebrow')}</p>
-        <h1>{t('volunteers.editTitle')}</h1>
-        <p className="muted">{volunteer.fullName}</p>
-      </header>
+      <PageHeader
+        description={volunteer.fullName}
+        eyebrow={t('admin.eyebrow')}
+        title={t('volunteers.editTitle')}
+      />
       <VolunteerForm
         initialValue={{
           email: volunteer.email ?? '',

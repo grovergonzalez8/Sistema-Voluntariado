@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 
-import { Button, Field } from '@sistema-voluntariado/ui';
+import { Button, Field, Notice, PageHeader } from '@sistema-voluntariado/ui';
 
 import { useIdentity } from './identity-context';
 import { AuthorityLoadingPage } from './account-access-route';
@@ -77,9 +77,12 @@ export function LoginPage() {
   return (
     <main className="auth-layout">
       <section aria-labelledby="login-title" className="auth-card">
-        <p className="eyebrow">Sistema-Voluntariado</p>
-        <h1 id="login-title">{t('login.title')}</h1>
-        <p className="muted">{t('login.description')}</p>
+        <PageHeader
+          description={t('login.description')}
+          eyebrow="Sistema-Voluntariado"
+          title={t('login.title')}
+          titleId="login-title"
+        />
 
         <form
           className="stack"
@@ -103,19 +106,18 @@ export function LoginPage() {
             {...register('password')}
           />
           {submissionError ? (
-            <p className="notice notice--error" role="alert">
-              {submissionError}
-            </p>
+            <Notice tone="error">{submissionError}</Notice>
           ) : null}
           {callbackErrorCode ? (
-            <p className="notice notice--error" role="alert">
+            <Notice tone="error">
               {t(`onboarding.callback.${callbackErrorCode}`)}
-            </p>
+            </Notice>
           ) : null}
           <Button
-            className="button--primary"
+            busy={isSubmitting}
             disabled={isSubmitting}
             type="submit"
+            variant="primary"
           >
             {isSubmitting ? t('login.submitting') : t('login.submit')}
           </Button>

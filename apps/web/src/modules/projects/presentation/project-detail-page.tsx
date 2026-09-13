@@ -4,7 +4,15 @@ import { useTranslation } from 'react-i18next';
 
 import { isActiveProjectAssignment } from '../domain/project-assignment';
 
-import { Button, Field } from '@sistema-voluntariado/ui';
+import {
+  Button,
+  Field,
+  LoadingState,
+  Notice,
+  PageHeader,
+  StatusBadge,
+  TableRegion,
+} from '@sistema-voluntariado/ui';
 
 import type { ProjectManagementService } from '../application/project-management-service';
 import type { ProjectActivityService } from '../application/project-activity-service';
@@ -18,6 +26,7 @@ import type {
 import type { Project } from '../domain/project';
 import type { ProjectCapabilities } from '../application/project-authorization-port';
 import { ProjectActivitiesSection } from './project-activities-section';
+import { getProjectStatusTone } from './project-status-badge-tone';
 
 export function ProjectDetailPage({
   activityParticipationService,
@@ -199,45 +208,62 @@ export function ProjectDetailPage({
     setBusy(false);
   };
 
-  if (loading && !project) return <p role="status">{t('common.loading')}</p>;
-  if (error && !project) return <p className="notice notice--error">{error}</p>;
+  if (loading && !project)
+    return <LoadingState>{t('common.loading')}</LoadingState>;
+  if (error && !project) return <Notice tone="error">{error}</Notice>;
   if (!project) return null;
+  const canEditProject = capabilities?.manageAssigned === true;
+  const canCloseProject =
+    capabilities?.manage === true && project.status === 'active';
 
   return (
-    <section className="admin-page">
-      <header className="page-heading page-heading--actions">
-        <div>
-          <p className="eyebrow">{t('admin.eyebrow')}</p>
-          <h1>{project.name}</h1>
-          <p className="muted">
-            {project.description ?? t('common.notProvided')}
-          </p>
-        </div>
-        <div className="button-row">
-          {capabilities?.manageAssigned ? (
-            <Link className="button" to={`/app/admin/projects/${id}/edit`}>
-              {t('projects.editAction')}
-            </Link>
-          ) : null}
-          {capabilities?.manage && project.status === 'active' ? (
-            <Button disabled={busy} onClick={() => void close()}>
-              {t('projects.closeAction')}
-            </Button>
-          ) : null}
-        </div>
-      </header>
-      {error ? <p className="notice notice--error">{error}</p> : null}
-      {success ? <p className="notice notice--success">{success}</p> : null}
-      <dl className="panel volunteer-detail">
-        <div>
-          <dt>{t('common.status')}</dt>
-          <dd>{t(`projects.status.${project.status}`)}</dd>
-        </div>
-        <div>
-          <dt>{t('projects.createdAt')}</dt>
-          <dd>{new Date(project.createdAt).toLocaleString()}</dd>
-        </div>
-      </dl>
+    <section className="admin-page project-detail-page">
+      <PageHeader
+        actions={
+          canEditProject || canCloseProject ? (
+            <div className="button-row">
+              {canEditProject ? (
+                <Link className="button" to={`/app/admin/projects/${id}/edit`}>
+                  {t('projects.editAction')}
+                </Link>
+              ) : null}
+              {canCloseProject ? (
+                <Button
+                  busy={busy}
+                  disabled={busy}
+                  onClick={() => void close()}
+                  variant="danger"
+                >
+                  {t('projects.closeAction')}
+                </Button>
+              ) : null}
+            </div>
+          ) : null
+        }
+        description={project.description ?? t('common.notProvided')}
+        eyebrow={t('admin.eyebrow')}
+        title={project.name}
+        titleClassName="dynamic-title"
+      >
+        <dl className="project-summary">
+          <div>
+            <dt>{t('common.status')}</dt>
+            <dd>
+              <StatusBadge tone={getProjectStatusTone(project.status)}>
+                {t(`projects.status.${project.status}`)}
+              </StatusBadge>
+            </dd>
+          </div>
+          <div>
+            <dt>{t('projects.createdAt')}</dt>
+            <dd>{new Date(project.createdAt).toLocaleString()}</dd>
+          </div>
+        </dl>
+      </PageHeader>
+      <div className="feedback-stack">
+        {error ? <Notice tone="error">{error}</Notice> : null}
+        {success ? <Notice tone="success">{success}</Notice> : null}
+      </div>
       <ProjectActivitiesSection
         canManage={
           capabilities?.manage === true
@@ -250,51 +276,66 @@ export function ProjectDetailPage({
         projectStatus={project.status}
         service={activityService}
       />
-      {capabilities?.manageAssigned && project.status === 'active' ? (
-        <section className="panel project-assignment-panel">
-          <h2>{t('projects.assignTitle')}</h2>
-          <p className="muted">{t('projects.assignDescription')}</p>
-          <form
-            className="search-row search-row--single"
-            onSubmit={searchCandidates}
-          >
-            <Field
-              label={t('projects.volunteerSearch')}
-              maxLength={100}
-              name="projectVolunteerSearch"
-              onChange={(event) => {
-                setSearch(event.target.value);
-              }}
-              value={search}
-            />
-            <Button disabled={busy} type="submit">
-              {t('projects.searchAction')}
-            </Button>
-          </form>
-          {candidates.length === 0 && search ? (
-            <p>{t('projects.noCandidates')}</p>
-          ) : null}
-          <ul className="candidate-list">
-            {candidates.map((candidate) => (
-              <li className="inline-item" key={candidate.id}>
-                <span>{candidate.fullName}</span>
-                <Button
-                  disabled={busy}
-                  onClick={() => void assign(candidate.id)}
-                >
-                  {t('projects.assignAction')}
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-      <section>
-        <h2>{t('projects.participantsTitle')}</h2>
+      <section
+        aria-labelledby="project-participation-title"
+        className="project-section"
+      >
+        <div className="section-heading-content">
+          <h2 id="project-participation-title">
+            {t('projects.participantsTitle')}
+          </h2>
+        </div>
+        {capabilities?.manageAssigned && project.status === 'active' ? (
+          <div className="project-subsection">
+            <h3>{t('projects.assignTitle')}</h3>
+            <p className="muted">{t('projects.assignDescription')}</p>
+            <form
+              className="search-row search-row--single toolbar-form"
+              onSubmit={searchCandidates}
+            >
+              <Field
+                label={t('projects.volunteerSearch')}
+                maxLength={100}
+                name="projectVolunteerSearch"
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                }}
+                value={search}
+              />
+              <Button
+                busy={busy}
+                disabled={busy}
+                type="submit"
+                variant="primary"
+              >
+                {t('projects.searchAction')}
+              </Button>
+            </form>
+            {candidates.length === 0 && search ? (
+              <Notice tone="info">{t('projects.noCandidates')}</Notice>
+            ) : null}
+            <ul className="candidate-list">
+              {candidates.map((candidate) => (
+                <li className="inline-item" key={candidate.id}>
+                  <span>{candidate.fullName}</span>
+                  <Button
+                    disabled={busy}
+                    onClick={() => void assign(candidate.id)}
+                    variant="primary"
+                  >
+                    {t('projects.assignAction')}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         {assignments.length === 0 ? (
-          <p className="muted">{t('projects.noParticipants')}</p>
+          <div className="empty-copy" role="status">
+            <p>{t('projects.noParticipants')}</p>
+          </div>
         ) : (
-          <div className="table-scroll">
+          <TableRegion aria-label={t('projects.participantsTitle')}>
             <table className="data-table">
               <thead>
                 <tr>
@@ -305,52 +346,72 @@ export function ProjectDetailPage({
                 </tr>
               </thead>
               <tbody>
-                {assignments.map((assignment) => (
-                  <tr key={assignment.assignmentId}>
-                    <td>
-                      {capabilities?.manage ? (
-                        <Link
-                          to={`/app/admin/volunteers/${assignment.volunteerId}`}
-                        >
-                          {assignment.volunteerName}
-                        </Link>
-                      ) : (
-                        assignment.volunteerName
-                      )}
-                    </td>
-                    <td>{new Date(assignment.startedAt).toLocaleString()}</td>
-                    <td>
-                      {assignment.endedAt
-                        ? new Date(assignment.endedAt).toLocaleString()
-                        : t('projects.activeAssignment')}
-                    </td>
-                    <td>
-                      {capabilities?.manageAssigned &&
-                      isActiveProjectAssignment(assignment) ? (
-                        <Button
-                          disabled={busy}
-                          onClick={() => void finish(assignment.assignmentId)}
-                        >
-                          {t('projects.finishAction')}
-                        </Button>
-                      ) : (
-                        t('projects.historical')
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {assignments.map((assignment) => {
+                  const active = isActiveProjectAssignment(assignment);
+                  return (
+                    <tr
+                      className={
+                        active ? undefined : 'data-table__row--historical'
+                      }
+                      key={assignment.assignmentId}
+                    >
+                      <td className="table-primary-cell">
+                        {capabilities?.manage ? (
+                          <Link
+                            to={`/app/admin/volunteers/${assignment.volunteerId}`}
+                          >
+                            {assignment.volunteerName}
+                          </Link>
+                        ) : (
+                          assignment.volunteerName
+                        )}
+                      </td>
+                      <td>{new Date(assignment.startedAt).toLocaleString()}</td>
+                      <td>
+                        {assignment.endedAt ? (
+                          new Date(assignment.endedAt).toLocaleString()
+                        ) : (
+                          <StatusBadge tone="success">
+                            {t('projects.activeAssignment')}
+                          </StatusBadge>
+                        )}
+                      </td>
+                      <td>
+                        {capabilities?.manageAssigned && active ? (
+                          <Button
+                            busy={busy}
+                            disabled={busy}
+                            onClick={() => void finish(assignment.assignmentId)}
+                            variant="danger"
+                          >
+                            {t('projects.finishAction')}
+                          </Button>
+                        ) : (
+                          <StatusBadge tone="neutral">
+                            {t('projects.historical')}
+                          </StatusBadge>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-          </div>
+          </TableRegion>
         )}
       </section>
       {capabilities?.manage ? (
-        <section className="panel project-assignment-panel">
-          <h2>{t('projects.managersTitle')}</h2>
-          <p className="muted">{t('projects.managersDescription')}</p>
+        <section
+          aria-labelledby="project-managers-title"
+          className="project-section"
+        >
+          <div className="section-heading-content">
+            <h2 id="project-managers-title">{t('projects.managersTitle')}</h2>
+            <p className="muted">{t('projects.managersDescription')}</p>
+          </div>
           {project.status === 'active' ? (
             <form
-              className="search-row search-row--single"
+              className="search-row search-row--single toolbar-form"
               onSubmit={searchManagers}
             >
               <Field
@@ -362,7 +423,12 @@ export function ProjectDetailPage({
                 }}
                 value={managerSearch}
               />
-              <Button disabled={busy} type="submit">
+              <Button
+                busy={busy}
+                disabled={busy}
+                type="submit"
+                variant="primary"
+              >
                 {t('projects.searchAction')}
               </Button>
             </form>
@@ -374,6 +440,7 @@ export function ProjectDetailPage({
                 <Button
                   disabled={busy}
                   onClick={() => void assignManager(candidate.managerAccountId)}
+                  variant="primary"
                 >
                   {t('projects.assignManagerAction')}
                 </Button>
@@ -381,9 +448,11 @@ export function ProjectDetailPage({
             ))}
           </ul>
           {managerAssignments.length === 0 ? (
-            <p className="muted">{t('projects.noManagers')}</p>
+            <div className="empty-copy" role="status">
+              <p>{t('projects.noManagers')}</p>
+            </div>
           ) : (
-            <div className="table-scroll">
+            <TableRegion aria-label={t('projects.managersTitle')}>
               <table className="data-table">
                 <thead>
                   <tr>
@@ -394,34 +463,54 @@ export function ProjectDetailPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {managerAssignments.map((assignment) => (
-                    <tr key={assignment.assignmentId}>
-                      <td>{assignment.managerDisplayName}</td>
-                      <td>{new Date(assignment.startedAt).toLocaleString()}</td>
-                      <td>
-                        {assignment.endedAt
-                          ? new Date(assignment.endedAt).toLocaleString()
-                          : t('projects.activeAssignment')}
-                      </td>
-                      <td>
-                        {isActiveProjectAssignment(assignment) ? (
-                          <Button
-                            disabled={busy}
-                            onClick={() =>
-                              void finishManager(assignment.assignmentId)
-                            }
-                          >
-                            {t('projects.finishManagerAction')}
-                          </Button>
-                        ) : (
-                          t('projects.historical')
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {managerAssignments.map((assignment) => {
+                    const active = isActiveProjectAssignment(assignment);
+                    return (
+                      <tr
+                        className={
+                          active ? undefined : 'data-table__row--historical'
+                        }
+                        key={assignment.assignmentId}
+                      >
+                        <td className="table-primary-cell">
+                          {assignment.managerDisplayName}
+                        </td>
+                        <td>
+                          {new Date(assignment.startedAt).toLocaleString()}
+                        </td>
+                        <td>
+                          {assignment.endedAt ? (
+                            new Date(assignment.endedAt).toLocaleString()
+                          ) : (
+                            <StatusBadge tone="success">
+                              {t('projects.activeAssignment')}
+                            </StatusBadge>
+                          )}
+                        </td>
+                        <td>
+                          {active ? (
+                            <Button
+                              busy={busy}
+                              disabled={busy}
+                              onClick={() =>
+                                void finishManager(assignment.assignmentId)
+                              }
+                              variant="danger"
+                            >
+                              {t('projects.finishManagerAction')}
+                            </Button>
+                          ) : (
+                            <StatusBadge tone="neutral">
+                              {t('projects.historical')}
+                            </StatusBadge>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
-            </div>
+            </TableRegion>
           )}
         </section>
       ) : null}

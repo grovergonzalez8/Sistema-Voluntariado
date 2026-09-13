@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useState, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Button, Field } from '@sistema-voluntariado/ui';
+import {
+  Button,
+  Field,
+  LoadingState,
+  Notice,
+  StatusBadge,
+  TableRegion,
+} from '@sistema-voluntariado/ui';
 
 import type { ProjectActivityParticipationService } from '../application/project-activity-participation-service';
 import type { ProjectActivityParticipation } from '../domain/project-activity-participation';
@@ -118,7 +125,8 @@ export function ProjectActivityParticipantsSection({
   return (
     <section
       aria-labelledby={`activity-participants-${activity.id}`}
-      className="panel project-assignment-panel"
+      className="project-subsection activity-participants-section"
+      id={`activity-participation-${activity.id}`}
     >
       <h3 id={`activity-participants-${activity.id}`}>
         {t('projects.activities.participants.title', { name: activity.name })}
@@ -128,11 +136,14 @@ export function ProjectActivityParticipantsSection({
           ? t('projects.activities.participants.summary')
           : t('projects.activities.participants.readOnly')}
       </p>
-      {loading ? <p role="status">{t('common.loading')}</p> : null}
-      {error ? <p className="notice notice--error">{error}</p> : null}
-      {success ? <p className="notice notice--success">{success}</p> : null}
+      {loading ? <LoadingState>{t('common.loading')}</LoadingState> : null}
+      {error ? <Notice tone="error">{error}</Notice> : null}
+      {success ? <Notice tone="success">{success}</Notice> : null}
       {mutable ? (
-        <form className="search-row search-row--single" onSubmit={search}>
+        <form
+          className="search-row search-row--single toolbar-form"
+          onSubmit={search}
+        >
           <Field
             label={t('projects.activities.participants.search')}
             maxLength={100}
@@ -142,7 +153,7 @@ export function ProjectActivityParticipantsSection({
             }}
             value={query}
           />
-          <Button disabled={busy} type="submit">
+          <Button busy={busy} disabled={busy} type="submit" variant="primary">
             {t('projects.searchAction')}
           </Button>
         </form>
@@ -151,15 +162,11 @@ export function ProjectActivityParticipantsSection({
         <ul className="candidate-list">
           {candidates.map((candidate) => (
             <li className="inline-item" key={candidate.volunteerId}>
-              <span>
-                {candidate.volunteerName}{' '}
-                <small className="muted">
-                  ({candidate.volunteerId.slice(0, 8)})
-                </small>
-              </span>
+              <span>{candidate.volunteerName}</span>
               <Button
                 disabled={busy}
                 onClick={() => void add(candidate.volunteerId)}
+                variant="primary"
               >
                 {t('projects.activities.participants.addAction')}
               </Button>
@@ -168,10 +175,16 @@ export function ProjectActivityParticipantsSection({
         </ul>
       ) : null}
       {!loading && participations.length === 0 ? (
-        <p className="muted">{t('projects.activities.participants.empty')}</p>
+        <div className="empty-copy" role="status">
+          <p>{t('projects.activities.participants.empty')}</p>
+        </div>
       ) : null}
       {participations.length > 0 ? (
-        <div className="table-scroll">
+        <TableRegion
+          aria-label={t('projects.activities.participants.title', {
+            name: activity.name,
+          })}
+        >
           <table className="data-table">
             <thead>
               <tr>
@@ -186,37 +199,47 @@ export function ProjectActivityParticipantsSection({
                 const explicitlyActive =
                   isActiveProjectActivityParticipation(participation);
                 return (
-                  <tr key={participation.participationId}>
-                    <td>
-                      {participation.volunteerName}{' '}
-                      <small className="muted">
-                        ({participation.volunteerId.slice(0, 8)})
-                      </small>
+                  <tr
+                    className={
+                      explicitlyActive
+                        ? undefined
+                        : 'data-table__row--historical'
+                    }
+                    key={participation.participationId}
+                  >
+                    <td className="table-primary-cell">
+                      {participation.volunteerName}
                     </td>
                     <td>
                       {new Date(participation.startedAt).toLocaleString()}
                     </td>
                     <td>
-                      {participation.endedAt
-                        ? new Date(participation.endedAt).toLocaleString()
-                        : mutable
-                          ? t('projects.activities.participants.current')
-                          : t(
-                              'projects.activities.participants.historicalUnended',
-                            )}
+                      {participation.endedAt ? (
+                        new Date(participation.endedAt).toLocaleString()
+                      ) : mutable ? (
+                        <StatusBadge tone="success">
+                          {t('projects.activities.participants.current')}
+                        </StatusBadge>
+                      ) : (
+                        t('projects.activities.participants.historicalUnended')
+                      )}
                     </td>
                     <td>
                       {mutable && explicitlyActive ? (
                         <Button
+                          busy={busy}
                           disabled={busy}
                           onClick={() =>
                             void finish(participation.participationId)
                           }
+                          variant="danger"
                         >
                           {t('projects.activities.participants.finishAction')}
                         </Button>
                       ) : (
-                        t('projects.activities.readOnly')
+                        <StatusBadge tone="neutral">
+                          {t('projects.activities.readOnly')}
+                        </StatusBadge>
                       )}
                     </td>
                   </tr>
@@ -224,7 +247,7 @@ export function ProjectActivityParticipantsSection({
               })}
             </tbody>
           </table>
-        </div>
+        </TableRegion>
       ) : null}
     </section>
   );
