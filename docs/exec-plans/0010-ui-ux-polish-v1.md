@@ -1,6 +1,6 @@
 # ExecPlan 0010: UI/UX Polish V1
 
-- Estado: en ejecución; Fases 1, 1.1 y 2 completadas
+- Estado: completado; Fases 1, 1.1, 2 y 3 implementadas
 - Fecha: 2026-09-11
 - Rama autorizada: `feat/ui-ux-polish-v1`
 - Commit base: `33678c1bb708fc0872496a575b4b3cdb35f6c1b3`
@@ -444,7 +444,7 @@ Preparar una matriz antes/después con datos `.invalid` en `1280×800`, `1024×7
 - [x] Ejecutar Fase 1.
 - [x] Ejecutar corrección visual Fase 1.1 de shell, overflow, títulos y densidad.
 - [x] Ejecutar Fase 2.
-- [ ] Ejecutar Fase 3 y cerrar el plan con evidencia.
+- [x] Ejecutar Fase 3 y cerrar el plan con evidencia.
 
 ## Verificaciones de esta entrega documental
 
@@ -513,12 +513,22 @@ incorporadas.
 - Formularios, filtros y acciones sensibles conservaron handlers, guards y copy
   contractual. Solo se añadieron títulos de sección visuales para separar creación,
   listado y preparación del libro.
+- Fase 3 organiza Project detail como resumen, Activities, participación de
+  voluntarios y responsables mediante secciones ligeras con bordes y spacing, sin
+  convertir permisos o estados en responsabilidades de componentes compartidos.
+- Los tonos de Project y Activity se calculan en `projects/presentation`; los
+  estados siguen mostrándose siempre con texto. Las filas históricas y acciones
+  terminales ganan jerarquía visual sin alterar guards, confirmaciones ni
+  condiciones disabled.
+- Los UUID truncados de candidatos y participantes se retiraron de la presentación;
+  los IDs continúan usándose internamente en keys y llamadas existentes.
 
-## Resultado actual
+## Resultado final
 
-Fases 1, 1.1 y 2 completadas. El shell, las fundaciones visuales, los estados
-compartidos y los recorridos de identidad, perfil y registro están implementados;
-Fase 3 permanece pendiente.
+Fases 1, 1.1, 2 y 3 completadas. El shell, las fundaciones visuales, los estados
+compartidos y los recorridos de identidad, perfil, registro, Projects, Activities,
+Participation y Project Managers están implementados. No se modificaron reglas,
+permisos, servicios, contratos ni infraestructura.
 La validación 1.1 cubrió perfil y voluntarios en escritorio, tablet `768px`,
 invitaciones a `440px` y un proyecto existente de 44 caracteres a `390px`, con
 `documentElement.scrollWidth === clientWidth`. La regresión E2E del shell verifica
@@ -571,3 +581,32 @@ Las revisiones de QA y arquitectura no detectaron bloqueantes P0/P1. Arquitectur
 confirmó que las primitivas visuales no conocen dominio, autorización, servicios
 ni infraestructura; QA confirmó la conservación de guards, condiciones disabled,
 acciones, estados terminales y copy contractual.
+
+### Evidencia de Fase 3
+
+| Gate                                     | Resultado                                                                                   |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Focales de presentación                  | PASS; 5 archivos, 19 pruebas                                                                |
+| `corepack pnpm typecheck`                | PASS                                                                                        |
+| `corepack pnpm lint`                     | PASS                                                                                        |
+| `corepack pnpm lint:boundaries`          | PASS                                                                                        |
+| `corepack pnpm test:unit`                | PASS; 45 archivos, 245 pruebas                                                              |
+| `corepack pnpm test:integration`         | PASS; 2 archivos, 4 pruebas                                                                 |
+| `corepack pnpm build`                    | PASS; 483 módulos transformados                                                             |
+| `corepack pnpm verify`                   | PASS; formato, arquitectura, tipos, funciones, orquestación, unitarias, integración y build |
+| E2E focal Projects/Activities            | PASS; 11/11, excluido explícitamente el caso de concurrencia                                |
+| `corepack pnpm test:e2e`                 | PASS; 21/21 en el único intento solicitado                                                  |
+| `git diff --check` y patrones prohibidos | PASS; sin patrones prohibidos ni cambios fuera de presentation, estilos, tests y plan       |
+| `db:test` y concurrencia dedicada        | No ejecutados por alcance explícito                                                         |
+
+La inspección visual local cubrió Projects listado `1440`, Project detail
+`1440/768/420`, una Activity con participación real `1440` y un Project cerrado
+`1440`. Todos los viewports medidos mantuvieron
+`documentElement.scrollWidth === clientWidth`; las tablas conservaron overflow
+interno mediante `TableRegion`. Las capturas seguras de fixtures se guardaron solo
+en `/tmp/ui-polish-phase3-*.png`.
+
+Arquitectura confirmó que los cambios permanecen en presentación y estilos, sin
+filtrar reglas, autorización ni infraestructura. QA confirmó la conservación de
+guards, acciones y estados terminales; su única observación visual, evitar un
+contenedor de acciones vacío en `PageHeader`, se corrigió antes del cierre.
