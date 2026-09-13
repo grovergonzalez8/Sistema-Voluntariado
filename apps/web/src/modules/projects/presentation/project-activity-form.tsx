@@ -1,7 +1,7 @@
 import { useState, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Button, Field } from '@sistema-voluntariado/ui';
+import { Button, Field, Notice } from '@sistema-voluntariado/ui';
 
 import type { ProjectActivityService } from '../application/project-activity-service';
 import {
@@ -89,8 +89,12 @@ export function ProjectActivityForm({
   };
 
   return (
-    <form className="panel project-activity-form" onSubmit={submit}>
-      <h3>
+    <form
+      aria-labelledby="project-activity-form-title"
+      className="project-activity-form"
+      onSubmit={submit}
+    >
+      <h3 id="project-activity-form-title">
         {activity
           ? t('projects.activities.editTitle')
           : t('projects.activities.createTitle')}
@@ -170,12 +174,22 @@ export function ProjectActivityForm({
         }}
         value={input.locationText}
       />
-      {error ? <p className="notice notice--error">{error}</p> : null}
+      {error ? <Notice tone="error">{error}</Notice> : null}
       <div className="button-row">
-        <Button className="button--primary" disabled={submitting} type="submit">
+        <Button
+          busy={submitting}
+          disabled={submitting}
+          type="submit"
+          variant="primary"
+        >
           {submitting ? t('common.saving') : t('projects.activities.save')}
         </Button>
-        <Button disabled={submitting} onClick={onCancel} type="button">
+        <Button
+          disabled={submitting}
+          onClick={onCancel}
+          type="button"
+          variant="secondary"
+        >
           {t('projects.activities.cancelForm')}
         </Button>
       </div>

@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Button, TableRegion } from '@sistema-voluntariado/ui';
+import {
+  Button,
+  LoadingState,
+  Notice,
+  StatusBadge,
+  TableRegion,
+} from '@sistema-voluntariado/ui';
 
 import type { ProjectActivityService } from '../application/project-activity-service';
 import type { ProjectActivityParticipationService } from '../application/project-activity-participation-service';
@@ -12,6 +18,7 @@ import {
 import type { ProjectStatus } from '../domain/project';
 import { ProjectActivityForm } from './project-activity-form';
 import { ProjectActivityParticipantsSection } from './project-activity-participants-section';
+import { getProjectActivityStatusTone } from './project-status-badge-tone';
 
 export function ProjectActivitiesSection({
   canManage,
@@ -93,8 +100,11 @@ export function ProjectActivitiesSection({
   );
 
   return (
-    <section aria-labelledby="project-activities-title">
-      <div className="page-heading page-heading--actions">
+    <section
+      aria-labelledby="project-activities-title"
+      className="project-section"
+    >
+      <div className="section-heading-content section-heading-content--actions">
         <div>
           <h2 id="project-activities-title">
             {t('projects.activities.title')}
@@ -106,14 +116,15 @@ export function ProjectActivitiesSection({
             onClick={() => {
               setEditing('create');
             }}
+            variant="primary"
           >
             {t('projects.activities.createAction')}
           </Button>
         ) : null}
       </div>
-      {loading ? <p role="status">{t('common.loading')}</p> : null}
-      {error ? <p className="notice notice--error">{error}</p> : null}
-      {success ? <p className="notice notice--success">{success}</p> : null}
+      {loading ? <LoadingState>{t('common.loading')}</LoadingState> : null}
+      {error ? <Notice tone="error">{error}</Notice> : null}
+      {success ? <Notice tone="success">{success}</Notice> : null}
       {editing ? (
         <ProjectActivityForm
           activity={editing === 'create' ? undefined : editing}
@@ -130,7 +141,9 @@ export function ProjectActivitiesSection({
         />
       ) : null}
       {!loading && activities.length === 0 ? (
-        <p className="muted">{t('projects.activities.empty')}</p>
+        <div className="empty-copy" role="status">
+          <p>{t('projects.activities.empty')}</p>
+        </div>
       ) : null}
       {activities.length > 0 ? (
         <TableRegion aria-label={t('projects.activities.title')}>
@@ -149,8 +162,15 @@ export function ProjectActivitiesSection({
                 const canMutate =
                   mutable && isScheduledProjectActivity(activity);
                 return (
-                  <tr key={activity.id}>
-                    <td>{activity.name}</td>
+                  <tr
+                    className={
+                      isScheduledProjectActivity(activity)
+                        ? undefined
+                        : 'data-table__row--historical'
+                    }
+                    key={activity.id}
+                  >
+                    <td className="table-primary-cell">{activity.name}</td>
                     <td>
                       {new Date(activity.startsAt).toLocaleString()}
                       {activity.endsAt
@@ -158,12 +178,18 @@ export function ProjectActivitiesSection({
                         : null}
                     </td>
                     <td>
-                      {t(`projects.activities.status.${activity.status}`)}
+                      <StatusBadge
+                        tone={getProjectActivityStatusTone(activity.status)}
+                      >
+                        {t(`projects.activities.status.${activity.status}`)}
+                      </StatusBadge>
                     </td>
                     <td>{activity.locationText ?? t('common.notProvided')}</td>
                     <td>
                       <div className="button-row">
                         <Button
+                          aria-controls={`activity-participation-${activity.id}`}
+                          aria-expanded={selectedActivityId === activity.id}
                           onClick={() => {
                             setSelectedActivityId((current) =>
                               current === activity.id ? null : activity.id,
@@ -183,24 +209,30 @@ export function ProjectActivitiesSection({
                               {t('projects.activities.editAction')}
                             </Button>
                             <Button
+                              busy={busy}
                               disabled={busy}
                               onClick={() =>
                                 void transition(activity, 'completed')
                               }
+                              variant="danger"
                             >
                               {t('projects.activities.completeAction')}
                             </Button>
                             <Button
+                              busy={busy}
                               disabled={busy}
                               onClick={() =>
                                 void transition(activity, 'cancelled')
                               }
+                              variant="danger"
                             >
                               {t('projects.activities.cancelAction')}
                             </Button>
                           </>
                         ) : (
-                          <span>{t('projects.activities.readOnly')}</span>
+                          <StatusBadge tone="neutral">
+                            {t('projects.activities.readOnly')}
+                          </StatusBadge>
                         )}
                       </div>
                     </td>

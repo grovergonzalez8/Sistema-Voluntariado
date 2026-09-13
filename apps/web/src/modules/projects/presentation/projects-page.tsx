@@ -2,10 +2,20 @@ import { useEffect, useRef, useState, type SyntheticEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
-import { Button, Field, TableRegion } from '@sistema-voluntariado/ui';
+import {
+  Button,
+  EmptyState,
+  Field,
+  LoadingState,
+  Notice,
+  PageHeader,
+  StatusBadge,
+  TableRegion,
+} from '@sistema-voluntariado/ui';
 
 import type { ProjectManagementService } from '../application/project-management-service';
 import type { Project } from '../domain/project';
+import { getProjectStatusTone } from './project-status-badge-tone';
 
 const pageSize = 25;
 
@@ -64,19 +74,25 @@ export function ProjectsPage({
 
   return (
     <section className="admin-page">
-      <header className="page-heading page-heading--actions">
-        <div>
-          <p className="eyebrow">{t('admin.eyebrow')}</p>
-          <h1>{t('projects.title')}</h1>
-          <p className="muted">{t('projects.description')}</p>
-        </div>
-        {canCreate ? (
-          <Link className="button button--primary" to="/app/admin/projects/new">
-            {t('projects.createAction')}
-          </Link>
-        ) : null}
-      </header>
-      <form className="search-row search-row--single" onSubmit={submitSearch}>
+      <PageHeader
+        actions={
+          canCreate ? (
+            <Link
+              className="button button--primary"
+              to="/app/admin/projects/new"
+            >
+              {t('projects.createAction')}
+            </Link>
+          ) : null
+        }
+        description={t('projects.description')}
+        eyebrow={t('admin.eyebrow')}
+        title={t('projects.title')}
+      />
+      <form
+        className="search-row search-row--single toolbar-form"
+        onSubmit={submitSearch}
+      >
         <Field
           label={t('projects.search')}
           maxLength={120}
@@ -86,15 +102,17 @@ export function ProjectsPage({
           }}
           value={searchInput}
         />
-        <Button type="submit">{t('projects.searchAction')}</Button>
+        <Button type="submit" variant="primary">
+          {t('projects.searchAction')}
+        </Button>
       </form>
-      {error ? <p className="notice notice--error">{error}</p> : null}
-      {loading ? <p role="status">{t('common.loading')}</p> : null}
+      {error ? <Notice tone="error">{error}</Notice> : null}
+      {loading ? <LoadingState>{t('common.loading')}</LoadingState> : null}
       {!loading && projects.length === 0 ? (
-        <section className="panel empty-state">
-          <h2>{search ? t('projects.noResults') : t('projects.emptyTitle')}</h2>
-          <p>{t('projects.emptyDescription')}</p>
-        </section>
+        <EmptyState
+          description={t('projects.emptyDescription')}
+          title={search ? t('projects.noResults') : t('projects.emptyTitle')}
+        />
       ) : null}
       {!loading && projects.length > 0 ? (
         <>
@@ -112,8 +130,12 @@ export function ProjectsPage({
               <tbody>
                 {projects.map((project) => (
                   <tr key={project.id}>
-                    <td>{project.name}</td>
-                    <td>{t(`projects.status.${project.status}`)}</td>
+                    <td className="table-primary-cell">{project.name}</td>
+                    <td>
+                      <StatusBadge tone={getProjectStatusTone(project.status)}>
+                        {t(`projects.status.${project.status}`)}
+                      </StatusBadge>
+                    </td>
                     <td>{new Date(project.updatedAt).toLocaleString()}</td>
                     <td>
                       <Link to={`/app/admin/projects/${project.id}`}>

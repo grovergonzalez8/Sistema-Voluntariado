@@ -2,10 +2,18 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
-import { TableRegion } from '@sistema-voluntariado/ui';
+import {
+  EmptyState,
+  LoadingState,
+  Notice,
+  PageHeader,
+  StatusBadge,
+  TableRegion,
+} from '@sistema-voluntariado/ui';
 
 import type { ProjectManagementService } from '../application/project-management-service';
 import type { VolunteerProjectAssignment } from '../domain/project-assignment';
+import { getProjectStatusTone } from './project-status-badge-tone';
 
 export function VolunteerProjectsPage({
   service,
@@ -35,20 +43,20 @@ export function VolunteerProjectsPage({
 
   return (
     <section className="admin-page">
-      <header className="page-heading page-heading--actions">
-        <div>
-          <p className="eyebrow">{t('admin.eyebrow')}</p>
-          <h1>{t('projects.volunteerHistoryTitle')}</h1>
-          <p className="muted">{t('projects.volunteerHistoryDescription')}</p>
-        </div>
-        <Link className="button" to={`/app/admin/volunteers/${id}`}>
-          {t('projects.backToVolunteer')}
-        </Link>
-      </header>
-      {error ? <p className="notice notice--error">{error}</p> : null}
-      {loading ? <p role="status">{t('common.loading')}</p> : null}
+      <PageHeader
+        actions={
+          <Link className="button" to={`/app/admin/volunteers/${id}`}>
+            {t('projects.backToVolunteer')}
+          </Link>
+        }
+        description={t('projects.volunteerHistoryDescription')}
+        eyebrow={t('admin.eyebrow')}
+        title={t('projects.volunteerHistoryTitle')}
+      />
+      {error ? <Notice tone="error">{error}</Notice> : null}
+      {loading ? <LoadingState>{t('common.loading')}</LoadingState> : null}
       {!loading && assignments.length === 0 ? (
-        <p className="muted">{t('projects.noVolunteerProjects')}</p>
+        <EmptyState title={t('projects.noVolunteerProjects')} />
       ) : null}
       {!loading && assignments.length > 0 ? (
         <TableRegion aria-label={t('projects.volunteerHistoryTitle')}>
@@ -65,16 +73,29 @@ export function VolunteerProjectsPage({
               {assignments.map((assignment) => (
                 <tr key={assignment.assignmentId}>
                   <td>
-                    <Link to={`/app/admin/projects/${assignment.projectId}`}>
+                    <Link
+                      className="table-primary-cell"
+                      to={`/app/admin/projects/${assignment.projectId}`}
+                    >
                       {assignment.projectName}
                     </Link>
                   </td>
-                  <td>{t(`projects.status.${assignment.projectStatus}`)}</td>
+                  <td>
+                    <StatusBadge
+                      tone={getProjectStatusTone(assignment.projectStatus)}
+                    >
+                      {t(`projects.status.${assignment.projectStatus}`)}
+                    </StatusBadge>
+                  </td>
                   <td>{new Date(assignment.startedAt).toLocaleString()}</td>
                   <td>
-                    {assignment.endedAt
-                      ? new Date(assignment.endedAt).toLocaleString()
-                      : t('projects.activeAssignment')}
+                    {assignment.endedAt ? (
+                      new Date(assignment.endedAt).toLocaleString()
+                    ) : (
+                      <StatusBadge tone="success">
+                        {t('projects.activeAssignment')}
+                      </StatusBadge>
+                    )}
                   </td>
                 </tr>
               ))}
