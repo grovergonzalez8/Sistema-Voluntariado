@@ -123,6 +123,19 @@ export function startLocalSupabase({
       `Supabase local is already running. Run pnpm db:stop before starting with ${mode === 'real-email' ? 'Gmail SMTP' : 'Mailpit'}.`,
     );
   }
+  if (!status.error) {
+    const cleanup = runCommand(
+      process.execPath,
+      [pnpmCli, 'exec', 'supabase', 'stop'],
+      { cwd: workspaceRoot, env: environment, stdio: 'ignore' },
+    );
+    if (cleanup.error || cleanup.status !== 0) {
+      throw commandFailure(
+        'supabase stop (stale local stack cleanup)',
+        cleanup,
+      );
+    }
+  }
 
   console.info(
     mode === 'real-email'

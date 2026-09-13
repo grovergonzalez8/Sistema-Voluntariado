@@ -120,15 +120,33 @@ test('default orchestration starts Supabase with Mailpit and no real password', 
     },
   });
 
-  assert.equal(calls.length, 2);
-  assert.deepEqual(calls[1].args.slice(-3), [
+  assert.equal(calls.length, 3);
+  assert.deepEqual(calls[1].args.slice(-1), ['stop']);
+  assert.deepEqual(calls[2].args.slice(-3), [
     'start',
     '--exclude',
     'edge-runtime',
   ]);
-  assert.equal(calls[1].options.env.SUPABASE_LOCAL_SMTP_ENABLED, 'true');
-  assert.equal(calls[1].options.env.SUPABASE_AUTH_EMAIL_SMTP_ENABLED, 'false');
-  assert.equal('SUPABASE_AUTH_EMAIL_SMTP_PASS' in calls[1].options.env, false);
+  assert.equal(calls[2].options.env.SUPABASE_LOCAL_SMTP_ENABLED, 'true');
+  assert.equal(calls[2].options.env.SUPABASE_AUTH_EMAIL_SMTP_ENABLED, 'false');
+  assert.equal('SUPABASE_AUTH_EMAIL_SMTP_PASS' in calls[2].options.env, false);
+});
+
+test('cleans a partial local stack before retrying Supabase start', () => {
+  const calls = [];
+  startLocalSupabase({
+    pnpmCli: '/pnpm.cjs',
+    environmentOptions: { environment: {} },
+    runCommand: (command, args) => {
+      calls.push({ args, command });
+      return { status: args.includes('status') ? 1 : 0 };
+    },
+  });
+
+  assert.deepEqual(
+    calls.map(({ args }) => args.slice(-1)[0]),
+    ['json', 'stop', 'edge-runtime'],
+  );
 });
 
 test('default orchestration refuses to reuse a possibly real-email stack', () => {
@@ -202,12 +220,13 @@ test('real email preflights status then starts with Gmail overrides', () => {
     },
   });
 
-  assert.equal(calls.length, 2);
-  assert.equal(calls[1].args.includes('start'), true);
-  assert.equal(calls[1].options.env.SUPABASE_LOCAL_SMTP_ENABLED, 'false');
-  assert.equal(calls[1].options.env.SUPABASE_AUTH_EMAIL_SMTP_ENABLED, 'true');
+  assert.equal(calls.length, 3);
+  assert.equal(calls[1].args.includes('stop'), true);
+  assert.equal(calls[2].args.includes('start'), true);
+  assert.equal(calls[2].options.env.SUPABASE_LOCAL_SMTP_ENABLED, 'false');
+  assert.equal(calls[2].options.env.SUPABASE_AUTH_EMAIL_SMTP_ENABLED, 'true');
   assert.equal(
-    calls[1].options.env.SUPABASE_AUTH_EMAIL_SMTP_PASS,
+    calls[2].options.env.SUPABASE_AUTH_EMAIL_SMTP_PASS,
     'app password value',
   );
 });
