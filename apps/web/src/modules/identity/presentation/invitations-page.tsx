@@ -415,6 +415,7 @@ function ScopedInvitationsPage({
                     <Button
                       disabled={submitting}
                       onClick={() => void act(invitation, 'revoke')}
+                      variant="danger"
                     >
                       {t('invitations.revoke')}
                     </Button>

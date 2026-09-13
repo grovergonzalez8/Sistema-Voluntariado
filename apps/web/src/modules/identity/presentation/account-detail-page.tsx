@@ -229,6 +229,7 @@ export function AccountDetailPage({
                 <Button
                   disabled={submitting || account.status !== 'active'}
                   onClick={() => void changeRole(role, 'revoke')}
+                  variant="danger"
                 >
                   {t('accounts.removeRole')}
                 </Button>
