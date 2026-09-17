@@ -331,3 +331,25 @@ y el E2E existente no prueba logout/login final ni las fronteras distribuidas.
   sesión siga viva; regresiones focalizadas y mutation check restaurado.
 - Fuera de alcance: DB, pgTAP, Edge Functions, concurrencia, dependencias y cambios
   al happy path válido.
+
+## Activity Attendance V1 0018 — fase de diseño
+
+- Objetivo: diseñar Attendance real asociado a Activity Participation antes de
+  cualquier implementación.
+- Herramienta: agente principal de Codex como único escritor; architect,
+  database security, QA y docs governance revisaron en modo de solo lectura.
+- Rama/base: `feat/activity-attendance-v1` desde `main@cb554c8`.
+- Prompt: `docs/ai/prompts/0018-activity-attendance-v1.md`.
+- Plan: `docs/exec-plans/0011-activity-attendance-v1.md`.
+- Cambios: ExecPlan y trazabilidad IA; sin migración, RPC, código productivo, UI
+  o pruebas productivas.
+- Validación: `pnpm verify` con Node 22.18.0/pnpm 11.9.0 y
+  `git diff --check`; DB reset, pgTAP, concurrencia y E2E no ejecutados por
+  alcance.
+- Estado: diseño detenido para aprobación humana; sin push, merge, rebase,
+  amend, despliegue, cambio de `main` ni Supabase remoto.
+
+Decisiones materiales: tabla 0..1 por Participation; `present|absent` y ausencia
+de fila como `unregistered`; Activity completed/Project active como única ventana
+mutable; Participation finalizada elegible; permisos Project existentes; cierre
+sin bloqueo por faltantes; locks hasta Attendance y auditoría sin PII.

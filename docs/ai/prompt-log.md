@@ -16,6 +16,7 @@
 | 0012 | 2026-09-01 | Diseñar Activity Participation V1                | Codex       | Diseño inicial; baseline aprobada   | `0457cbb`                                                                            |
 | 0013 | 2026-09-02 | Implementar Activity Participation V1            | Codex       | Completado; gates locales aprobados | `4fecd5c`, `a1264d4`, `1c88cc6`, `8162d39` y cierre de trazabilidad                  |
 | 0014 | 2026-09-03 | Diagnosticar Invitation Flow Hardening V1        | Codex       | Diagnóstico; paridad CI pendiente   | cierre documental                                                                    |
+| 0018 | 2026-09-16 | Diseñar Activity Attendance V1                   | Codex       | Diseño; implementación no iniciada  | cierre documental                                                                    |
 
 Detalle: `docs/ai/prompts/0001-bootstrap-foundation.md`.
 
@@ -115,3 +116,10 @@ Correctivo Invitation Flow Hardening 0017:
 exclusivamente el cleanup de actor en callback y acceptance: solo `Result.ok`
 habilita `/login`; failure o rejection permanecen fail-closed con retry seguro.
 No incluye DB, Edge Functions, concurrencia ni cambios al happy path.
+
+Activity Attendance V1 0018:
+`docs/ai/prompts/0018-activity-attendance-v1.md`. La fase se limita a reconstruir
+los contratos actuales, resolver decisiones de producto y diseñar esquema,
+autorización, locks, concurrencia, auditoría, UI y pruebas en
+`docs/exec-plans/0011-activity-attendance-v1.md`. No se creó migración, RPC,
+código productivo, UI ni test productivo.
