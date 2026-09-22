@@ -17,6 +17,7 @@
 | 0013 | 2026-09-02 | Implementar Activity Participation V1            | Codex       | Completado; gates locales aprobados | `4fecd5c`, `a1264d4`, `1c88cc6`, `8162d39` y cierre de trazabilidad                  |
 | 0014 | 2026-09-03 | Diagnosticar Invitation Flow Hardening V1        | Codex       | Diagnóstico; paridad CI pendiente   | cierre documental                                                                    |
 | 0018 | 2026-09-16 | Diseñar Activity Attendance V1                   | Codex       | Diseño; implementación no iniciada  | cierre documental                                                                    |
+| 0019 | 2026-09-20 | Implementar Activity Attendance V1 FASE A        | Codex       | Completado; gates locales aprobados | `2a164d4`, `b243126` y cierre documental                                             |
 
 Detalle: `docs/ai/prompts/0001-bootstrap-foundation.md`.
 
@@ -123,3 +124,8 @@ los contratos actuales, resolver decisiones de producto y diseñar esquema,
 autorización, locks, concurrencia, auditoría, UI y pruebas en
 `docs/exec-plans/0011-activity-attendance-v1.md`. No se creó migración, RPC,
 código productivo, UI ni test productivo.
+
+Activity Attendance V1 FASE A 0019:
+`docs/ai/prompts/0019-activity-attendance-v1-phase-a.md`. Implementa solo tabla,
+RLS/ACL, RPC autoritativo, autorización, auditoría, pgTAP, concurrencia y tipos DB
+mínimos; dominio/aplicación, gateway, composición, UI y E2E permanecen diferidos.

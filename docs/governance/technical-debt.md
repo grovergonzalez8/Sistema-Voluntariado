@@ -14,3 +14,5 @@
 | TD-011 | Email de invitación sin locale dinámico               | Supabase local usa un único template y no ofrece selección dinámica limpia por `preferred_locale`                                | adoptar una capacidad soportada del proveedor sin mailer propio |
 
 La deuda no autoriza pantallas falsas ni controles de seguridad incompletos.
+FASE A de Activity Attendance no añade deuda técnica: UI/E2E son trabajo
+planificado de FASE B, no una omisión aceptada de este backend.

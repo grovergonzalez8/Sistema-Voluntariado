@@ -11,15 +11,15 @@ flowchart LR
   Identity -->|estado, roles e invitaciones| Audit
   Profile -->|profile.updated| Audit
   Registry -->|created, updated, imported| Audit
-  Projects -->|project/activity/participation lifecycle| Audit
+  Projects -->|project/activity/participation/attendance lifecycle| Audit
   Identity -. futuro .-> Groups["Volunteer Groups"]
   Identity -. futuro .-> Accommodation["Accommodation"]
-  Identity -. futuro .-> Tasks["Tasks & attendance"]
+  Identity -. futuro .-> Tasks["Tasks"]
   Identity -. futuro .-> Finance["Finance"]
   Identity -. futuro .-> Incidents["Incidents"]
 ```
 
-Supabase Auth es la fuente de credenciales, sesiones y enlaces de correo. Identity posee la cuenta de aplicación, invitaciones, roles, permisos, policies y transiciones. `accounts.auth_user_id` enlaza ambas fuentes; no se duplican credenciales ni tokens. Volunteer Profile no conoce tablas internas de autorización; recibe el actor mediante su puerto. Volunteer Registry recibe únicamente autoridad administrativa: sus registros no enlazan con Auth, cuentas ni perfiles y no provocan invitaciones u onboarding. Projects referencia esos registros institucionales por `volunteer_id` y posee Project Volunteer Assignments, scopes históricos de managers, Project Activities y la relación histórica Activity–Volunteer. La aplicación recibe capacidades por un puerto; PostgreSQL revalida cuenta, rol, permiso, scope, Project, Assignment y Activity sin que Projects importe internals de Identity. Audit recibe escrituras privilegiadas controladas y no gobierna el dominio.
+Supabase Auth es la fuente de credenciales, sesiones y enlaces de correo. Identity posee la cuenta de aplicación, invitaciones, roles, permisos, policies y transiciones. `accounts.auth_user_id` enlaza ambas fuentes; no se duplican credenciales ni tokens. Volunteer Profile no conoce tablas internas de autorización; recibe el actor mediante su puerto. Volunteer Registry recibe únicamente autoridad administrativa: sus registros no enlazan con Auth, cuentas ni perfiles y no provocan invitaciones u onboarding. Projects referencia esos registros institucionales por `volunteer_id` y posee Project Volunteer Assignments, scopes históricos de managers, Project Activities, la relación histórica Activity–Volunteer y Attendance 0..1 por Participation. La aplicación recibe capacidades por un puerto; PostgreSQL revalida cuenta, rol, permiso, scope, Project, Activity y Participation sin que Projects importe internals de Identity. Audit recibe escrituras privilegiadas controladas y no gobierna el dominio.
 
 El alcance de coordinator es provisionalmente “origen propio”: solo observa cuentas e invitaciones cuyo `origin_invited_by` corresponde al actor. Los scopes organizacionales requieren otro hito y nuevas reglas.
 

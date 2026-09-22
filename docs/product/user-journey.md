@@ -59,7 +59,7 @@ Administrator y manager contextual pueden crear Activities en Project activo, ed
 
 Dentro de una Activity, administrator y manager contextual ven Participants actuales e históricos, buscan solo Volunteers con Assignment activa al Project exacto, agregan una Participation y la finalizan explícitamente. Una Participation no finalizada en Activity programada bloquea finalizar el Assignment correspondiente. Activity terminal o Project cerrado mantiene incluso `ended_at is null` como histórico read-only, sin mutación automática.
 
-No existe attendance, RSVP, responsable individual, recurrencia, calendario externo, aprobación, capacidad, autoinscripción, scope genérico ni acceso para coordinator o voluntarios.
+FASE A ya persiste Activity Attendance por Participation, pero todavía no expone UI ni E2E al usuario. No existe asistencia genérica, por horas o check-in, RSVP, responsable individual, recurrencia, calendario externo, aprobación, capacidad, autoinscripción, scope genérico ni acceso para coordinator o voluntarios.
 
 ## Estados observables
 

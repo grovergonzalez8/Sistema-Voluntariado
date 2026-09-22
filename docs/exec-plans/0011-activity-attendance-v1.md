@@ -1,6 +1,6 @@
 # ExecPlan 0011 — Activity Attendance V1
 
-- Estado: diseño documentado; implementación no iniciada; aprobación humana pendiente
+- Estado: FASE A PostgreSQL implementada y validada; FASE B pendiente
 - Fecha: 2026-09-16
 - Rama: `feat/activity-attendance-v1`
 - Base: `main@cb554c8`
@@ -18,8 +18,9 @@ La V1 permitirá registrar `present` o `absent`, distinguirá la ausencia de una
 fila como `unregistered`, admitirá una corrección auditada mientras el Project
 siga activo y convertirá el historial en read-only al cerrar el Project.
 
-Este documento resuelve el diseño. No autoriza ni contiene migraciones, código
-productivo, tests productivos ni operaciones Supabase.
+Este documento resolvió el diseño y la aprobación humana del 2026-09-20 autorizó
+solo FASE A PostgreSQL. La UI, el E2E y el resto del slice vertical permanecen
+pendientes de FASE B; no se autorizan operaciones Supabase remotas.
 
 ## Estado inicial verificado
 
@@ -211,7 +212,7 @@ Tabla `public.project_activity_attendances`:
 | ------------------ | ------------- | --------------------------------------------------------------------------- |
 | `participation_id` | `uuid`        | PK y FK `project_activity_participations(id) ON DELETE RESTRICT`; inmutable |
 | `status`           | `text`        | NOT NULL; allowlist exacta `present` o `absent`                             |
-| `recorded_at`      | `timestamptz` | NOT NULL; `statement_timestamp()` del servidor; inmutable                   |
+| `created_at`       | `timestamptz` | NOT NULL; `statement_timestamp()` del servidor; inmutable                   |
 | `updated_at`       | `timestamptz` | NOT NULL; servidor; cambia solo al corregir                                 |
 
 Constraints y guards:
@@ -220,9 +221,9 @@ Constraints y guards:
   Participation.
 - FK restrictiva: no Attendance huérfana y sin cascada destructiva.
 - `status IN ('present', 'absent')`.
-- `updated_at >= recorded_at`.
+- `updated_at >= created_at`.
 - insert fija ambos timestamps server-side y rechaza status no permitido.
-- update conserva `participation_id`/`recorded_at`, solo permite cambiar a la
+- update conserva `participation_id`/`created_at`, solo permite cambiar a la
   alternativa exacta y fija `updated_at` server-side.
 - insert/update revalidan también en el guard `Project = active`,
   `Activity = completed` y ownership Participation→Activity; la RPC no es la
@@ -295,22 +296,19 @@ completed se mostraría read-only; la V1 no la borra ni la corrige por inferenci
 requested_activity_id uuid)`
    - exige lectura global/contextual;
    - autoriza Project antes de validar Activity;
-   - devuelve solo `participation_id`, `status`, `recorded_at`, `updated_at`;
+   - devuelve solo `participation_id`, `status`, `created_at`, `updated_at`;
    - la aplicación combina por `participation_id` con el listado de Participants;
    - una Participation sin fila se representa como `unregistered`.
-2. `record_project_activity_attendance(requested_project_id uuid,
-requested_activity_id uuid, requested_participation_id uuid,
-requested_status text)`
-   - exige mutación global/contextual, Project activo, Activity completed y
-     Participation perteneciente a esa Activity;
-   - inserta una sola fila; duplicado produce error estable.
-3. `correct_project_activity_attendance(requested_project_id uuid,
+2. `set_project_activity_attendance(requested_project_id uuid,
 requested_activity_id uuid, requested_participation_id uuid,
 expected_status text, requested_status text)`
-   - repite autoridad/lifecycle/ownership;
-   - bloquea Attendance, exige `current_status = expected_status` y
-     `requested_status <> expected_status`;
-   - corrige una sola vez y devuelve la proyección mínima.
+   - exige mutación global/contextual, Project activo, Activity completed y
+     Participation perteneciente a esa Activity;
+   - `expected_status is null` significa registro inicial y falla si ya existe
+     Attendance;
+   - `expected_status in ('present', 'absent')` significa corrección, bloquea la
+     fila y exige `current_status = expected_status` y estado nuevo distinto;
+   - no existe overwrite ciego ni upsert ambiguo.
 
 No habrá RPC DELETE, upsert ambiguo, status genérico con `unregistered`, bulk,
 consulta global ni actor/Volunteer controlado como autoridad por el cliente.
@@ -329,7 +327,6 @@ roster; cada mutación Attendance refresca su propia proyección.
 | `P0002`  | `project_not_found`                              |
 | `P0002`  | `project_activity_not_found`                     |
 | `P0002`  | `project_activity_participation_not_found`       |
-| `P0002`  | `project_activity_attendance_not_found`          |
 | `23514`  | `project_closed`                                 |
 | `23514`  | `project_activity_not_completed`                 |
 | `22023`  | `invalid_project_activity_attendance_status`     |
@@ -426,7 +423,7 @@ Contrato:
 - `entity_type = 'project_activity_attendance'`.
 - `entity_id = participation_id`.
 - actor = `auth.uid()` de la transacción.
-- recorded: `changed_fields = ['participation_id', 'status', 'recorded_at']`,
+- recorded: `changed_fields = ['participation_id', 'status', 'created_at']`,
   `new_state = present|absent`.
 - updated: `changed_fields = ['status']`, `previous_state` y `new_state` contienen
   solo los códigos técnicos `present|absent`.
@@ -482,9 +479,9 @@ autorizados por Participation. Attendance no agrega email, teléfono,
 
 - Crear, al implementar, una migración forward-only posterior a 0012,
   tentativamente
-  `supabase/migrations/202609160013_project_activity_attendance.sql`.
+  `supabase/migrations/202609200013_project_activity_attendance.sql`.
 - No editar 0001–0012.
-- Crear tabla vacía, constraints, RLS/revokes, guards, auditor y tres RPC.
+- Crear tabla vacía, constraints, RLS/revokes, guards, auditor y dos RPC.
 - No backfill: toda Participation previa, incluida la de Activities completed,
   comienza visualmente como `unregistered`.
 - No reemplazar `close_project`, su guard, RPC Activity ni RPC Participation
@@ -556,7 +553,7 @@ autorizados por Participation. Attendance no agrega email, teléfono,
 - cerrar Project con faltantes no falla ni crea Attendance; cerrado preserva
   lectura y niega mutación;
 - auditoría exacta, actor, estados técnicos, metadata vacía y fallos sin evento;
-- propietario/route privilegiada no puede mutar FK/recorded_at, escribir
+- propietario/route privilegiada no puede mutar FK/created_at, escribir
   `unregistered`, borrar ni evadir lifecycle mediante los guards;
 - retirar/conceder temporalmente `activity.join`/`activity.create` demuestra que
   no autorizan Attendance.
@@ -594,15 +591,16 @@ cada actor/estado.
 
 | Fase                     | Resultado esperado                                   | Validación incremental                             | Estado                                                |
 | ------------------------ | ---------------------------------------------------- | -------------------------------------------------- | ----------------------------------------------------- |
-| 0. Plan y aprobación     | contrato, decisiones, locks y reviewers documentados | `pnpm verify`, `git diff --check`, revisión humana | documentación completada; aprobación humana pendiente |
-| 1. Dominio/aplicación    | tipos, estados, puertos y casos de uso               | unitarias focalizadas, typecheck, boundaries       | pendiente                                             |
-| 2. PostgreSQL            | migración 0013, tabla, RLS/RPC, guards y audit       | reset local, DB lint, pgTAP focal/completo         | pendiente                                             |
+| 0. Plan y aprobación     | contrato, decisiones, locks y reviewers documentados | `pnpm verify`, `git diff --check`, revisión humana | completada; FASE A aprobada el 2026-09-20             |
+| 1. Dominio/aplicación    | tipos, estados, puertos y casos de uso               | unitarias focalizadas, typecheck, boundaries       | FASE B; solo tipos DB mínimos añadidos en FASE A      |
+| 2. PostgreSQL            | migración 0013, tabla, RLS/RPC, guards y audit       | reset local, DB lint, pgTAP focal/completo         | FASE A completada y validada                          |
 | 3. Infra/composición     | gateway tipado y servicio conectado                  | gateway/integration, typecheck, boundaries         | pendiente                                             |
 | 4. UI                    | Attendance dentro de Participants                    | componentes, i18n, accesibilidad, responsive       | pendiente                                             |
-| 5. Concurrencia/E2E/docs | harness, flujo canónico y documentación vigente      | carreras, E2E focal, docs                          | pendiente                                             |
+| 5. Concurrencia/E2E/docs | harness, flujo canónico y documentación vigente      | carreras, E2E focal, docs                          | harness/docs FASE A completos; E2E reservado a FASE B |
 | 6. Cierre                | gates y revisiones de implementación                 | release-readiness aplicable y revisión humana      | pendiente                                             |
 
-La fase 1 solo comienza tras aprobación humana explícita de este plan.
+La aprobación humana del 2026-09-20 autorizó solo FASE A PostgreSQL. La FASE B
+requiere una instrucción posterior y no se anticipa en este cambio.
 
 ## Riesgos y mitigaciones
 
@@ -676,6 +674,26 @@ recheck y no se promueven veredictos por inferencia.
 
 Ningún revisor modificó archivos ni ejecutó DB reset o suites pesadas.
 
+### Revisión final de FASE A
+
+La ronda de implementación fue de solo lectura. Database security y docs
+emitieron inicialmente NO-GO por SQLSTATE contractual y documentación desfasada;
+los hallazgos se integraron y sus rechecks dirigidos no reabrieron el alcance.
+
+- Database security reviewer: **GO** final. Confirmó SQLSTATE `23514`, PK/FK,
+  RLS/ACL, `SECURITY DEFINER`, autoridad fail-closed, lock order, auditoría exacta
+  sin PII y 58 pgTAP/12 carreras.
+- Architect: **GO**. Confirmó ownership en Projects, helper endurecido, orden de
+  locks, tipos mínimos en infraestructura y ausencia de UI/E2E/Edge Functions.
+- QA reviewer: **GO con observaciones no bloqueantes**. Ejecutó 58/58 focales y
+  el alias combinado 50/50; verificó cleanup sin conexiones, locks ni auditoría
+  residual. Reservó casos adicionales de la matriz ampliada como mejora futura;
+  el mínimo obligatorio de FASE A está cubierto.
+- Docs governor: **GO** final por cambio documental material. Confirmó coherencia
+  del plan, modelo, runtime, runbooks, riesgo/deuda y trazabilidad.
+
+Ningún revisor editó archivos ni ejecutó E2E o una operación remota.
+
 ## Validaciones de esta fase
 
 Runtime exacto:
@@ -698,6 +716,39 @@ PATH="$ATTENDANCE_NODE_BIN:$PATH" corepack pnpm --version # 11.9.0
 - DB reset, DB lint, pgTAP, concurrencia y E2E: **NOT EXECUTED**, de acuerdo con
   el alcance documental.
 
+### Validación de implementación FASE A
+
+La evidencia anterior permanece como histórico del plan inicial. Tras la
+autorización humana de FASE A se ejecutó con Node `22.18.0` y pnpm `11.9.0`:
+
+- `pnpm db:start`: PASS con stack local y Mailpit; sin Edge Runtime automático.
+- `pnpm db:reset`: PASS aplicando migraciones 0001–0013 y seed local.
+- `pnpm exec supabase db lint --local --level warning`: PASS, cero avisos.
+- `pnpm db:test`: PASS final, 9 archivos y 641 checks pgTAP.
+- pgTAP Attendance focal: PASS, 58 checks.
+- harness Attendance: PASS, 12/12 interleavings con conexiones independientes,
+  evidencia de bloqueo y cleanup de filas/auditoría/sesiones.
+- `pnpm test:functions`: PASS, 33/33.
+- Primera `pnpm verify` de implementación: FAIL en lint porque la fila nueva del
+  tipo curado Supabase carecía de la firma de índice requerida; se corrigió solo
+  ese contrato compartido.
+- Repetición `pnpm verify`: PASS; formato, lint, boundaries, cuatro probes,
+  typecheck web/Functions, 13 pruebas de orquestación E2E, 11 de SMTP local, 245
+  unitarias, 4 de integración y build de 483 módulos.
+- `git diff --check`: PASS.
+- E2E Attendance: **NOT EXECUTED**, expresamente reservado para FASE B.
+
+Mutation checks temporales, todas restauradas antes de continuar:
+
+- sin requisito `Activity = completed`: FAIL esperado, 3/55;
+- sin comparación de `expected_status`: FAIL esperado, 1/55;
+- sin helper de autoridad contextual: FAIL esperado, 9/55.
+
+Un recheck posterior al harness detectó 16 eventos de Assignment residuales por
+usar un `entity_type` incorrecto en cleanup. La aserción histórica falló, el
+cleanup se corrigió a `project_assignment`, se añadió una comprobación por fixture
+y la secuencia `reset → harness 12/12 → db:test 641/641` regresó a PASS.
+
 ## Progreso
 
 - 2026-09-16: Git/base/working tree confirmados y rama creada desde `main`.
@@ -711,6 +762,16 @@ PATH="$ATTENDANCE_NODE_BIN:$PATH" corepack pnpm --version # 11.9.0
   la repetición aprobó completa con runtime exacto.
 - 2026-09-16: validación final post-revisores aprobó `pnpm verify` completo y
   `git diff --check`; lista para el commit documental solicitado.
+- 2026-09-20: FASE A autorizada; precheck confirmó rama, HEAD `81dec44`, bases
+  `main`/`origin/main` y runtime exacto con working tree inicialmente limpio.
+- 2026-09-20: migración forward-only 0013, tipos DB mínimos, 58 checks pgTAP y
+  harness de 12 interleavings PostgreSQL implementados sin UI ni E2E.
+- 2026-09-20: las tres mutation checks dirigidas fallaron al retirar lifecycle
+  completed, precondición optimista y autoridad contextual; cada degradación se
+  restauró inmediatamente.
+- 2026-09-21: revisores finales emitieron database security GO, architect GO, QA
+  GO con observaciones no bloqueantes y docs GO; cambios técnicos registrados en
+  `2a164d4` y `b243126`, con cierre documental separado.
 
 ## Descubrimientos
 
@@ -738,9 +799,13 @@ PATH="$ATTENDANCE_NODE_BIN:$PATH" corepack pnpm --version # 11.9.0
 - No se agrega guard de completitud al cierre.
 - Se agrega precondición de estado esperado a la corrección para evitar lost
   updates.
+- FASE A consolida registro y corrección en un solo RPC autoritativo: NULL
+  significa alta exclusiva y un estado esperado significa corrección optimista.
+- Se usa `created_at`, conforme al contrato aprobado de implementación, y el
+  conflicto optimista conserva SQLSTATE `23514` del diseño aprobado.
 
 ## Resultado de esta fase
 
-Diseño autocontenido, revisado y validado, listo para el commit documental. La
-implementación de Attendance permanece expresamente detenida y requiere
-aprobación humana antes de la fase 1.
+El diseño documental inicial fue aprobado y FASE A implementa únicamente el
+backend PostgreSQL, su contrato tipado mínimo, pgTAP, concurrencia y gobernanza.
+Dominio/aplicación, gateway/composición, UI y E2E permanecen detenidos para FASE B.

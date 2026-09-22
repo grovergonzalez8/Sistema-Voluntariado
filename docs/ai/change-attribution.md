@@ -353,3 +353,18 @@ Decisiones materiales: tabla 0..1 por Participation; `present|absent` y ausencia
 de fila como `unregistered`; Activity completed/Project active como única ventana
 mutable; Participation finalizada elegible; permisos Project existentes; cierre
 sin bloqueo por faltantes; locks hasta Attendance y auditoría sin PII.
+
+## Activity Attendance V1 0019 — FASE A PostgreSQL
+
+- Objetivo: implementar únicamente persistencia, mutación, autorización,
+  auditoría y regresiones PostgreSQL del diseño aprobado.
+- Herramienta: agente principal de Codex como escritor; database security,
+  arquitectura y QA revisan al cierre en modo de solo lectura.
+- Rama/HEAD inicial: `feat/activity-attendance-v1@81dec44`.
+- Prompt: `docs/ai/prompts/0019-activity-attendance-v1-phase-a.md`.
+- Plan: `docs/exec-plans/0011-activity-attendance-v1.md`.
+- Cambios: migración 0013, un RPC de consulta, un único RPC de mutación, tipos DB
+  mínimos, pgTAP, harness de 12 interleavings y documentación de
+  seguridad/datos/arquitectura.
+- Fuera de alcance: dominio/aplicación, gateway/composición, UI, E2E y cualquier
+  operación Supabase remota.

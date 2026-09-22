@@ -17,7 +17,9 @@ El hito 0004 aplica la misma regla a Projects: incorpora solo `projects` y `proj
 
 Los hitos 0005 y 0006 aplicaron después la misma decisión incremental: 0005 incorporó únicamente el scope histórico de project manager y 0006 únicamente `project_activities` con lifecycle terminal, agenda mínima y cierre/concurrencia definidos.
 
-El hito 0007 aplicó la decisión a `project_activity_participations` solo después de definir sujeto Volunteer, elegibilidad por Project Assignment, lifecycle histórico, autoridad contextual, guards y concurrencia. Attendance, RSVP, self-join, Tasks, recurrencia, calendarios, capacidad y aprobación continúan diferidos.
+El hito 0007 aplicó la decisión a `project_activity_participations` solo después de definir sujeto Volunteer, elegibilidad por Project Assignment, lifecycle histórico, autoridad contextual, guards y concurrencia.
+
+El hito 0011 aplica la decisión a `project_activity_attendances` después de definir cardinalidad por Participation, estados `present|absent`, ausencia de fila como no registrado, mutabilidad solo en Activity completed de Project active, corrección optimista, autorización contextual, auditoría y carreras. RSVP, self-join, Tasks, recurrencia, calendarios, capacidad, horas y aprobación continúan diferidos.
 
 ## Alternativas
 

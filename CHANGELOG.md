@@ -39,6 +39,10 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 
 ### Added
 
+- Backend PostgreSQL de Activity Attendance V1: una fila `present|absent` por
+  Participation, ausencia como no registrado, RLS default-deny, RPC con
+  precondición optimista, auditoría mínima y 12 regresiones de concurrencia.
+
 - Diagnóstico reproducible y ExecPlan de Invitation Flow Hardening V1, con flujo
   real UI–Edge–PostgreSQL–Auth–Mailpit–onboarding, state machines, causas raíz y
   estrategia de regresión; la implementación queda deliberadamente pendiente.

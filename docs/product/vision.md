@@ -12,7 +12,7 @@ Administrator también gestiona proyectos administrativos mínimos y vincula dir
 
 ## Evolución futura
 
-Grupos, alojamiento, attendance/RSVP, reuniones, tareas, recurrencia, calendarios externos, flujos de aprobación, notificaciones, incidencias y finanzas se incorporarán por recorridos verticales después de acordar reglas. Ninguno existe como funcionalidad o tabla en esta entrega.
+Grupos, alojamiento, asistencia genérica/por horas/check-in, RSVP, reuniones, tareas, recurrencia, calendarios externos, flujos de aprobación, notificaciones, incidencias y finanzas se incorporarán por recorridos verticales después de acordar reglas. Activity Attendance V1 se limita a `present|absent` sobre una Participation existente; en FASE A existe solo su backend PostgreSQL, sin experiencia de usuario.
 
 ## Principios de producto
 
