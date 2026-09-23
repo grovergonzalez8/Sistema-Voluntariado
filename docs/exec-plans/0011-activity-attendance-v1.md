@@ -1,6 +1,6 @@
 # ExecPlan 0011 — Activity Attendance V1
 
-- Estado: FASE A PostgreSQL implementada y validada; FASE B pendiente
+- Estado: FASE A y FASE B implementadas y validadas; pre-merge pendiente
 - Fecha: 2026-09-16
 - Rama: `feat/activity-attendance-v1`
 - Base: `main@cb554c8`
@@ -18,9 +18,9 @@ La V1 permitirá registrar `present` o `absent`, distinguirá la ausencia de una
 fila como `unregistered`, admitirá una corrección auditada mientras el Project
 siga activo y convertirá el historial en read-only al cerrar el Project.
 
-Este documento resolvió el diseño y la aprobación humana del 2026-09-20 autorizó
-solo FASE A PostgreSQL. La UI, el E2E y el resto del slice vertical permanecen
-pendientes de FASE B; no se autorizan operaciones Supabase remotas.
+Este documento resolvió el diseño. La aprobación humana del 2026-09-20 autorizó
+FASE A PostgreSQL y la instrucción posterior del 2026-09-21 autorizó FASE B.
+Ambas fases están implementadas; no se autorizaron operaciones Supabase remotas.
 
 ## Estado inicial verificado
 
@@ -467,7 +467,8 @@ Se reutilizan `PageHeader` en Project detail, `StatusBadge`, `Notice`,
 `EmptyState`, `LoadingState`, `Button` y `TableRegion`; no se rediseña la
 aplicación. Loading/busy se acota a la fila o acción para evitar doble submit;
 success/error se anuncia mediante `Notice`. Los controles tienen label/nombre
-accesible, foco visible, teclado y confirmación de corrección. `TableRegion`
+accesible, foco visible y teclado. La corrección es una acción directa y
+optimista, sin diálogo adicional. `TableRegion`
 mantiene el comportamiento responsive existente. Textos se agregan en español e
 inglés.
 
@@ -587,20 +588,46 @@ Un recorrido canónico de administrator es suficiente:
 La matriz de autorización y negativos permanece en pgTAP; no se duplican E2E para
 cada actor/estado.
 
+### Implementación FASE B
+
+- `ProjectActivityAttendance` y su status exacto viven en dominio de Projects;
+  el puerto y `ProjectActivityAttendanceService` validan IDs, reutilizan la
+  autoridad Project existente y transmiten `expectedStatus` sin autolectura ni
+  retry.
+- `SupabaseProjectActivityAttendanceGateway` es el único adaptador nuevo. Valida
+  las proyecciones de ambas RPC, conserva error frente a empty y traduce los dos
+  conflictos optimistas estables a `attendance-stale`.
+- La composición crea explícitamente gateway y servicio; router, presentación y
+  dominio no importan Supabase ni conocen SQLSTATE.
+- Participants carga Participation y Attendance como un único snapshot de UI.
+  Solo un empty exitoso produce `Sin registrar`; loading y read failure no
+  renderizan datos parciales como autoritativos.
+- La UI usa `StatusBadge`, `Notice`, `LoadingState`, `EmptyState`, `Button` y
+  `TableRegion`. Activity completed de Project active expone registro/corrección;
+  scheduled, cancelled, Project closed y actor sin affordance permanecen
+  read-only.
+- El alta envía `expectedStatus = null`; la corrección envía el estado visible.
+  Un stale no reintenta la mutación: muestra feedback, relee y presenta el estado
+  confirmado por servidor.
+- Un contador de request descarta lecturas fuera de orden. Una revisión local de
+  Attendance impide que una lectura iniciada antes de una mutación exitosa
+  reemplace el estado confirmado posteriormente.
+- El E2E canónico crea el contexto, completa Activity, registra `present`, corrige
+  a `absent`, recarga y confirma persistencia. No duplica la matriz PostgreSQL.
+
 ## Fases de implementación
 
-| Fase                     | Resultado esperado                                   | Validación incremental                             | Estado                                                |
-| ------------------------ | ---------------------------------------------------- | -------------------------------------------------- | ----------------------------------------------------- |
-| 0. Plan y aprobación     | contrato, decisiones, locks y reviewers documentados | `pnpm verify`, `git diff --check`, revisión humana | completada; FASE A aprobada el 2026-09-20             |
-| 1. Dominio/aplicación    | tipos, estados, puertos y casos de uso               | unitarias focalizadas, typecheck, boundaries       | FASE B; solo tipos DB mínimos añadidos en FASE A      |
-| 2. PostgreSQL            | migración 0013, tabla, RLS/RPC, guards y audit       | reset local, DB lint, pgTAP focal/completo         | FASE A completada y validada                          |
-| 3. Infra/composición     | gateway tipado y servicio conectado                  | gateway/integration, typecheck, boundaries         | pendiente                                             |
-| 4. UI                    | Attendance dentro de Participants                    | componentes, i18n, accesibilidad, responsive       | pendiente                                             |
-| 5. Concurrencia/E2E/docs | harness, flujo canónico y documentación vigente      | carreras, E2E focal, docs                          | harness/docs FASE A completos; E2E reservado a FASE B |
-| 6. Cierre                | gates y revisiones de implementación                 | release-readiness aplicable y revisión humana      | pendiente                                             |
+| Fase                     | Resultado esperado                                   | Validación incremental                             | Estado                                    |
+| ------------------------ | ---------------------------------------------------- | -------------------------------------------------- | ----------------------------------------- |
+| 0. Plan y aprobación     | contrato, decisiones, locks y reviewers documentados | `pnpm verify`, `git diff --check`, revisión humana | completada; FASE A aprobada el 2026-09-20 |
+| 1. Dominio/aplicación    | tipos, estados, puertos y casos de uso               | unitarias focalizadas, typecheck, boundaries       | completada en FASE B                      |
+| 2. PostgreSQL            | migración 0013, tabla, RLS/RPC, guards y audit       | reset local, DB lint, pgTAP focal/completo         | FASE A completada y validada              |
+| 3. Infra/composición     | gateway tipado y servicio conectado                  | gateway/integration, typecheck, boundaries         | completada en FASE B                      |
+| 4. UI                    | Attendance dentro de Participants                    | componentes, i18n, accesibilidad, responsive       | completada en FASE B                      |
+| 5. Concurrencia/E2E/docs | harness, flujo canónico y documentación vigente      | carreras, E2E focal, docs                          | completada en FASE A/FASE B               |
+| 6. Cierre                | gates y revisiones de implementación                 | release-readiness aplicable y revisión humana      | FASE B validada; pre-merge pendiente      |
 
-La aprobación humana del 2026-09-20 autorizó solo FASE A PostgreSQL. La FASE B
-requiere una instrucción posterior y no se anticipa en este cambio.
+La FASE B no modificó migración, RPC, RLS, grants, pgTAP ni harness de FASE A.
 
 ## Riesgos y mitigaciones
 
@@ -612,6 +639,8 @@ requiere una instrucción posterior y no se anticipa en este cambio.
 | Lost update en correcciones                                 | estado esperado + Attendance `FOR UPDATE` + error de conflicto                        |
 | Registro duplicado concurrente                              | locks canónicos + PK `participation_id` + error estable                               |
 | Mutación después de close/scope removal                     | account/scope/Project locks y revalidación post-wait                                  |
+| Lectura iniciada antes de una mutación pisa el estado nuevo | generación + revisión local; si cambia, se repite hasta snapshot estable              |
+| Contrato RPC devuelve shape/cardinalidad inesperada         | schemas runtime validan array y exactamente una fila en mutación                      |
 | Inversión con Activity/Participation                        | Attendance siempre después de Participation; Assignment se omite, no se invierte      |
 | Bloqueo operativo por faltantes                             | close no consulta Attendance; pgTAP y carrera lo fijan                                |
 | UUID hijo como oráculo horizontal                           | firmas parent tuple y autorización Project previa                                     |
@@ -619,6 +648,17 @@ requiere una instrucción posterior y no se anticipa en este cambio.
 | UI monolítica o rediseño accidental                         | integrar en Participants y reutilizar primitives existentes                           |
 | Múltiples occurrences del mismo Volunteer/Activity          | contrato explícito por Participation; no fusionar sin nueva decisión de producto      |
 | Harness excede timeout                                      | escenarios focales, medición real y ajuste solo con evidencia                         |
+
+Riesgos residuales aceptados para este alcance:
+
+- `attendance-stale` vive en el error compartido y obliga al mapper exhaustivo de
+  Identity a conocer un código de Projects; es acoplamiento menor existente, no
+  una razón para crear un framework de errores en V1.
+- Participation y Attendance se leen con dos RPC y se combinan en presentación;
+  no existe snapshot SQL conjunto. En Activity completed el roster ya es
+  inmutable y la revisión local evita que lecturas anteriores pisen mutaciones.
+- En anchos móviles la tabla conserva semántica y usa scroll horizontal interno
+  de `TableRegion`; no se transforma en cards en esta fase.
 
 ## Criterios de aceptación
 
@@ -749,6 +789,65 @@ usar un `entity_type` incorrecto en cleanup. La aserción histórica falló, el
 cleanup se corrigió a `project_assignment`, se añadió una comprobación por fixture
 y la secuencia `reset → harness 12/12 → db:test 641/641` regresó a PASS.
 
+### Validación de implementación FASE B
+
+FASE B usó Node `22.18.0` y pnpm `11.9.0` y no modificó PostgreSQL:
+
+- Precheck: rama `feat/activity-attendance-v1`, HEAD inicial `8175c31`,
+  `main`/`origin/main`/merge-base `cb554c8` y working tree limpio: PASS.
+- Pruebas focales de aplicación, gateway y UI: PASS, 5 archivos y 38 tests.
+- `pnpm typecheck` y `pnpm lint:boundaries`: PASS incremental.
+- E2E Attendance focal: PASS, 1/1.
+- `pnpm test:e2e`: PASS, 22/22, con Function gestionada y retirada por el
+  orquestador oficial.
+- Primer intento focal se invocó con un separador que Playwright interpretó como
+  selección completa; se interrumpió y no se usó como evidencia. Un segundo
+  intento directo fue rechazado por el guard que exige pnpm y tampoco ejecutó
+  casos. La invocación focal correcta posterior pasó 1/1.
+- Un `pnpm db:test` posterior a E2E falló por conteos contaminados con fixtures
+  locales creados por la propia suite. Tras `pnpm db:reset`, la repetición limpia
+  pasó 9 archivos y 641/641; Attendance había pasado también en el intento
+  contaminado.
+- Harness Attendance focal, invocado por archivo porque no existe alias focal:
+  PASS, 12/12. No se repitió el alias combinado.
+- Capturas locales no versionadas: escritorio, 420px y Project closed read-only;
+  el scroll horizontal permanece dentro de `TableRegion`.
+- Primer lote de gates finales: typecheck PASS; lint y boundaries detectaron una
+  actualización síncrona de loading iniciada desde `useEffect`. La carga inicial
+  se movió a una microtarea cancelable y la regresión UI focal volvió a pasar
+  17/17; no se deshabilitó la regla.
+- Repetición final: `pnpm typecheck`, `pnpm lint`, `pnpm lint:boundaries`,
+  `pnpm test:unit` (47 archivos, 268 tests), `pnpm test:integration` (2 archivos,
+  4 tests), `pnpm build` (486 módulos), `pnpm verify` y `git diff --check`: PASS.
+
+La revisión focal posterior detectó y corrigió una carrera entre la recarga por
+stale y una mutación exitosa de otra fila: una lectura invalidada ahora repite
+ambas proyecciones dentro de la misma generación hasta obtener revisión estable,
+sin dejar loading permanente. Se añadieron regresiones de dos filas, restauración
+de foco, Participation finalizada elegible, faltantes históricos read-only y
+cardinalidad RPC exacta. El recheck focal pasó 34/34.
+
+### Revisiones de solo lectura FASE B
+
+- Architect: **GO**. Confirmó dependencias dominio → aplicación → infraestructura
+  → composición/presentación, ausencia de Supabase en UI y conservación de
+  PostgreSQL como autoridad. Observó como no bloqueante el código
+  `attendance-stale` en el error compartido.
+- QA reviewer: el snapshot inicial fue **NO-GO** por la carrera
+  stale-refresh ↔ mutación, foco y cobertura histórica. Tras integrar los
+  hallazgos, el recheck fue **GO** con 34 pruebas focales y `git diff --check`.
+- Docs governor: revisión inicial **NO-GO** por estado de producto y trazabilidad
+  FASE B desactualizados. Tras actualizar documentación transversal, prompt 0020,
+  atribución, riesgos y estado real, el recheck final fue **GO**.
+- Database security reviewer: **NOT EXECUTED** en FASE B porque no se modificaron
+  schema, migraciones, RLS, RPC, grants, auditoría, pgTAP ni concurrencia.
+
+El cierre post-revisores con Node `22.18.0`/pnpm `11.9.0` aprobó `pnpm
+typecheck`, `pnpm lint`, `pnpm lint:boundaries`, 47 archivos/273 unitarias, 2
+archivos/4 integraciones, build de 486 módulos, `pnpm verify` completo y `git
+diff --check`. Los commits FASE B son `1363ee4`, `c4c78bb`, `ad1632b` y el cierre
+documental separado.
+
 ## Progreso
 
 - 2026-09-16: Git/base/working tree confirmados y rama creada desde `main`.
@@ -772,6 +871,16 @@ y la secuencia `reset → harness 12/12 → db:test 641/641` regresó a PASS.
 - 2026-09-21: revisores finales emitieron database security GO, architect GO, QA
   GO con observaciones no bloqueantes y docs GO; cambios técnicos registrados en
   `2a164d4` y `b243126`, con cierre documental separado.
+- 2026-09-22: FASE B añadió dominio/aplicación, gateway/composición y Attendance
+  dentro de Participants, sin modificar FASE A ni añadir pantallas.
+- 2026-09-22: regresiones focales cubrieron empty/error, alta, corrección, stale,
+  orden asíncrono y estados read-only; E2E focal 1/1 y completo 22/22 pasaron.
+- 2026-09-22: pgTAP limpio 641/641 y harness Attendance 12/12 reconfirmaron que
+  la integración TypeScript no alteró el contrato backend.
+- 2026-09-23: hallazgos QA de carrera/foco/cobertura y hallazgos documentales de
+  producto/trazabilidad se integraron; QA emitió GO en el recheck focal.
+- 2026-09-23: docs governance emitió GO final; gates completos aprobaron y se
+  crearon tres commits técnicos sin amend, rebase ni push.
 
 ## Descubrimientos
 
@@ -803,9 +912,19 @@ y la secuencia `reset → harness 12/12 → db:test 641/641` regresó a PASS.
   significa alta exclusiva y un estado esperado significa corrección optimista.
 - Se usa `created_at`, conforme al contrato aprobado de implementación, y el
   conflicto optimista conserva SQLSTATE `23514` del diseño aprobado.
+- FASE B representa stale con `attendance-stale` en el contrato de aplicación;
+  presentación no depende del texto humano ni del SQLSTATE PostgreSQL.
+- Participants es propietario del join de UI; no se creó una pantalla, módulo ni
+  caché global de Attendance.
+- Una lectura exitosa de ambas proyecciones es precondición para derivar
+  `unregistered`; cualquier fallo deja un Notice explícito y oculta el snapshot
+  incompleto.
 
 ## Resultado de esta fase
 
-El diseño documental inicial fue aprobado y FASE A implementa únicamente el
-backend PostgreSQL, su contrato tipado mínimo, pgTAP, concurrencia y gobernanza.
-Dominio/aplicación, gateway/composición, UI y E2E permanecen detenidos para FASE B.
+Activity Attendance V1 queda integrado de PostgreSQL a UI dentro del bounded
+context Projects. FASE A conserva persistencia, autorización, auditoría y
+concurrencia; FASE B añade dominio/aplicación, gateway/composición, UX accesible y
+responsive, manejo stale/fuera de orden y el E2E canónico. Gates, revisiones y
+commits locales quedaron completos. Pre-merge, despliegue, push y cualquier
+ampliación funcional permanecen fuera de esta fase.

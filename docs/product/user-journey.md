@@ -59,7 +59,7 @@ Administrator y manager contextual pueden crear Activities en Project activo, ed
 
 Dentro de una Activity, administrator y manager contextual ven Participants actuales e históricos, buscan solo Volunteers con Assignment activa al Project exacto, agregan una Participation y la finalizan explícitamente. Una Participation no finalizada en Activity programada bloquea finalizar el Assignment correspondiente. Activity terminal o Project cerrado mantiene incluso `ended_at is null` como histórico read-only, sin mutación automática.
 
-FASE A ya persiste Activity Attendance por Participation, pero todavía no expone UI ni E2E al usuario. No existe asistencia genérica, por horas o check-in, RSVP, responsable individual, recurrencia, calendario externo, aprobación, capacidad, autoinscripción, scope genérico ni acceso para coordinator o voluntarios.
+Dentro de Activity Participants, administrator y manager contextual pueden registrar `Presente` o `Ausente` para cada Participation —aunque esté finalizada— cuando la Activity está completed y el Project permanece active. La ausencia de fila se muestra como `Sin registrar` solo después de una lectura exitosa. Las Activities scheduled/cancelled y los Projects closed conservan los estados como histórico read-only; un conflicto de corrección relee el estado autoritativo sin sobrescribirlo. No existe asistencia genérica, por horas o check-in, RSVP, responsable individual, recurrencia, calendario externo, aprobación, capacidad, autoinscripción, scope genérico ni acceso para coordinator o voluntarios.
 
 ## Estados observables
 
@@ -68,6 +68,6 @@ FASE A ya persiste Activity Attendance por Participation, pero todavía no expon
 - Cambio de identidad, estado o versión de autoridad: limpia toda caché sensible y vuelve a resolver el contexto.
 - Cierre de sesión: limpia estado/caché y vuelve a `/login`.
 - Padrón: carga, vacío orientado a alta/importación, sin resultados, error, éxito, paginación y preview/importación en proceso.
-- Proyectos: carga, vacío, sin resultados, error, éxito, Assignments/managers/Activity Participants activos e históricos, Activities programadas/terminales, formularios accesibles, confirmaciones irreversibles, revocación de scope y cierre bloqueado con Assignments activos o Activities programadas.
+- Proyectos: carga, vacío, sin resultados, error, éxito, Assignments/managers/Activity Participants activos e históricos, Attendance cargando/error/`Sin registrar`/`Presente`/`Ausente`, Activities programadas/terminales, formularios accesibles, confirmaciones irreversibles, revocación de scope y cierre bloqueado con Assignments activos o Activities programadas.
 
 La interfaz nunca promete alta pública ni módulos futuros.

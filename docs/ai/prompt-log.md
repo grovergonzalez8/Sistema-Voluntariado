@@ -18,6 +18,7 @@
 | 0014 | 2026-09-03 | Diagnosticar Invitation Flow Hardening V1        | Codex       | Diagnóstico; paridad CI pendiente   | cierre documental                                                                    |
 | 0018 | 2026-09-16 | Diseñar Activity Attendance V1                   | Codex       | Diseño; implementación no iniciada  | cierre documental                                                                    |
 | 0019 | 2026-09-20 | Implementar Activity Attendance V1 FASE A        | Codex       | Completado; gates locales aprobados | `2a164d4`, `b243126` y cierre documental                                             |
+| 0020 | 2026-09-22 | Implementar Activity Attendance V1 FASE B        | Codex       | Completado; gates locales aprobados | `1363ee4`, `c4c78bb`, `ad1632b` y cierre documental                                  |
 
 Detalle: `docs/ai/prompts/0001-bootstrap-foundation.md`.
 
@@ -129,3 +130,9 @@ Activity Attendance V1 FASE A 0019:
 `docs/ai/prompts/0019-activity-attendance-v1-phase-a.md`. Implementa solo tabla,
 RLS/ACL, RPC autoritativo, autorización, auditoría, pgTAP, concurrencia y tipos DB
 mínimos; dominio/aplicación, gateway, composición, UI y E2E permanecen diferidos.
+
+Activity Attendance V1 FASE B 0020:
+`docs/ai/prompts/0020-activity-attendance-v1-phase-b.md`. Completa el recorrido
+desde las RPC aprobadas hasta application, gateway, composición, Activity
+Participants UI y un E2E canónico, sin modificar el backend FASE A. El contrato,
+hallazgos de revisión, capturas y validaciones se conservan en el ExecPlan 0011.

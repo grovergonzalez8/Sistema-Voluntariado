@@ -368,3 +368,27 @@ sin bloqueo por faltantes; locks hasta Attendance y auditoría sin PII.
   seguridad/datos/arquitectura.
 - Fuera de alcance: dominio/aplicación, gateway/composición, UI, E2E y cualquier
   operación Supabase remota.
+
+## Activity Attendance V1 0020 — FASE B aplicación y UI
+
+- Objetivo: completar Attendance desde las RPC existentes hasta application,
+  gateway, composición, Activity Participants UI y E2E canónico.
+- Herramienta: agente principal de Codex como único escritor; architect, QA y
+  docs governance revisan al cierre en modo de solo lectura.
+- Rama/HEAD inicial: `feat/activity-attendance-v1@8175c31`.
+- Prompt: `docs/ai/prompts/0020-activity-attendance-v1-phase-b.md`.
+- Plan: `docs/exec-plans/0011-activity-attendance-v1.md`.
+- Cambios: tipos y servicio Projects, gateway Supabase con validación de shape,
+  composición, estados/acciones Attendance dentro de Participants, i18n,
+  responsive, unitarias y un E2E canónico.
+- Seguridad: PostgreSQL sigue autoritativo; no se modificaron schema, migraciones,
+  RLS, RPC, grants, auditoría ni harness. UI no accede a Supabase ni agrega PII.
+- Concurrencia UI: optimistic precondition exacta, stale sin retry con relectura,
+  descarte de respuestas antiguas y foco restaurado tras mutación.
+- Validación: Node 22.18.0/pnpm 11.9.0; 273 unitarias, 4 integraciones, build 486,
+  `pnpm verify`, E2E focal 1/1 y completo 22/22, pgTAP limpio 641/641 y harness
+  Attendance 12/12. Architect, QA y docs governance emitieron GO final;
+  database security fue NOT EXECUTED porque FASE B no modificó PostgreSQL.
+- Commits técnicos: `1363ee4`, `c4c78bb` y `ad1632b`, más cierre documental.
+- Estado: implementación y validación local completadas. Sin push, merge, rebase,
+  amend, despliegue, pre-merge ni operación Supabase remota.

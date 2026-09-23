@@ -1,6 +1,6 @@
 # Sistema-Voluntariado
 
-Monolito modular para gestionar progresivamente la operación de voluntariado. El alcance actual incluye autenticación, perfil propio, invitaciones, onboarding, ciclo de vida de cuentas, administración segura de roles, un padrón administrativo independiente con importación/exportación Excel y proyectos con participación histórica, alcance contextual de project managers y Activities con lifecycle terminal.
+Monolito modular para gestionar progresivamente la operación de voluntariado. El alcance actual incluye autenticación, perfil propio, invitaciones, onboarding, ciclo de vida de cuentas, administración segura de roles, un padrón administrativo independiente con importación/exportación Excel y proyectos con participación histórica, alcance contextual de project managers, Activities con lifecycle terminal y Attendance `present|absent` por Participation.
 
 ## Estado
 
@@ -74,6 +74,6 @@ corepack pnpm test:e2e
 corepack pnpm account-lifecycle:test
 ```
 
-`verify` y `test:functions` no exigen Docker; PostgreSQL, concurrencia, Auth, Mailpit y E2E sí requieren Supabase local. `projects:test:concurrency` presupone `db:start` y `db:reset`, usa conexiones PostgreSQL reales y limpia sus fixtures. Cubre Project Volunteer Assignments, scopes de project managers, Project Activities, Activity Participation y el backend de Activity Attendance, incluidos cierre, transiciones terminales, elegibilidad, corrección optimista y revocación contextual. Consulte `docs/deployment/local-development.md` para el recorrido completo. La UI/E2E de Attendance, alojamiento, RSVP, tareas, finanzas y los demás contextos operativos siguen fuera de alcance de FASE A. El alcance de project manager es una relación explícita por proyecto, no un framework genérico de scopes.
+`verify` y `test:functions` no exigen Docker; PostgreSQL, concurrencia, Auth, Mailpit y E2E sí requieren Supabase local. `projects:test:concurrency` presupone `db:start` y `db:reset`, usa conexiones PostgreSQL reales y limpia sus fixtures. Cubre Project Volunteer Assignments, scopes de project managers, Project Activities, Activity Participation y Activity Attendance, incluidos cierre, transiciones terminales, elegibilidad, corrección optimista y revocación contextual. Consulte `docs/deployment/local-development.md` para el recorrido completo. Attendance ya se integra en Activity Participants y tiene un E2E canónico; alojamiento, RSVP, tareas, finanzas y los demás contextos operativos siguen fuera de alcance. El alcance de project manager es una relación explícita por proyecto, no un framework genérico de scopes.
 
 La propiedad de procesos y el comando Linux equivalente al job `Quality` se documentan en `docs/deployment/continuous-integration.md`.
