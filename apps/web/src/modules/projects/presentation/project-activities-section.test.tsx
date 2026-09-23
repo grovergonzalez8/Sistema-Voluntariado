@@ -7,6 +7,8 @@ import { failure, success } from '@sistema-voluntariado/shared-kernel';
 
 import { createI18n } from '../../../app/providers/i18n';
 import type { ProjectAuthorizationPort } from '../application/project-authorization-port';
+import type { ProjectActivityAttendanceGateway } from '../application/project-activity-attendance-gateway';
+import { ProjectActivityAttendanceService } from '../application/project-activity-attendance-service';
 import type { ProjectActivityGateway } from '../application/project-activity-gateway';
 import type { ProjectActivityParticipationGateway } from '../application/project-activity-participation-gateway';
 import { ProjectActivityParticipationService } from '../application/project-activity-participation-service';
@@ -45,6 +47,15 @@ const participationService = new ProjectActivityParticipationService(
   authorization,
   participationGateway,
 );
+const attendanceGateway: ProjectActivityAttendanceGateway = {
+  listAttendances: () => Promise.resolve(success([])),
+  setAttendance: () =>
+    Promise.reject(new Error('Unexpected attendance mutation')),
+};
+const attendanceService = new ProjectActivityAttendanceService(
+  authorization,
+  attendanceGateway,
+);
 
 function createGateway(
   overrides: Partial<ProjectActivityGateway> = {},
@@ -70,6 +81,7 @@ async function renderSection(
   return render(
     <I18nextProvider i18n={i18n}>
       <ProjectActivitiesSection
+        attendanceService={attendanceService}
         canManage={options.canManage ?? true}
         participationService={participationService}
         projectId={projectId}
@@ -186,6 +198,7 @@ describe('ProjectActivitiesSection', () => {
     rerender(
       <I18nextProvider i18n={i18n}>
         <ProjectActivitiesSection
+          attendanceService={attendanceService}
           canManage
           participationService={participationService}
           projectId={projectId}
