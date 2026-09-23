@@ -10,6 +10,7 @@ import {
 } from '@sistema-voluntariado/ui';
 
 import type { ProjectActivityService } from '../application/project-activity-service';
+import type { ProjectActivityAttendanceService } from '../application/project-activity-attendance-service';
 import type { ProjectActivityParticipationService } from '../application/project-activity-participation-service';
 import {
   isScheduledProjectActivity,
@@ -21,12 +22,14 @@ import { ProjectActivityParticipantsSection } from './project-activity-participa
 import { getProjectActivityStatusTone } from './project-status-badge-tone';
 
 export function ProjectActivitiesSection({
+  attendanceService,
   canManage,
   participationService,
   projectId,
   projectStatus,
   service,
 }: {
+  readonly attendanceService: ProjectActivityAttendanceService;
   readonly canManage: boolean;
   readonly participationService: ProjectActivityParticipationService;
   readonly projectId: string;
@@ -246,8 +249,9 @@ export function ProjectActivitiesSection({
       {selectedActivity ? (
         <ProjectActivityParticipantsSection
           activity={selectedActivity}
+          attendanceService={attendanceService}
           canManage={canManage}
-          key={`${projectId}:${selectedActivity.id}`}
+          key={`${projectId}:${selectedActivity.id}:${selectedActivity.status}`}
           projectId={projectId}
           projectStatus={projectStatus}
           service={participationService}
