@@ -21,6 +21,7 @@ erDiagram
   PROJECTS ||--o{ PROJECT_ACTIVITIES : contains
   PROJECT_ACTIVITIES ||--o{ PROJECT_ACTIVITY_PARTICIPATIONS : includes
   VOLUNTEERS ||--o{ PROJECT_ACTIVITY_PARTICIPATIONS : participates
+  PROJECT_ACTIVITY_PARTICIPATIONS ||--o| PROJECT_ACTIVITY_ATTENDANCES : records
 
   ACCOUNTS {
     uuid id PK
@@ -103,6 +104,12 @@ erDiagram
     timestamptz created_at
     timestamptz updated_at
   }
+  PROJECT_ACTIVITY_ATTENDANCES {
+    uuid participation_id PK,FK
+    text status
+    timestamptz created_at
+    timestamptz updated_at
+  }
 ```
 
 `profiles.id` coincide con `auth.users.id`; la cuenta no duplica correo. Una cuenta `invited` puede preceder a Auth y por eso `accounts.auth_user_id` es inicialmente anulable. La invitación conserva correo canónico y un snapshot inmutable del enlace Auth; constraints diferidos exigen consistencia bilateral al commit.
@@ -116,6 +123,8 @@ erDiagram
 `project_activities` pertenece a Projects y solo referencia `projects` con borrado restringido. No enlaza voluntarios, cuentas, perfiles ni Auth. Conserva instantes `timestamptz`, sin timezone propia; nombre/descripción/ubicación textual se normalizan y los timestamps técnicos se fijan por servidor.
 
 `project_activity_participations` pertenece a Projects y enlaza una Activity con un registro institucional `volunteers`, ambos con borrado restringido. No copia Project, Project Assignment, nombre, contacto ni Auth metadata. `ended_at is null` significa que la ocurrencia no fue finalizada explícitamente; si Activity terminaliza o Project cierra, la fila queda histórica read-only sin rellenar ese timestamp.
+
+`project_activity_attendances` pertenece a una ocurrencia Participation mediante una PK/FK restrictiva. Persiste únicamente `present|absent`; ausencia de fila significa no registrado. Registro/corrección exige Project activo y Activity completed, pero no Assignment vigente ni Participation sin finalizar. No copia datos personales y no admite DELETE físico.
 
 ## Ciclo de vida
 
@@ -168,7 +177,7 @@ No se admite otra transición. `authority_version` aumenta cuando cambia estado 
 
 ## Entidades futuras no implementadas
 
-`volunteer_groups`, `group_members`, `houses`, `rooms`, `host_families`, `accommodation_rates`, `accommodation_assignments`, `project_schedules`, `attendance`, `events`, `event_participants`, `tasks`, `task_assignments`, `assignment_requests`, `assignment_approvals`, `notifications`, `incidents`, `charges` y `payments`.
+`volunteer_groups`, `group_members`, `houses`, `rooms`, `host_families`, `accommodation_rates`, `accommodation_assignments`, `project_schedules`, asistencia genérica o basada en horas/check-in, `events`, `event_participants`, `tasks`, `task_assignments`, `assignment_requests`, `assignment_approvals`, `notifications`, `incidents`, `charges` y `payments`. Activity Attendance V1 es la excepción acotada: una fila 0..1 por `project_activity_participations`, sin horas ni autoasistencia.
 
 No se fijan todavía sus columnas, cardinalidades ni estados.
 

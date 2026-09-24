@@ -170,7 +170,7 @@ sequenceDiagram
   RPC-->>UI: proyección validada o error tipado
 ```
 
-Para manager contextual el prefijo de locks es `account FOR SHARE → active scope FOR SHARE`; administrator comienza en Project. Create mantiene Project bloqueado hasta insertar. Cerrar toma el mismo Project y el trigger rechaza primero Project Volunteer Assignments activos y después Activities `scheduled`. Complete/cancel toman Project antes de Activity, por lo que una sola transición terminal gana. La revocación de scope usa `scope FOR UPDATE` y serializa frente al lock compartido de toda mutación contextual.
+Para manager contextual el prefijo de locks es `account FOR SHARE → active scope FOR SHARE`; administrator usa `account FOR SHARE` antes de Project mediante el helper endurecido común. Create mantiene Project bloqueado hasta insertar. Cerrar toma el mismo Project y el trigger rechaza primero Project Volunteer Assignments activos y después Activities `scheduled`. Complete/cancel toman Project antes de Activity, por lo que una sola transición terminal gana. La revocación de scope usa `scope FOR UPDATE` y serializa frente al lock compartido de toda mutación contextual.
 
 ## Activity Participation
 
@@ -218,4 +218,28 @@ sequenceDiagram
   RPC-->>UI: proyección mínima o error tipado
 ```
 
-En mutaciones, manager antepone `account FOR SHARE → active scope FOR SHARE`; administrator comienza en Project. El orden global es `account → scope → Project → Project Assignment → Activity → Participation`, omitiendo solo filas innecesarias. Add y finish Assignment comparten Project/Assignment y releen elegibilidad; add y complete/cancel comparten Project/Activity. Una Activity terminal o Project cerrado convierte el histórico en read-only sin cambiar `ended_at`.
+En mutaciones, manager antepone `account FOR SHARE → active scope FOR SHARE`; administrator usa `account FOR SHARE` antes de Project. El orden global es `account → scope → Project → Project Assignment → Activity → Participation`, omitiendo solo filas innecesarias. Add y finish Assignment comparten Project/Assignment y releen elegibilidad; add y complete/cancel comparten Project/Activity. Una Activity terminal o Project cerrado convierte el histórico en read-only sin cambiar `ended_at`.
+
+## Activity Attendance
+
+```mermaid
+sequenceDiagram
+  participant UI as Futuro consumidor FASE B
+  participant RPC as Attendance mutation RPC
+  participant P as Project row
+  participant A as Activity row
+  participant AP as Participation row
+  participant AT as Attendance row
+  UI->>RPC: Project + Activity + Participation + expected/new status
+  RPC->>RPC: auth.uid + account + autoridad global/contextual
+  RPC->>P: FOR UPDATE; releer active
+  RPC->>A: FOR UPDATE; releer completed
+  RPC->>AP: FOR UPDATE; comprobar ownership exacto
+  opt Corrección
+    RPC->>AT: FOR UPDATE; comparar expected_status
+  end
+  RPC->>AT: insert/update + auditoría atómica
+  RPC-->>UI: proyección técnica mínima o error estable
+```
+
+El camino manager es `account → scope → Project → Activity → Participation → Attendance`; administrator omite scope, no account. Project Assignment no se bloquea porque Attendance depende de la Participation histórica. Close y scope removal compiten por ancestros; complete Activity compite por Project/Activity. Cada mutación relee estado después de cualquier espera y nunca toma Attendance antes de Participation.

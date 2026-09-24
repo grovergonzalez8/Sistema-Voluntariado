@@ -14,3 +14,5 @@
 | TD-011 | Email de invitación sin locale dinámico               | Supabase local usa un único template y no ofrece selección dinámica limpia por `preferred_locale`                                | adoptar una capacidad soportada del proveedor sin mailer propio |
 
 La deuda no autoriza pantallas falsas ni controles de seguridad incompletos.
+Activity Attendance V1 cerró su recorrido PostgreSQL–UI y E2E canónico; sus
+extensiones excluidas no se registran como deuda sin requisitos de producto.

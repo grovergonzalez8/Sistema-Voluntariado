@@ -33,7 +33,7 @@
 - Project Activity pertenece exactamente a un Project y usa `scheduled`, `completed` y `cancelled`; solo `scheduled` es mutable y ambos terminales son irreversibles.
 - Una Activity solo se crea o muta en Project `active`; cualquier Activity `scheduled` impide el cierre sin ser completada, cancelada, eliminada ni retimestamped automáticamente.
 - Administrator usa `project.manage`; project manager hereda `project.read_assigned`/`project.manage_assigned` junto con su scope dinámico. Los placeholders `activity.create`/`activity.join` no autorizan esta V1.
-- Attendance, RSVP, responsables individuales, Tasks, recurrencia, notificaciones y calendarios externos quedan deliberadamente fuera de alcance.
+- La UI/E2E de Activity Attendance, RSVP, responsables individuales, Tasks, recurrencia, notificaciones y calendarios externos quedan deliberadamente fuera de FASE A.
 
 ## Resueltas en el hito 0007
 
@@ -41,7 +41,7 @@
 - Solo una Activity `scheduled` de un Project `active` admite alta/finalización, y el Volunteer necesita un Project Volunteer Assignment activo hacia ese Project exacto.
 - `ended_at is null` significa que no se finalizó explícitamente; Activity terminal o Project cerrado vuelve la fila histórica read-only sin completar ese timestamp automáticamente.
 - Una Participation no finalizada en Activity `scheduled` bloquea finalizar el Assignment correspondiente. Una Participation finalizada o una Activity terminal no bloquea.
-- Administrator usa `project.manage`; project manager usa lectura/mutación asignada con cuenta, rol, permiso y scope vigentes. Attendance, RSVP, self-join y Tasks no forman parte de esta V1.
+- Administrator usa `project.manage`; project manager usa lectura/mutación asignada con cuenta, rol, permiso y scope vigentes. Attendance V1 reutiliza esa autoridad y se limita a Participation de Activity completed; RSVP, self-join y Tasks no forman parte de esta V1.
 
 ## Pendientes
 

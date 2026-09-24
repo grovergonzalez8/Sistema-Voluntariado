@@ -10,6 +10,8 @@ import {
   probeSupabaseGateway,
   runManagedE2E,
   runIndependentCleanups,
+  stopManagedFunction,
+  stopOwnedEdgeRuntimeContainer,
 } from './e2e-service-orchestrator.mjs';
 import { runResetLocalDatabase } from './reset-local-database.mjs';
 
@@ -208,6 +210,83 @@ test('stops only acquired Edge containers and reports concurrent ones', () => {
   assert.equal(acquireSingleEdgeRuntimeContainer(['owned']), 'owned');
 });
 
+test('accepts an owned Edge container removed by the child during cleanup', async () => {
+  const containerId = '0ac54d615819';
+  const dockerCalls = [];
+  let listCalls = 0;
+  let stopTreeCalls = 0;
+  const handle = {
+    child: { exitCode: null, signalCode: null },
+    ownedContainerIds: [containerId],
+    stopPromise: null,
+  };
+  const operations = {
+    listContainers: () => {
+      listCalls += 1;
+      return listCalls === 1 ? [containerId] : [];
+    },
+    stopContainer: (ownedContainerId) =>
+      stopOwnedEdgeRuntimeContainer(ownedContainerId, (arguments_) => {
+        dockerCalls.push(arguments_);
+        if (arguments_[0] === 'stop') {
+          throw new Error(
+            `Docker command failed: docker stop --time 5 ${containerId}\nError response from daemon: No such container: ${containerId}`,
+          );
+        }
+        return '';
+      }),
+    stopTree: async () => {
+      stopTreeCalls += 1;
+    },
+  };
+
+  await stopManagedFunction(handle, operations);
+  await stopManagedFunction(handle, {
+    listContainers: () => {
+      throw new Error('cleanup ran twice');
+    },
+    stopContainer: () => {
+      throw new Error('cleanup ran twice');
+    },
+    stopTree: async () => {
+      throw new Error('cleanup ran twice');
+    },
+  });
+
+  assert.equal(stopTreeCalls, 1);
+  assert.equal(listCalls, 2);
+  assert.deepEqual(dockerCalls, [
+    ['stop', '--time', '5', containerId],
+    ['ps', '--all', '--quiet', '--no-trunc', '--filter', `id=${containerId}`],
+  ]);
+});
+
+test('propagates a real Docker stop failure while the container still exists', () => {
+  const containerId = '0ac54d615819';
+  const stopError = new Error('Docker daemon denied the stop request');
+
+  assert.throws(
+    () =>
+      stopOwnedEdgeRuntimeContainer(containerId, (arguments_) => {
+        if (arguments_[0] === 'stop') throw stopError;
+        return `${containerId}abcdef`;
+      }),
+    (error) => error === stopError,
+  );
+});
+
+test('propagates Docker inspection failure instead of assuming cleanup', () => {
+  const containerId = '0ac54d615819';
+
+  assert.throws(
+    () =>
+      stopOwnedEdgeRuntimeContainer(containerId, () => {
+        throw new Error('Docker daemon unavailable');
+      }),
+    (error) => error instanceof AggregateError && error.errors.length === 2,
+  );
+});
+
 test('signal cleanup attempts Playwright and Functions independently', async () => {
   const events = [];
   await assert.rejects(
@@ -275,7 +354,7 @@ test('keeps process ownership aligned across scripts, Playwright, and Actions', 
   );
   assert.equal(
     rootPackage.scripts['projects:test:concurrency'],
-    'node --test scripts/project-volunteer-assignments-concurrency.test.mjs scripts/project-activities-concurrency.test.mjs scripts/project-activity-participations-concurrency.test.mjs',
+    'node --test scripts/project-volunteer-assignments-concurrency.test.mjs scripts/project-activities-concurrency.test.mjs scripts/project-activity-participations-concurrency.test.mjs scripts/project-activity-attendance-concurrency.test.mjs',
   );
   assert.match(
     rootPackage.scripts['account-lifecycle:test'],

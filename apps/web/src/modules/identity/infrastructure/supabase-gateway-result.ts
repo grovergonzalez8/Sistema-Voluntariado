@@ -39,6 +39,7 @@ export function supabaseFailure<T>(error: SupabaseErrorLike): Result<T> {
   const code = knownErrors[error.message] ?? 'unexpected';
   const messages: Readonly<Record<AppErrorCode, string>> = {
     'account-blocked': 'La cuenta no está activa.',
+    'attendance-stale': 'La asistencia cambió desde la última lectura.',
     configuration: 'La aplicación no está configurada correctamente.',
     conflict: 'La operación entra en conflicto con el estado actual.',
     forbidden: 'No tienes permiso para completar esta operación.',

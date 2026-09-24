@@ -271,6 +271,40 @@ function listEdgeRuntimeContainers() {
   return output ? output.split(/\r?\n/u).filter(Boolean) : [];
 }
 
+export function stopOwnedEdgeRuntimeContainer(
+  containerId,
+  dockerCommand = runDocker,
+) {
+  try {
+    dockerCommand(['stop', '--time', '5', containerId]);
+  } catch (stopError) {
+    let matchingContainers;
+    try {
+      const output = dockerCommand([
+        'ps',
+        '--all',
+        '--quiet',
+        '--no-trunc',
+        '--filter',
+        `id=${containerId}`,
+      ]);
+      matchingContainers = output ? output.split(/\r?\n/u).filter(Boolean) : [];
+    } catch (inspectionError) {
+      throw new AggregateError(
+        [stopError, inspectionError],
+        `Failed to stop or verify owned Edge Runtime container ${containerId}.`,
+        { cause: inspectionError },
+      );
+    }
+
+    const containerStillExists = matchingContainers.some(
+      (candidateId) =>
+        candidateId === containerId || candidateId.startsWith(containerId),
+    );
+    if (containerStillExists) throw stopError;
+  }
+}
+
 function waitForExit(child, timeoutMs) {
   if (child.exitCode !== null || child.signalCode !== null) {
     return Promise.resolve(true);
@@ -375,27 +409,34 @@ export function acquireSingleEdgeRuntimeContainer(containerIds) {
   return containerIds[0];
 }
 
-async function stopManagedFunction(handle) {
+export async function stopManagedFunction(
+  handle,
+  {
+    listContainers = listEdgeRuntimeContainers,
+    stopContainer = stopOwnedEdgeRuntimeContainer,
+    stopTree = stopProcessTree,
+  } = {},
+) {
   handle.stopPromise ??= (async () => {
     const failures = [];
     try {
-      await stopProcessTree(handle.child);
+      await stopTree(handle.child);
     } catch (error) {
       failures.push(error);
     }
 
     try {
-      const running = listEdgeRuntimeContainers();
+      const running = listContainers();
       const { ownedAndRunning, unowned } = partitionEdgeRuntimeContainers(
         handle.ownedContainerIds,
         running,
       );
-      if (ownedAndRunning.length > 0) {
-        runDocker(['stop', '--time', '5', ...ownedAndRunning]);
+      for (const containerId of ownedAndRunning) {
+        stopContainer(containerId);
       }
 
       const owned = new Set(handle.ownedContainerIds);
-      const remainingOwned = listEdgeRuntimeContainers().filter((containerId) =>
+      const remainingOwned = listContainers().filter((containerId) =>
         owned.has(containerId),
       );
       if (remainingOwned.length > 0) {

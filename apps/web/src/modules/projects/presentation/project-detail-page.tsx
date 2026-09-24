@@ -16,6 +16,7 @@ import {
 
 import type { ProjectManagementService } from '../application/project-management-service';
 import type { ProjectActivityService } from '../application/project-activity-service';
+import type { ProjectActivityAttendanceService } from '../application/project-activity-attendance-service';
 import type { ProjectActivityParticipationService } from '../application/project-activity-participation-service';
 import type {
   ProjectManagerAssignment,
@@ -29,10 +30,12 @@ import { ProjectActivitiesSection } from './project-activities-section';
 import { getProjectStatusTone } from './project-status-badge-tone';
 
 export function ProjectDetailPage({
+  activityAttendanceService,
   activityParticipationService,
   activityService,
   service,
 }: {
+  readonly activityAttendanceService: ProjectActivityAttendanceService;
   readonly activityParticipationService: ProjectActivityParticipationService;
   readonly activityService: ProjectActivityService;
   readonly service: ProjectManagementService;
@@ -265,6 +268,7 @@ export function ProjectDetailPage({
         {success ? <Notice tone="success">{success}</Notice> : null}
       </div>
       <ProjectActivitiesSection
+        attendanceService={activityAttendanceService}
         canManage={
           capabilities?.manage === true
             ? true

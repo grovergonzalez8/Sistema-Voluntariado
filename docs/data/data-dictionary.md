@@ -71,7 +71,7 @@ El índice único parcial `(project_id, manager_account_id) where ended_at is nu
 | `created_at`        | `timestamptz`      | servidor, inmutable                                                                |
 | `updated_at`        | `timestamptz`      | trigger de servidor en edición/transición                                          |
 
-El índice `(project_id, starts_at, id)` ordena el listado y el índice parcial `(project_id) where status = 'scheduled'` sirve al guard de cierre. RLS está habilitada sin policies permisivas ni grants de tabla a cliente; listado, detalle, alta, edición, completar y cancelar son RPC separadas. No existen `responsible_user_id`, attendance, RSVP, recurrence ni DELETE RPC.
+El índice `(project_id, starts_at, id)` ordena el listado y el índice parcial `(project_id) where status = 'scheduled'` sirve al guard de cierre. RLS está habilitada sin policies permisivas ni grants de tabla a cliente; listado, detalle, alta, edición, completar y cancelar son RPC separadas. No existen `responsible_user_id`, RSVP, recurrence ni DELETE RPC.
 
 ## `project_activity_participations`
 
@@ -86,6 +86,17 @@ El índice `(project_id, starts_at, id)` ordena el listado y el índice parcial 
 | `updated_at`   | `timestamptz`      | trigger de servidor al finalizar                                       |
 
 El índice único parcial `(activity_id, volunteer_id) where ended_at is null` impide duplicados activos concurrentes. El alta exige Project `active`, Activity `scheduled` y Project Volunteer Assignment activo del Volunteer hacia el Project exacto. Activity terminal o Project cerrado conserva incluso una fila con `ended_at is null` como histórico read-only; no existe auto-finalización, reactivación ni DELETE cliente. La tabla no copia `project_id`, nombre, email, teléfono, `phone_match_key`, contenido Activity ni metadata Auth.
+
+## `project_activity_attendances`
+
+| Columna            | Tipo          | Regla                                                                                             |
+| ------------------ | ------------- | ------------------------------------------------------------------------------------------------- |
+| `participation_id` | `uuid`        | PK y FK a `project_activity_participations`, `ON DELETE RESTRICT`; una fila máxima por ocurrencia |
+| `status`           | `text`        | `present` o `absent`; la ausencia de fila significa `unregistered`                                |
+| `created_at`       | `timestamptz` | servidor, inmutable                                                                               |
+| `updated_at`       | `timestamptz` | servidor; cambia solo al corregir el estado                                                       |
+
+Attendance pertenece a una Participation concreta y no fusiona ocurrencias históricas del mismo Volunteer/Activity. El RPC de mutación exige Project `active`, Activity `completed`, ownership exacto y `expected_status` para correcciones; una Participation finalizada sigue siendo elegible. RLS no tiene policies permisivas ni grants de tabla, no existe DELETE físico y el cierre conserva faltantes como `unregistered` histórico. La tabla no duplica Project, Activity, Volunteer, nombre, email, teléfono, `phone_match_key` ni metadata Auth.
 
 ## `profiles`
 
@@ -213,7 +224,7 @@ No se guardan tokens, correo, teléfono, nombre, contraseña, valores personales
 - Las variantes `prepare_account_invitation_v2`, `prepare_account_invitation_action_v2`, `accept_current_account_invitation` y `finalize_account_invitation_delivery` son compatibilidad interna/legacy y no son API de cliente.
 - Administración: `list_accounts`, `get_account_detail`, `change_account_status`, `manage_account_role`.
 - Padrón: `list_volunteers`, `get_volunteer_detail`, `find_volunteer_duplicates`, `create_volunteer`, `update_volunteer`, `preview_volunteer_import_duplicates`, `import_volunteers`, `export_volunteers`.
-- Proyectos: `list_projects`, `get_project_detail`, `create_project`, `update_project`, `close_project`, `list_project_assignments`, `search_project_volunteer_candidates`, `assign_volunteer_to_project`, `finish_project_volunteer_assignment`, `list_volunteer_projects`, `list_project_manager_assignments`, `search_project_manager_candidates`, `assign_project_manager`, `finish_project_manager_assignment`, `list_project_activities`, `get_project_activity_detail`, `create_project_activity`, `update_project_activity`, `complete_project_activity`, `cancel_project_activity`, `list_project_activity_participations`, `search_project_activity_volunteer_candidates`, `create_project_activity_participation`, `finish_project_activity_participation`.
+- Proyectos: `list_projects`, `get_project_detail`, `create_project`, `update_project`, `close_project`, `list_project_assignments`, `search_project_volunteer_candidates`, `assign_volunteer_to_project`, `finish_project_volunteer_assignment`, `list_volunteer_projects`, `list_project_manager_assignments`, `search_project_manager_candidates`, `assign_project_manager`, `finish_project_manager_assignment`, `list_project_activities`, `get_project_activity_detail`, `create_project_activity`, `update_project_activity`, `complete_project_activity`, `cancel_project_activity`, `list_project_activity_participations`, `search_project_activity_volunteer_candidates`, `create_project_activity_participation`, `finish_project_activity_participation`, `list_project_activity_attendances`, `set_project_activity_attendance`.
 - Reglas internas: `user_has_permission`, `user_has_active_role`, `can_user_grant_role`, `is_account_transition_allowed`, helpers contextuales específicos de Projects y guards de consistencia/auditoría.
 
 Las funciones expuestas a `authenticated` derivan el actor del JWT. Las funciones de staging, reconciliación, ACK y finalización de entrega se conceden únicamente a `service_role`; las tablas nuevas no conceden acceso directo a `anon` o `authenticated`. Que Auth acepte la operación prueba únicamente aceptación por Auth/proveedor, no entrega física en la bandeja humana.

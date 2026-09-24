@@ -7,6 +7,8 @@ export type {
   ProjectActivityGateway,
   ProjectActivityUpdateCommand,
 } from './application/project-activity-gateway';
+export type { ProjectActivityAttendanceGateway } from './application/project-activity-attendance-gateway';
+export { ProjectActivityAttendanceService } from './application/project-activity-attendance-service';
 export type { ProjectActivityParticipationGateway } from './application/project-activity-participation-gateway';
 export { ProjectActivityParticipationService } from './application/project-activity-participation-service';
 export { ProjectActivityService } from './application/project-activity-service';
@@ -28,6 +30,11 @@ export type {
   ProjectActivityStatus,
   ProjectActivityValidationErrors,
 } from './domain/project-activity';
+export type {
+  ProjectActivityAttendance,
+  ProjectActivityAttendanceStatus,
+} from './domain/project-activity-attendance';
+export { projectActivityAttendanceStatuses } from './domain/project-activity-attendance';
 export {
   canTransitionProjectActivity,
   isScheduledProjectActivity,
@@ -58,6 +65,7 @@ export type {
 export { projectStatuses, validateProjectInput } from './domain/project';
 export { SupabaseProjectManagementGateway } from './infrastructure/supabase-project-management-gateway';
 export { SupabaseProjectActivityGateway } from './infrastructure/supabase-project-activity-gateway';
+export { SupabaseProjectActivityAttendanceGateway } from './infrastructure/supabase-project-activity-attendance-gateway';
 export { SupabaseProjectActivityParticipationGateway } from './infrastructure/supabase-project-activity-participation-gateway';
 export { ProjectCreatePage } from './presentation/project-create-page';
 export { ProjectDetailPage } from './presentation/project-detail-page';

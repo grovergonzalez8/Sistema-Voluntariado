@@ -188,9 +188,28 @@ const sharedEnglish = {
       participants: {
         addAction: 'Add',
         added: 'Participant added.',
+        attendance: {
+          correctAbsent: 'Correct to Absent',
+          correctPresent: 'Correct to Present',
+          loading: 'Loading participants and attendance…',
+          markAbsent: 'Mark Absent',
+          markPresent: 'Mark Present',
+          readOnly: 'Read-only attendance',
+          saved: 'Attendance updated.',
+          stale:
+            'Attendance changed since it was loaded. The current server state is shown.',
+          status: {
+            absent: 'Absent',
+            present: 'Present',
+            unregistered: 'Not recorded',
+          },
+          title: 'Attendance',
+        },
         confirmFinish: 'Finish this activity participation?',
         current: 'Current',
         empty: 'No participation has been recorded for this activity.',
+        emptyDescription:
+          'Add a project volunteer while the activity is scheduled.',
         finishAction: 'Finish participation',
         finished: 'Participation finished.',
         historicalUnended: 'Historical; not explicitly finished',
@@ -543,9 +562,28 @@ const sharedSpanish = {
       participants: {
         addAction: 'Agregar',
         added: 'Participante agregado.',
+        attendance: {
+          correctAbsent: 'Corregir a Ausente',
+          correctPresent: 'Corregir a Presente',
+          loading: 'Cargando participantes y asistencia…',
+          markAbsent: 'Marcar Ausente',
+          markPresent: 'Marcar Presente',
+          readOnly: 'Asistencia de solo lectura',
+          saved: 'Asistencia actualizada.',
+          stale:
+            'La asistencia cambió desde que se cargó. Se muestra el estado actual del servidor.',
+          status: {
+            absent: 'Ausente',
+            present: 'Presente',
+            unregistered: 'Sin registrar',
+          },
+          title: 'Asistencia',
+        },
         confirmFinish: '¿Finalizar esta participación en la actividad?',
         current: 'Actual',
         empty: 'No existe participación registrada para esta actividad.',
+        emptyDescription:
+          'Agrega una persona voluntaria del proyecto mientras la actividad esté programada.',
         finishAction: 'Finalizar participación',
         finished: 'Participación finalizada.',
         historicalUnended: 'Histórica; no finalizada explícitamente',

@@ -24,7 +24,7 @@
     "test:integration": "turbo run test:integration",
     "test:functions": "corepack pnpm --filter @sistema-voluntariado/web test:functions",
     "test:ci-orchestration": "node --test scripts/e2e-service-orchestrator.test.mjs",
-    "projects:test:concurrency": "node --test scripts/project-volunteer-assignments-concurrency.test.mjs scripts/project-activities-concurrency.test.mjs scripts/project-activity-participations-concurrency.test.mjs",
+    "projects:test:concurrency": "node --test scripts/project-volunteer-assignments-concurrency.test.mjs scripts/project-activities-concurrency.test.mjs scripts/project-activity-participations-concurrency.test.mjs scripts/project-activity-attendance-concurrency.test.mjs",
     "invitations:test:auth-contract": "node --test scripts/invitation-auth-contract.test.mjs",
     "invitations:test:concurrency": "node --test scripts/invitation-concurrency.test.mjs",
     "test:e2e": "node scripts/e2e-service-orchestrator.mjs",

@@ -14,6 +14,8 @@ import { ProjectManagementService } from '../application/project-management-serv
 import type { ProjectActivityGateway } from '../application/project-activity-gateway';
 import type { ProjectActivityParticipationGateway } from '../application/project-activity-participation-gateway';
 import { ProjectActivityParticipationService } from '../application/project-activity-participation-service';
+import type { ProjectActivityAttendanceGateway } from '../application/project-activity-attendance-gateway';
+import { ProjectActivityAttendanceService } from '../application/project-activity-attendance-service';
 import { ProjectActivityService } from '../application/project-activity-service';
 import type { ProjectVolunteerAssignment } from '../domain/project-assignment';
 import type { Project } from '../domain/project';
@@ -152,6 +154,15 @@ function createActivityParticipationService(): ProjectActivityParticipationServi
   return new ProjectActivityParticipationService(authorization, gateway);
 }
 
+function createActivityAttendanceService(): ProjectActivityAttendanceService {
+  const gateway: ProjectActivityAttendanceGateway = {
+    listAttendances: () => Promise.resolve(success([])),
+    setAttendance: () =>
+      Promise.reject(new Error('Unexpected attendance mutation')),
+  };
+  return new ProjectActivityAttendanceService(authorization, gateway);
+}
+
 async function renderWithI18n(node: ReactNode) {
   const i18n = await createI18n();
   return render(<I18nextProvider i18n={i18n}>{node}</I18nextProvider>);
@@ -261,6 +272,7 @@ describe('project administration pages', () => {
           <Route
             element={
               <ProjectDetailPage
+                activityAttendanceService={createActivityAttendanceService()}
                 activityParticipationService={createActivityParticipationService()}
                 activityService={createActivityService()}
                 service={service}
@@ -356,6 +368,7 @@ describe('project administration pages', () => {
           <Route
             element={
               <ProjectDetailPage
+                activityAttendanceService={createActivityAttendanceService()}
                 activityParticipationService={createActivityParticipationService()}
                 activityService={createActivityService()}
                 service={service}

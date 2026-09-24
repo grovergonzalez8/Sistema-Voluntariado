@@ -89,6 +89,14 @@ interface ProjectActivityParticipationProjectionRow {
   volunteer_name: string;
 }
 
+interface ProjectActivityAttendanceProjectionRow {
+  [key: string]: unknown;
+  created_at: string;
+  participation_id: string;
+  status: 'absent' | 'present';
+  updated_at: string;
+}
+
 export interface Database {
   public: {
     CompositeTypes: Record<string, never>;
@@ -315,6 +323,13 @@ export interface Database {
         };
         Returns: ProjectActivityParticipationProjectionRow[];
       };
+      list_project_activity_attendances: {
+        Args: {
+          requested_activity_id: string;
+          requested_project_id: string;
+        };
+        Returns: ProjectActivityAttendanceProjectionRow[];
+      };
       list_project_manager_assignments: {
         Args: { requested_project_id: string };
         Returns: ProjectManagerAssignmentProjectionRow[];
@@ -445,6 +460,16 @@ export interface Database {
         };
         Returns: { volunteer_id: string; volunteer_name: string }[];
       };
+      set_project_activity_attendance: {
+        Args: {
+          expected_status: 'absent' | 'present' | null;
+          requested_activity_id: string;
+          requested_participation_id: string;
+          requested_project_id: string;
+          requested_status: 'absent' | 'present';
+        };
+        Returns: ProjectActivityAttendanceProjectionRow[];
+      };
       manage_account_role: {
         Args: {
           requested_account_id: string;
@@ -485,6 +510,22 @@ export interface Database {
       };
     };
     Tables: {
+      project_activity_attendances: {
+        Insert: {
+          created_at?: string;
+          participation_id: string;
+          status: 'absent' | 'present';
+          updated_at?: string;
+        };
+        Relationships: [];
+        Row: ProjectActivityAttendanceProjectionRow;
+        Update: {
+          created_at?: string;
+          participation_id?: string;
+          status?: 'absent' | 'present';
+          updated_at?: string;
+        };
+      };
       project_activity_participations: {
         Insert: {
           activity_id: string;
