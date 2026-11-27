@@ -31,6 +31,7 @@ export function VolunteersPage({
   );
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
+  const [searchRevision, setSearchRevision] = useState(0);
   const [sort, setSort] = useState<VolunteerSort>('newest');
   const [offset, setOffset] = useState(0);
   const [total, setTotal] = useState(0);
@@ -42,9 +43,8 @@ export function VolunteersPage({
 
   useEffect(() => {
     const generation = ++requestGeneration.current;
-    void service
-      .listVolunteers({ limit: pageSize, offset, search, sort })
-      .then((result) => {
+    void service.listVolunteers({ limit: pageSize, offset, search, sort }).then(
+      (result) => {
         if (generation !== requestGeneration.current) return;
         if (result.ok) {
           setVolunteers(result.value.items);
@@ -54,17 +54,28 @@ export function VolunteersPage({
           setError(result.error.message);
         }
         setLoading(false);
-      });
+      },
+      () => {
+        if (generation !== requestGeneration.current) return;
+        setError(t('volunteers.loadError'));
+        setLoading(false);
+      },
+    );
     return () => {
       requestGeneration.current += 1;
     };
-  }, [offset, search, service, sort]);
+  }, [offset, search, searchRevision, service, sort, t]);
 
   const submitSearch = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const nextSearch = searchInput.trim();
+    if (loading && offset === 0 && search === nextSearch) return;
+    requestGeneration.current += 1;
     setLoading(true);
+    setError(null);
     setOffset(0);
-    setSearch(searchInput.trim());
+    setSearch(nextSearch);
+    setSearchRevision((revision) => revision + 1);
   };
 
   const page = Math.floor(offset / pageSize) + 1;
@@ -125,9 +136,13 @@ export function VolunteersPage({
           <span>{t('volunteers.sortLabel')}</span>
           <select
             onChange={(event) => {
+              const nextSort = event.target.value as VolunteerSort;
+              if (sort === nextSort && offset === 0) return;
+              requestGeneration.current += 1;
               setLoading(true);
+              setError(null);
               setOffset(0);
-              setSort(event.target.value as VolunteerSort);
+              setSort(nextSort);
             }}
             value={sort}
           >
@@ -206,7 +221,9 @@ export function VolunteersPage({
             <Button
               disabled={offset === 0}
               onClick={() => {
+                requestGeneration.current += 1;
                 setLoading(true);
+                setError(null);
                 setOffset(Math.max(0, offset - pageSize));
               }}
             >
@@ -216,7 +233,9 @@ export function VolunteersPage({
             <Button
               disabled={offset + pageSize >= total}
               onClick={() => {
+                requestGeneration.current += 1;
                 setLoading(true);
+                setError(null);
                 setOffset(offset + pageSize);
               }}
             >

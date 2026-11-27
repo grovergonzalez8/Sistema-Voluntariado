@@ -118,6 +118,9 @@ export function startLocalSupabase({
     [pnpmCli, 'exec', 'supabase', 'status', '--output', 'json'],
     { cwd: workspaceRoot, env: environment, stdio: 'ignore' },
   );
+  if (status.error || status.signal || status.status === null) {
+    throw commandFailure('supabase status (inconclusive preflight)', status);
+  }
   if (!status.error && status.status === 0) {
     throw new Error(
       `Supabase local is already running. Run pnpm db:stop before starting with ${mode === 'real-email' ? 'Gmail SMTP' : 'Mailpit'}.`,

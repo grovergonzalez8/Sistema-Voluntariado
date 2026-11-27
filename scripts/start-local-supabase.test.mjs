@@ -230,3 +230,23 @@ test('real email preflights status then starts with Gmail overrides', () => {
     'app password value',
   );
 });
+
+test('AUD008 inconclusive status never starts or stops an unknown stack', () => {
+  for (const result of [
+    { error: new Error('binary unavailable') },
+    { status: null, signal: 'SIGTERM' },
+  ]) {
+    let calls = 0;
+    assert.throws(() =>
+      startLocalSupabase({
+        pnpmCli: '/pnpm.cjs',
+        environmentOptions: { environment: {} },
+        runCommand: () => {
+          calls++;
+          return result;
+        },
+      }),
+    );
+    assert.equal(calls, 1);
+  }
+});

@@ -6,6 +6,19 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 
 ### Fixed
 
+- AUD-008: la orquestación adquiere propiedad del Edge Runtime durante el arranque y retira solo los recursos propios. Los ensayos en Docker aislado pasaron. La integración real con Supabase CLI y Edge Functions sigue pendiente.
+- AUD-002: el wrapper de cambio de estado adquiere el mutex administrativo antes
+  de bloquear la cuenta, siguiendo el orden de gestión de roles. PostgreSQL 17.11 reprodujo dos deadlocks originales y, tras la corrección, aprobó 23/23 escenarios de concurrencia, 8/8 aserciones pgTAP focalizadas y 122/122 de Account Lifecycle.
+- AUD-004: las pantallas parametrizadas aíslan datos, formularios y operaciones
+  por recurso; descartan respuestas obsoletas, bloquean envíos duplicados y
+  conservan la idempotencia de recovery y el refresco de autoridad del actor
+  original sin afectar a otra identidad.
+- AUD-003: las búsquedas repetidas de proyectos y voluntarios vuelven a consultar
+  sin cargas permanentes; las consultas idénticas pendientes se comparten y las
+  respuestas antiguas no alteran los resultados o la carga actuales.
+- AUD-001: el editor de actividades aísla borradores, errores y envíos por
+  proyecto/actividad/modo; las respuestas de un editor anterior no alteran el
+  actual y los envíos duplicados de la misma instancia se rechazan.
 - Los caminos terminales de callback y aceptación solo vuelven a login después de
   confirmar un `signOut` exitoso; un fallo o rechazo conserva la pantalla
   fail-closed con un reintento seguro.
@@ -39,6 +52,7 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 
 ### Added
 
+- AUD-005: cobertura Playwright de importación y exportación Excel del padrón, incluidos duplicados, selección, persistencia y contenido del XLSX filtrado. Cinco casos Playwright y 93 aserciones pgTAP aprobados.
 - Experiencia Activity Attendance V1 dentro de Activity Participants: estados
   `Sin registrar|Presente|Ausente`, registro/corrección optimista, conflicto stale
   con recarga autoritativa, lifecycle read-only y E2E canónico persistente.
@@ -46,9 +60,7 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
   Participation, ausencia como no registrado, RLS default-deny, RPC con
   precondición optimista, auditoría mínima y 12 regresiones de concurrencia.
 
-- Diagnóstico reproducible y ExecPlan de Invitation Flow Hardening V1, con flujo
-  real UI–Edge–PostgreSQL–Auth–Mailpit–onboarding, state machines, causas raíz y
-  estrategia de regresión; la implementación queda deliberadamente pendiente.
+- Invitation Flow Hardening V1 integrado, con challenge por entrega, reconciliación, recovery administrativo y E2E de aceptación vía Mailpit. El [ExecPlan 0008](docs/exec-plans/0008-invitation-flow-hardening-v1.md) conserva el diagnóstico y la validación de cada fase.
 - Workspace pnpm/Turborepo con calidad reproducible.
 - Gobernanza, documentación arquitectónica, ADRs, agentes y skills.
 - Supabase local con autorización por permisos, RLS, auditoría y pruebas pgTAP.

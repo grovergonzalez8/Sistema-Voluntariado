@@ -5,9 +5,9 @@ import process from 'node:process';
 import { fileURLToPath, URL } from 'node:url';
 
 const workspaceRoot = fileURLToPath(new URL('..', import.meta.url));
-const environmentPath = fileURLToPath(
-  new URL('../supabase/functions/.env.local', import.meta.url),
-);
+const environmentPath =
+  process.env.SV_E2E_FUNCTION_ENV_FILE ??
+  fileURLToPath(new URL('../supabase/functions/.env.local', import.meta.url));
 const requiredVariables = ['APP_ORIGIN', 'ALLOWED_ORIGINS'];
 
 if (!existsSync(environmentPath)) {

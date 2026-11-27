@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen, waitFor } from '@testing-library/react';
+import { useEffect, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -18,7 +19,7 @@ import { IdentityService } from '../application/identity-service';
 import type { AccountContext } from '../domain/account-administration';
 import type { AuthenticatedUser } from '../domain/authenticated-user';
 import { getAccountContextQueryKey } from './account-context-query';
-import { useIdentity } from './identity-context';
+import { useIdentity, type IdentityContextValue } from './identity-context';
 import { IdentityProvider } from './identity-provider';
 
 const actorA = { email: 'actor-a@example.invalid', id: 'actor-a' } as const;
@@ -85,6 +86,7 @@ function IdentityProbe() {
 function renderIdentity(
   getCurrentAccountContext: AccountContextGateway['getCurrentAccountContext'],
   authGateway: AuthGateway,
+  extra?: ReactNode,
 ) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -100,13 +102,73 @@ function renderIdentity(
         service={new IdentityService(authGateway)}
       >
         <IdentityProbe />
+        {extra}
       </IdentityProvider>
     </QueryClientProvider>,
   );
   return { ...view, queryClient };
 }
 
+function RefreshCallbackProbe({
+  capture,
+}: {
+  readonly capture: (
+    refresh: IdentityContextValue['refreshAccountContext'],
+  ) => void;
+}) {
+  const identity = useIdentity();
+  useEffect(() => {
+    if (identity.user?.id === actorA.id)
+      capture(identity.refreshAccountContext);
+  }, [identity.refreshAccountContext, identity.user?.id, capture]);
+  return null;
+}
+
 describe('IdentityProvider', () => {
+  it.each(['same-actor', 'different-actor', 'signed-out'] as const)(
+    'keeps a delayed resource refresh bound to its originating %s',
+    async (scenario) => {
+      let refresh: IdentityContextValue['refreshAccountContext'] | undefined;
+      const capture = (
+        callback: IdentityContextValue['refreshAccountContext'],
+      ) => {
+        refresh = callback;
+      };
+      const getCurrentAccountContext = vi
+        .fn<AccountContextGateway['getCurrentAccountContext']>()
+        .mockResolvedValueOnce(success(account('account-a')))
+        .mockResolvedValue(success(account('account-b')));
+      const { gateway, listener } = createAuthGateway();
+      renderIdentity(
+        getCurrentAccountContext,
+        gateway,
+        <RefreshCallbackProbe capture={capture} />,
+      );
+      await screen.findByText('account-a:active:1');
+      const originalRefresh = refresh;
+      if (!originalRefresh)
+        throw new Error('Missing resource refresh callback');
+      if (scenario === 'different-actor') {
+        act(() => {
+          listener.current?.({ event: 'signed-in', user: actorB });
+        });
+        await screen.findByText('account-b:active:1');
+      } else if (scenario === 'signed-out') {
+        act(() => {
+          listener.current?.({ event: 'signed-out', user: null });
+        });
+        await screen.findByText('unauthenticated');
+      }
+      const before = getCurrentAccountContext.mock.calls.length;
+      await act(async () => {
+        const result = await originalRefresh();
+        expect(result.ok).toBe(scenario === 'same-actor');
+      });
+      expect(getCurrentAccountContext).toHaveBeenCalledTimes(
+        before + (scenario === 'same-actor' ? 1 : 0),
+      );
+    },
+  );
   it('keeps active authority while a hidden-to-visible focus refetch is pending', async () => {
     let resolveRefetch: (result: Result<AccountContext | null>) => void = () =>
       undefined;

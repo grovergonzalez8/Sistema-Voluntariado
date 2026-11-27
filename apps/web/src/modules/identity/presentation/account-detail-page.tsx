@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
@@ -14,26 +21,71 @@ import {
 import type { AccountAdministrationService } from '../application/account-administration-service';
 import type { InvitationAdministrationService } from '../application/invitation-administration-service';
 import type { AccountDetail } from '../domain/account-administration';
-import type { AccountStatus } from '../domain/account-lifecycle';
+import {
+  normalizeAdministrativeReason,
+  type AccountStatus,
+} from '../domain/account-lifecycle';
 import { useIdentity } from './identity-context';
 import { getAccountStatusTone } from './status-badge-tone';
+import type { Result } from '@sistema-voluntariado/shared-kernel';
 
-export function AccountDetailPage({
-  invitationService,
-  service,
-}: {
+interface AccountDetailPageProps {
   readonly invitationService?: InvitationAdministrationService;
   readonly service: AccountAdministrationService;
-}) {
+}
+
+interface PendingRecoveryRequest {
+  readonly idempotencyKey: string;
+  readonly reason: string;
+}
+
+export function AccountDetailPage(props: AccountDetailPageProps) {
   const { id = '' } = useParams();
+  const identity = useIdentity();
+  const currentActor = useRef<string | null>(null);
+  const recoveryRequests = useRef(new Map<string, PendingRecoveryRequest>());
+  useLayoutEffect(() => {
+    currentActor.current = identity.user?.id ?? null;
+    recoveryRequests.current.clear();
+  }, [identity.user?.id]);
+  return (
+    <AccountDetailForResource
+      id={id}
+      key={`${id}:${identity.user?.id ?? 'anonymous'}`}
+      currentActor={currentActor}
+      recoveryRequests={recoveryRequests}
+      {...props}
+    />
+  );
+}
+
+function AccountDetailForResource({
+  id,
+  currentActor,
+  recoveryRequests,
+  invitationService,
+  service,
+}: AccountDetailPageProps & {
+  readonly id: string;
+  readonly currentActor: RefObject<string | null>;
+  readonly recoveryRequests: RefObject<Map<string, PendingRecoveryRequest>>;
+}) {
+  const identity = useIdentity();
+  const recoveryScope = `${identity.user?.id ?? 'anonymous'}:${id}`;
   const [account, setAccount] = useState<AccountDetail | null>(null);
-  const [reason, setReason] = useState('Cambio administrativo autorizado');
+  const [reason, setReason] = useState(
+    () =>
+      recoveryRequests.current.get(recoveryScope)?.reason ??
+      'Cambio administrativo autorizado',
+  );
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const recoveryIdempotencyKeys = useRef(new Map<string, string>());
-  const identity = useIdentity();
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const mounted = useRef(false);
+  const inFlight = useRef(false);
   const { t } = useTranslation();
+  const isMounted = useCallback(() => mounted.current, []);
   const permissions = identity.account?.permissions ?? [];
   const canActivate = permissions.includes('account.activate');
   const canRecover = permissions.includes('invitation.recover');
@@ -42,105 +94,207 @@ export function AccountDetailPage({
   const canReactivate = permissions.includes('account.reactivate');
   const canSuspend = permissions.includes('account.suspend');
 
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
   useEffect(() => {
     let active = true;
-    void service.getAccountDetail(id).then((result) => {
-      if (!active) return;
-      if (result.ok) {
-        setAccount(result.value);
-        setError(null);
-      } else {
-        setError(result.error.message);
-      }
-    });
+    void service.getAccountDetail(id).then(
+      (result) => {
+        if (!active) return;
+        if (result.ok && result.value.accountId === id) {
+          if (
+            result.value.status !== 'invited' &&
+            recoveryRequests.current.has(recoveryScope)
+          ) {
+            recoveryRequests.current.delete(recoveryScope);
+            setReason('Cambio administrativo autorizado');
+          }
+          setAccount(result.value);
+          setError(null);
+        } else {
+          setAccount(null);
+          setError(
+            result.ok ? t('common.resourceLoadError') : result.error.message,
+          );
+        }
+      },
+      () => {
+        if (active) {
+          setAccount(null);
+          setError(t('common.resourceLoadError'));
+        }
+      },
+    );
     return () => {
       active = false;
     };
-  }, [id, service]);
+  }, [id, service, loadAttempt, t, recoveryRequests, recoveryScope]);
+
+  const runOperation = async (
+    operation: (actorId: string | null) => Promise<void>,
+  ) => {
+    if (!isMounted() || inFlight.current || account?.accountId !== id) return;
+    const actorId = identity.user?.id ?? null;
+    inFlight.current = true;
+    setSubmitting(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await operation(actorId);
+    } catch {
+      if (isMounted()) setError(t('common.resourceSaveError'));
+    } finally {
+      if (isMounted()) {
+        inFlight.current = false;
+        setSubmitting(false);
+      }
+    }
+  };
+
+  const applyAccountChange = async (
+    result: Result<AccountDetail>,
+    actorId: string | null,
+  ) => {
+    if (isMounted()) {
+      if (result.ok && result.value.accountId === id) {
+        setAccount(result.value);
+        setMessage(t('accounts.updated'));
+        setError(null);
+      } else
+        setError(
+          result.ok ? t('common.resourceSaveError') : result.error.message,
+        );
+    }
+    if (
+      result.ok &&
+      result.value.accountId === id &&
+      actorId !== null &&
+      result.value.userId === actorId &&
+      currentActor.current === actorId
+    ) {
+      await identity.refreshAccountContext();
+    }
+  };
 
   const changeStatus = async (status: AccountStatus) => {
-    if (!window.confirm(t(`accounts.confirm.${status}`))) return;
-    setSubmitting(true);
-    const result = await service.changeAccountStatus({
-      accountId: id,
-      reason,
-      status,
+    if (inFlight.current || !window.confirm(t(`accounts.confirm.${status}`)))
+      return;
+    await runOperation(async (actorId) => {
+      const result = await service.changeAccountStatus({
+        accountId: id,
+        reason,
+        status,
+      });
+      await applyAccountChange(result, actorId);
     });
-    if (result.ok) {
-      setAccount(result.value);
-      setMessage(t('accounts.updated'));
-      setError(null);
-      if (result.value.userId === identity.user?.id) {
-        await identity.refreshAccountContext();
-      }
-    } else {
-      setError(result.error.message);
-    }
-    setSubmitting(false);
   };
 
   const changeRole = async (
     roleCode: string,
     operation: 'grant' | 'revoke',
   ) => {
-    if (!window.confirm(t(`accounts.confirm.${operation}`))) return;
-    setSubmitting(true);
-    const result = await service.manageAccountRole({
-      accountId: id,
-      operation,
-      roleCode,
+    if (inFlight.current || !window.confirm(t(`accounts.confirm.${operation}`)))
+      return;
+    await runOperation(async (actorId) => {
+      const result = await service.manageAccountRole({
+        accountId: id,
+        operation,
+        roleCode,
+      });
+      await applyAccountChange(result, actorId);
     });
-    if (result.ok) {
-      setAccount(result.value);
-      setMessage(t('accounts.updated'));
-      setError(null);
-      if (result.value.userId === identity.user?.id) {
-        await identity.refreshAccountContext();
-      }
-    } else {
-      setError(result.error.message);
-    }
-    setSubmitting(false);
   };
 
   const recoverInvitation = async () => {
-    if (!invitationService || !window.confirm(t('accounts.confirm.recover'))) {
+    if (
+      inFlight.current ||
+      !invitationService ||
+      !window.confirm(t('accounts.confirm.recover'))
+    ) {
       return;
     }
-    setSubmitting(true);
-    setError(null);
-    setMessage(null);
-    const idempotencyKey =
-      recoveryIdempotencyKeys.current.get(id) ?? crypto.randomUUID();
-    recoveryIdempotencyKeys.current.set(id, idempotencyKey);
-    const result = await invitationService.recoverAccountInvitation({
-      accountId: id,
-      idempotencyKey,
-      reason,
+    await runOperation(async () => {
+      let request = recoveryRequests.current.get(recoveryScope);
+      if (!request) {
+        const normalizedReason = normalizeAdministrativeReason(reason);
+        if (!normalizedReason.ok) {
+          setError(normalizedReason.error.message);
+          return;
+        }
+        request = {
+          idempotencyKey: crypto.randomUUID(),
+          reason: normalizedReason.value,
+        };
+        recoveryRequests.current.set(recoveryScope, request);
+      }
+      const result = await invitationService.recoverAccountInvitation({
+        accountId: id,
+        ...request,
+      });
+      if (!isMounted()) return;
+      if (result.ok && result.value.accountId !== id) {
+        setError(t('common.resourceSaveError'));
+        return;
+      }
+      if (
+        result.ok &&
+        result.value.outcome !== 'in_progress' &&
+        result.value.outcome !== 'failed'
+      ) {
+        recoveryRequests.current.delete(recoveryScope);
+        try {
+          const refreshed = await service.getAccountDetail(id);
+          if (!isMounted()) return;
+          if (refreshed.ok && refreshed.value.accountId === id)
+            setAccount(refreshed.value);
+          else {
+            setAccount(null);
+            setError(
+              refreshed.ok
+                ? t('common.resourceLoadError')
+                : refreshed.error.message,
+            );
+            return;
+          }
+        } catch {
+          if (!isMounted()) return;
+          setAccount(null);
+          setError(t('common.resourceLoadError'));
+          return;
+        }
+        setMessage(t('invitations.recoveryStarted'));
+        setError(null);
+      } else if (result.ok && result.value.outcome === 'in_progress') {
+        setMessage(t('invitations.actionInProgress'));
+        setError(null);
+      } else if (result.ok) {
+        recoveryRequests.current.delete(recoveryScope);
+        setError(t('invitations.actionFailed'));
+      } else {
+        setError(result.error.message);
+      }
     });
-    if (
-      result.ok &&
-      result.value.outcome !== 'in_progress' &&
-      result.value.outcome !== 'failed'
-    ) {
-      recoveryIdempotencyKeys.current.delete(id);
-      const refreshed = await service.getAccountDetail(id);
-      if (refreshed.ok) setAccount(refreshed.value);
-      setMessage(t('invitations.recoveryStarted'));
-      setError(null);
-    } else if (result.ok && result.value.outcome === 'in_progress') {
-      setMessage(t('invitations.actionInProgress'));
-      setError(null);
-    } else if (result.ok) {
-      recoveryIdempotencyKeys.current.delete(id);
-      setError(t('invitations.actionFailed'));
-    } else {
-      setError(result.error.message);
-    }
-    setSubmitting(false);
   };
 
-  if (error && !account) return <Notice tone="error">{error}</Notice>;
+  if (error && !account)
+    return (
+      <section>
+        <Notice tone="error">{error}</Notice>
+        <Button
+          onClick={() => {
+            setError(null);
+            setLoadAttempt((attempt) => attempt + 1);
+          }}
+        >
+          {t('common.retry')}
+        </Button>
+      </section>
+    );
   if (!account) return <LoadingState>{t('common.loading')}</LoadingState>;
 
   return (
@@ -160,6 +314,7 @@ export function AccountDetailPage({
             {t(`accountStatus.${account.status}`)}
           </StatusBadge>
           <Field
+            disabled={submitting || recoveryRequests.current.has(recoveryScope)}
             label={t('accounts.reason')}
             minLength={3}
             name="accountReason"

@@ -21,21 +21,27 @@ import { ProjectActivityForm } from './project-activity-form';
 import { ProjectActivityParticipantsSection } from './project-activity-participants-section';
 import { getProjectActivityStatusTone } from './project-status-badge-tone';
 
-export function ProjectActivitiesSection({
-  attendanceService,
-  canManage,
-  participationService,
-  projectId,
-  projectStatus,
-  service,
-}: {
+interface ProjectActivitiesSectionProps {
   readonly attendanceService: ProjectActivityAttendanceService;
   readonly canManage: boolean;
   readonly participationService: ProjectActivityParticipationService;
   readonly projectId: string;
   readonly projectStatus: ProjectStatus;
   readonly service: ProjectActivityService;
-}) {
+}
+
+export function ProjectActivitiesSection(props: ProjectActivitiesSectionProps) {
+  return <ProjectActivitiesForProject key={props.projectId} {...props} />;
+}
+
+function ProjectActivitiesForProject({
+  attendanceService,
+  canManage,
+  participationService,
+  projectId,
+  projectStatus,
+  service,
+}: ProjectActivitiesSectionProps) {
   const [activities, setActivities] = useState<readonly ProjectActivity[]>([]);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(
     null,
@@ -98,6 +104,15 @@ export function ProjectActivitiesSection({
   };
 
   const mutable = canManage && projectStatus === 'active';
+  const editedActivity =
+    editing && editing !== 'create'
+      ? activities.find((activity) => activity.id === editing.id)
+      : undefined;
+  const editorVisible =
+    mutable &&
+    (editing === 'create' ||
+      (editedActivity !== undefined &&
+        isScheduledProjectActivity(editedActivity)));
   const selectedActivity = activities.find(
     (activity) => activity.id === selectedActivityId,
   );
@@ -114,7 +129,7 @@ export function ProjectActivitiesSection({
           </h2>
           <p className="muted">{t('projects.activities.summary')}</p>
         </div>
-        {mutable && editing === null ? (
+        {mutable && !editorVisible ? (
           <Button
             onClick={() => {
               setEditing('create');
@@ -128,9 +143,10 @@ export function ProjectActivitiesSection({
       {loading ? <LoadingState>{t('common.loading')}</LoadingState> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
       {success ? <Notice tone="success">{success}</Notice> : null}
-      {editing ? (
+      {editorVisible ? (
         <ProjectActivityForm
-          activity={editing === 'create' ? undefined : editing}
+          activity={editedActivity}
+          key={`${projectId}:${editedActivity ? `edit:${editedActivity.id}` : 'create'}`}
           onCancel={() => {
             setEditing(null);
           }}

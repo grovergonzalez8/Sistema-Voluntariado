@@ -28,7 +28,7 @@ aceptada puede completar onboarding. El registro público permanece desactivado.
 Replace y resend rotan el challenge: solo el enlace más recientemente entregado
 puede aceptar la invitación vigente. La operación Auth se distingue de la entrega
 física del correo; un estado `recovery_required` queda cerrado para autoridad hasta
-que una reconciliación administrativa de FASE B aporte evidencia suficiente.
+que el flujo de recuperación administrativa verifique el vínculo Auth–Account–Invitation.
 
 Si Auth confirmó la identidad pero la cuenta quedó `invited` con una invitación
 terminal, administrator puede usar recuperación verificada. El sistema comprueba

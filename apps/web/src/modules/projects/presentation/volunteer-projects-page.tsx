@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import {
+  Button,
   EmptyState,
   LoadingState,
   Notice,
@@ -21,25 +22,51 @@ export function VolunteerProjectsPage({
   readonly service: ProjectManagementService;
 }) {
   const { id = '' } = useParams();
+  return (
+    <VolunteerProjectsPageForResource id={id} key={id} service={service} />
+  );
+}
+
+function VolunteerProjectsPageForResource({
+  id,
+  service,
+}: {
+  readonly id: string;
+  readonly service: ProjectManagementService;
+}) {
   const [assignments, setAssignments] = useState<
     readonly VolunteerProjectAssignment[]
   >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const { t } = useTranslation();
 
   useEffect(() => {
     let active = true;
-    void service.listVolunteerProjects(id).then((result) => {
-      if (!active) return;
-      if (result.ok) setAssignments(result.value);
-      else setError(result.error.message);
-      setLoading(false);
-    });
+    void service.listVolunteerProjects(id).then(
+      (result) => {
+        if (!active) return;
+        if (result.ok) {
+          setAssignments(result.value);
+          setError(null);
+        } else {
+          setAssignments([]);
+          setError(result.error.message);
+        }
+        setLoading(false);
+      },
+      () => {
+        if (!active) return;
+        setAssignments([]);
+        setError(t('common.resourceLoadError'));
+        setLoading(false);
+      },
+    );
     return () => {
       active = false;
     };
-  }, [id, service]);
+  }, [id, service, loadAttempt, t]);
 
   return (
     <section className="admin-page">
@@ -53,7 +80,20 @@ export function VolunteerProjectsPage({
         eyebrow={t('admin.eyebrow')}
         title={t('projects.volunteerHistoryTitle')}
       />
-      {error ? <Notice tone="error">{error}</Notice> : null}
+      {error ? (
+        <div>
+          <Notice tone="error">{error}</Notice>
+          <Button
+            onClick={() => {
+              setError(null);
+              setLoading(true);
+              setLoadAttempt((attempt) => attempt + 1);
+            }}
+          >
+            {t('common.retry')}
+          </Button>
+        </div>
+      ) : null}
       {loading ? <LoadingState>{t('common.loading')}</LoadingState> : null}
       {!loading && assignments.length === 0 ? (
         <EmptyState title={t('projects.noVolunteerProjects')} />

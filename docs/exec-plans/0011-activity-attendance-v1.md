@@ -1,6 +1,6 @@
 # ExecPlan 0011 — Activity Attendance V1
 
-- Estado: FASE A y FASE B implementadas y validadas; pre-merge pendiente
+- Estado actual: FASE A y FASE B integradas en `main` mediante `020835b` (#10). Los estados pre-merge y resultados que figuran más abajo corresponden al cierre histórico de la rama de implementación.
 - Fecha: 2026-09-16
 - Rama: `feat/activity-attendance-v1`
 - Base: `main@cb554c8`

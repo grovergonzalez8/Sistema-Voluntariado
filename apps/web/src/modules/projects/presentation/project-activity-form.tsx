@@ -1,4 +1,4 @@
-import { useState, type SyntheticEvent } from 'react';
+import { useLayoutEffect, useRef, useState, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Button, Field, Notice } from '@sistema-voluntariado/ui';
@@ -63,11 +63,20 @@ export function ProjectActivityForm({
   const [errors, setErrors] = useState<ProjectActivityValidationErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const mounted = useRef(false);
+  const inFlight = useRef(false);
   const { t } = useTranslation();
+
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const submit = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (submitting) return;
+    if (inFlight.current) return;
     const activityInput = asActivityInput(input);
     const validation = validateProjectActivityInput(activityInput);
     if (!validation.ok) {
@@ -75,6 +84,7 @@ export function ProjectActivityForm({
       return;
     }
     setErrors({});
+    inFlight.current = true;
     setSubmitting(true);
     setError(null);
     void (
@@ -82,9 +92,11 @@ export function ProjectActivityForm({
         ? service.updateProjectActivity(projectId, activity.id, activityInput)
         : service.createProjectActivity(projectId, activityInput)
     ).then((result) => {
+      if (!mounted.current) return;
+      inFlight.current = false;
+      setSubmitting(false);
       if (result.ok) onSaved(result.value);
       else setError(result.error.message);
-      setSubmitting(false);
     });
   };
 
