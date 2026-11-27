@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import console from 'node:console';
 import {
   closeSync,
@@ -6,6 +7,7 @@ import {
   openSync,
   readFileSync,
   rmSync,
+  writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -165,6 +167,7 @@ export function assertFunctionCanStart(
 
 export async function waitForInvitationFunction({
   child,
+  captureOwnership = () => undefined,
   fetchImplementation = globalThis.fetch,
   pollIntervalMs = 250,
   timeoutMs = 120_000,
@@ -172,6 +175,7 @@ export async function waitForInvitationFunction({
   const deadline = Date.now() + timeoutMs;
   let lastProbe = { kind: 'unavailable', status: 503 };
   while (Date.now() < deadline) {
+    captureOwnership();
     if (child.exitCode !== null || child.signalCode !== null) {
       throw new Error(
         `functions:serve exited before readiness (exit=${String(child.exitCode)}, signal=${String(child.signalCode)}).`,
@@ -179,6 +183,17 @@ export async function waitForInvitationFunction({
     }
 
     lastProbe = await probeInvitationFunction(fetchImplementation);
+    if (
+      child.exitCode !== null ||
+      child.signalCode !== null ||
+      child.startupError
+    ) {
+      throw (
+        child.startupError ??
+        new Error('functions:serve exited during readiness.')
+      );
+    }
+    captureOwnership();
     if (lastProbe.kind === 'ready') return;
     if (lastProbe.kind === 'unexpected') {
       throw new Error(
@@ -198,6 +213,8 @@ export async function runManagedE2E(operations) {
   let primaryError = null;
   let teardownError = null;
   let logError = null;
+  let artifactError = null;
+  let finalizationError = null;
   try {
     await operations.assertCanStart();
     handle = await operations.startFunction();
@@ -212,17 +229,38 @@ export async function runManagedE2E(operations) {
       } catch (error) {
         teardownError = error;
       }
-      if (primaryError || teardownError) {
+      if (operations.finalize) {
         try {
-          await operations.showLogs(handle);
+          await operations.finalize(handle, {
+            failed: Boolean(primaryError || teardownError),
+          });
         } catch (error) {
-          logError = error;
+          finalizationError = error;
+        }
+      } else {
+        if (primaryError || teardownError) {
+          try {
+            await operations.showLogs(handle);
+          } catch (error) {
+            logError = error;
+          }
+        }
+        try {
+          await operations.removeArtifacts?.(handle);
+        } catch (error) {
+          artifactError = error;
         }
       }
     }
   }
 
-  const failures = [primaryError, teardownError, logError].filter(Boolean);
+  const failures = [
+    primaryError,
+    teardownError,
+    logError,
+    artifactError,
+    finalizationError,
+  ].filter(Boolean);
   if (failures.length > 1) {
     throw new AggregateError(
       failures,
@@ -234,7 +272,7 @@ export async function runManagedE2E(operations) {
 
 export async function runIndependentCleanups(cleanups) {
   const results = await Promise.allSettled(
-    cleanups.map((cleanup) => cleanup()),
+    cleanups.map((cleanup) => Promise.resolve().then(cleanup)),
   );
   const failures = results
     .filter((result) => result.status === 'rejected')
@@ -249,6 +287,7 @@ function runDocker(arguments_) {
   const result = spawnSync('docker', arguments_, {
     cwd: workspaceRoot,
     encoding: 'utf8',
+    timeout: 10_000,
   });
   if (result.error) throw result.error;
   if (result.status !== 0) {
@@ -262,11 +301,25 @@ function runDocker(arguments_) {
 function listEdgeRuntimeContainers() {
   const output = runDocker([
     'ps',
+    '--all',
     '--quiet',
+    '--no-trunc',
     '--filter',
     `label=com.supabase.cli.project=${supabaseProjectId}`,
     '--filter',
     'name=supabase_edge_runtime_',
+  ]);
+  return output ? output.split(/\r?\n/u).filter(Boolean) : [];
+}
+
+function listProjectContainers() {
+  const output = runDocker([
+    'ps',
+    '--all',
+    '--quiet',
+    '--no-trunc',
+    '--filter',
+    `label=com.supabase.cli.project=${supabaseProjectId}`,
   ]);
   return output ? output.split(/\r?\n/u).filter(Boolean) : [];
 }
@@ -277,6 +330,7 @@ export function stopOwnedEdgeRuntimeContainer(
 ) {
   try {
     dockerCommand(['stop', '--time', '5', containerId]);
+    dockerCommand(['rm', containerId]);
   } catch (stopError) {
     let matchingContainers;
     try {
@@ -319,6 +373,7 @@ function waitForExit(child, timeoutMs) {
 }
 
 async function stopProcessTree(child) {
+  if (!child.pid && child.startupError) return;
   if (child.exitCode !== null || child.signalCode !== null) return;
 
   if (process.platform === 'win32') {
@@ -341,6 +396,9 @@ async function stopProcessTree(child) {
         process.kill(-child.pid, 'SIGKILL');
       } catch (error) {
         if (error?.code !== 'ESRCH') throw error;
+      }
+      if (!(await waitForExit(child, 5_000))) {
+        throw new Error(`Timed out killing owned process group ${child.pid}.`);
       }
     }
   }
@@ -378,18 +436,113 @@ function createManagedFunction() {
   const temporaryDirectory = mkdtempSync(join(tmpdir(), 'sv-e2e-functions-'));
   const logPath = join(temporaryDirectory, 'functions.log');
   const logDescriptor = openSync(logPath, 'a');
-  const child = spawnPnpm(['functions:serve'], {
-    detached: process.platform !== 'win32',
-    stdio: ['ignore', logDescriptor, logDescriptor],
+  const ownerToken = randomUUID();
+  const environmentPath = join(temporaryDirectory, 'functions.env');
+  try {
+    writeFileSync(
+      environmentPath,
+      createOwnedFunctionEnvironment(
+        readFileSync(
+          join(workspaceRoot, 'supabase/functions/.env.local'),
+          'utf8',
+        ),
+        ownerToken,
+      ),
+      { mode: 0o600 },
+    );
+  } catch (error) {
+    closeSync(logDescriptor);
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+    throw error;
+  }
+  let child;
+  try {
+    child = spawnPnpm(['functions:serve'], {
+      detached: process.platform !== 'win32',
+      env: { ...process.env, SV_E2E_FUNCTION_ENV_FILE: environmentPath },
+      stdio: ['ignore', logDescriptor, logDescriptor],
+    });
+  } catch (error) {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+    throw error;
+  } finally {
+    closeSync(logDescriptor);
+  }
+  child.on('error', (error) => {
+    child.startupError = error;
   });
-  closeSync(logDescriptor);
   return {
     child,
     logPath,
     ownedContainerIds: [],
+    ownerToken,
     stopPromise: null,
     temporaryDirectory,
   };
+}
+
+export function createOwnedFunctionEnvironment(source, ownerToken) {
+  if (!/^[a-zA-Z0-9-]+$/u.test(ownerToken ?? ''))
+    throw new Error('Invalid E2E ownership token.');
+  if (/^\s*(?:export\s+)?SV_E2E_RUNTIME_OWNER\s*=/mu.test(source)) {
+    throw new Error('The reserved E2E ownership marker is already configured.');
+  }
+  return `${source}\nSV_E2E_RUNTIME_OWNER=${ownerToken}\n`;
+}
+
+function inspectEdgeRuntimeContainer(id) {
+  return JSON.parse(runDocker(['inspect', id]))[0];
+}
+
+export function captureOwnedEdgeRuntimeContainers(
+  handle,
+  {
+    listContainers = listProjectContainers,
+    inspectContainer = inspectEdgeRuntimeContainer,
+    projectId = supabaseProjectId,
+  } = {},
+) {
+  const foreign = [];
+  const failures = [];
+  for (const id of listContainers()) {
+    let info;
+    try {
+      info = inspectContainer(id);
+    } catch (error) {
+      try {
+        if (!listContainers().includes(id)) continue;
+      } catch (inspectionError) {
+        failures.push(inspectionError);
+      }
+      failures.push(error);
+      continue;
+    }
+    if (
+      /^[a-f0-9]{64}$/u.test(id) &&
+      info.Id === id &&
+      info.Config?.Labels?.['com.supabase.cli.project'] === projectId &&
+      info.Config?.Env?.includes(`SV_E2E_RUNTIME_OWNER=${handle.ownerToken}`)
+    ) {
+      if (!handle.ownedContainerIds.includes(id))
+        handle.ownedContainerIds.push(id);
+    } else if (
+      info.Config?.Env?.some((value) =>
+        value.startsWith('SV_E2E_RUNTIME_OWNER='),
+      ) ||
+      info.Name?.startsWith('/supabase_edge_runtime_')
+    )
+      foreign.push(id);
+  }
+  if (foreign.length)
+    failures.push(
+      new Error(
+        `Concurrent unowned Edge Runtime containers were detected and left untouched: ${foreign.join(', ')}`,
+      ),
+    );
+  if (failures.length)
+    throw failures.length === 1
+      ? failures[0]
+      : new AggregateError(failures, 'Runtime discovery failed.');
 }
 
 export function partitionEdgeRuntimeContainers(ownedContainerIds, runningIds) {
@@ -415,6 +568,8 @@ export async function stopManagedFunction(
     listContainers = listEdgeRuntimeContainers,
     stopContainer = stopOwnedEdgeRuntimeContainer,
     stopTree = stopProcessTree,
+    inspectContainer = inspectEdgeRuntimeContainer,
+    projectId = supabaseProjectId,
   } = {},
 ) {
   handle.stopPromise ??= (async () => {
@@ -425,20 +580,45 @@ export async function stopManagedFunction(
       failures.push(error);
     }
 
-    try {
-      const running = listContainers();
-      const { ownedAndRunning, unowned } = partitionEdgeRuntimeContainers(
-        handle.ownedContainerIds,
-        running,
-      );
-      for (const containerId of ownedAndRunning) {
-        stopContainer(containerId);
+    if (handle.ownerToken) {
+      try {
+        captureOwnedEdgeRuntimeContainers(handle, {
+          listContainers:
+            listContainers === listEdgeRuntimeContainers
+              ? listProjectContainers
+              : listContainers,
+          inspectContainer,
+          projectId,
+        });
+      } catch (error) {
+        failures.push(error);
       }
+    }
 
-      const owned = new Set(handle.ownedContainerIds);
-      const remainingOwned = listContainers().filter((containerId) =>
-        owned.has(containerId),
-      );
+    let unowned = [];
+    try {
+      ({ unowned } = partitionEdgeRuntimeContainers(
+        handle.ownedContainerIds,
+        listContainers(),
+      ));
+    } catch (error) {
+      failures.push(error);
+    }
+    for (const containerId of handle.ownedContainerIds) {
+      try {
+        stopContainer(containerId);
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    const owned = new Set(handle.ownedContainerIds);
+    try {
+      const finalContainers = listContainers();
+      const remainingOwned = (
+        listContainers === listEdgeRuntimeContainers
+          ? listProjectContainers()
+          : finalContainers
+      ).filter((containerId) => owned.has(containerId));
       if (remainingOwned.length > 0) {
         failures.push(
           new Error(
@@ -446,10 +626,16 @@ export async function stopManagedFunction(
           ),
         );
       }
-      if (unowned.length > 0) {
+      const allUnowned = [
+        ...new Set([
+          ...unowned,
+          ...finalContainers.filter((id) => !owned.has(id)),
+        ]),
+      ];
+      if (allUnowned.length > 0) {
         failures.push(
           new Error(
-            `Concurrent unowned Edge Runtime containers were detected and left untouched: ${unowned.join(', ')}`,
+            `Concurrent unowned Edge Runtime containers were detected and left untouched: ${allUnowned.join(', ')}`,
           ),
         );
       }
@@ -479,31 +665,112 @@ function removeTemporaryArtifacts(handle) {
   rmSync(handle.temporaryDirectory, { force: true, recursive: true });
 }
 
+export function finalizeManagedFunction(
+  handle,
+  {
+    logs = false,
+    showLogs = showFunctionLogs,
+    removeArtifacts = removeTemporaryArtifacts,
+  } = {},
+) {
+  handle.finalizePromise ??= (async () => {
+    const failures = [];
+    if (logs) {
+      try {
+        await showLogs(handle);
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    try {
+      await removeArtifacts(handle);
+    } catch (error) {
+      failures.push(error);
+    }
+    if (failures.length)
+      throw failures.length === 1
+        ? failures[0]
+        : new AggregateError(
+            failures,
+            'Function logs/artifacts finalization failed.',
+          );
+  })();
+  return handle.finalizePromise;
+}
+
+export function installE2ESignalHandlers(target, terminate) {
+  const interrupt = () => terminate(130);
+  const end = () => terminate(143);
+  target.on('SIGINT', interrupt);
+  target.on('SIGTERM', end);
+  return () => {
+    target.off('SIGINT', interrupt);
+    target.off('SIGTERM', end);
+  };
+}
+
+export function createE2ETerminator({ cleanup, finish, exit, report }) {
+  let terminating = false;
+  let promise;
+  return {
+    isTerminating: () => terminating,
+    assertRunning() {
+      if (terminating)
+        throw new Error('E2E interrupted; no further startup is allowed.');
+    },
+    terminate(exitCode) {
+      terminating = true;
+      promise ??= (async () => {
+        try {
+          await cleanup();
+        } catch (error) {
+          report(error);
+        } finally {
+          try {
+            await finish();
+          } catch (error) {
+            report(error);
+          } finally {
+            exit(exitCode);
+          }
+        }
+      })();
+      return promise;
+    },
+  };
+}
+
 async function main() {
   let activeHandle = null;
   let activePlaywright = null;
-  let terminationPromise = null;
-  const terminate = (exitCode) => {
-    terminationPromise ??= (async () => {
-      try {
-        await runIndependentCleanups([
-          async () => {
-            if (activePlaywright) await stopProcessTree(activePlaywright);
-          },
-          async () => {
-            if (activeHandle) await stopManagedFunction(activeHandle);
-          },
-        ]);
-      } catch (error) {
-        console.error(`Signal cleanup failed: ${safeErrorMessage(error)}`);
-      } finally {
-        if (activeHandle) removeTemporaryArtifacts(activeHandle);
-        process.exit(exitCode);
+  let removeSignalHandlers;
+  const termination = createE2ETerminator({
+    cleanup: async () => {
+      await runIndependentCleanups([
+        async () => {
+          if (activePlaywright) await stopProcessTree(activePlaywright);
+        },
+        async () => {
+          if (activeHandle) await stopManagedFunction(activeHandle);
+        },
+      ]);
+    },
+    finish: async () => {
+      if (activeHandle) {
+        await finalizeManagedFunction(activeHandle, { logs: true });
       }
-    })();
-  };
-  process.once('SIGINT', () => terminate(130));
-  process.once('SIGTERM', () => terminate(143));
+    },
+    report: (error) =>
+      console.error(`Signal cleanup failed: ${safeErrorMessage(error)}`),
+    exit: (code) => {
+      removeSignalHandlers();
+      process.exit(code);
+    },
+  });
+  removeSignalHandlers = installE2ESignalHandlers(
+    process,
+    termination.terminate,
+  );
 
   try {
     await runManagedE2E({
@@ -512,8 +779,10 @@ async function main() {
         const probe = await probeInvitationFunction();
         const gatewayProbe = await probeSupabaseGateway();
         assertFunctionCanStart(probe, runningContainers, gatewayProbe);
+        termination.assertRunning();
       },
       runPlaywright: async () => {
+        termination.assertRunning();
         activePlaywright = spawnPnpm(
           ['--filter', '@sistema-voluntariado/web', 'test:e2e:playwright'],
           {
@@ -527,8 +796,10 @@ async function main() {
           activePlaywright = null;
         }
       },
-      showLogs: async (handle) => showFunctionLogs(handle),
+      finalize: async (handle, { failed }) =>
+        finalizeManagedFunction(handle, { logs: failed }),
       startFunction: async () => {
+        termination.assertRunning();
         activeHandle = createManagedFunction();
         return activeHandle;
       },
@@ -536,15 +807,19 @@ async function main() {
         await stopManagedFunction(handle);
       },
       waitUntilReady: async (handle) => {
-        await waitForInvitationFunction({ child: handle.child });
+        termination.assertRunning();
+        await waitForInvitationFunction({
+          child: handle.child,
+          captureOwnership: () => captureOwnedEdgeRuntimeContainers(handle),
+        });
         const acquiredContainerId = acquireSingleEdgeRuntimeContainer(
-          listEdgeRuntimeContainers(),
+          handle.ownedContainerIds,
         );
         handle.ownedContainerIds = [acquiredContainerId];
       },
     });
   } finally {
-    if (activeHandle) removeTemporaryArtifacts(activeHandle);
+    if (!termination.isTerminating()) removeSignalHandlers();
   }
 }
 

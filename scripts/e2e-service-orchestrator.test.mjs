@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { EventEmitter } from 'node:events';
 
 import {
   acquireSingleEdgeRuntimeContainer,
@@ -12,6 +13,12 @@ import {
   runIndependentCleanups,
   stopManagedFunction,
   stopOwnedEdgeRuntimeContainer,
+  waitForInvitationFunction,
+  captureOwnedEdgeRuntimeContainers,
+  createOwnedFunctionEnvironment,
+  createE2ETerminator,
+  finalizeManagedFunction,
+  installE2ESignalHandlers,
 } from './e2e-service-orchestrator.mjs';
 import { runResetLocalDatabase } from './reset-local-database.mjs';
 
@@ -386,5 +393,430 @@ test('keeps process ownership aligned across scripts, Playwright, and Actions', 
   );
   assert.ok(
     workflow.indexOf('pnpm test:e2e') < workflow.indexOf('pnpm db:stop'),
+  );
+});
+
+test('AUD008 partial startup cleans its marked runtime before propagating readiness error', async () => {
+  const id = 'a'.repeat(64);
+  const stopped = [];
+  const failure = new Error('readiness timeout');
+  const handle = {
+    child: {},
+    ownerToken: 'run-token',
+    ownedContainerIds: [],
+    stopPromise: null,
+  };
+  let present = true;
+  await assert.rejects(
+    runManagedE2E({
+      assertCanStart: async () => undefined,
+      startFunction: async () => handle,
+      waitUntilReady: async () => {
+        throw failure;
+      },
+      runPlaywright: async () => assert.fail('must not run'),
+      showLogs: async () => undefined,
+      stopFunction: (h) =>
+        stopManagedFunction(h, {
+          listContainers: () => (present ? [id] : []),
+          inspectContainer: () => ({
+            Id: id,
+            Config: {
+              Labels: { 'com.supabase.cli.project': 'sistema-voluntariado' },
+              Env: ['SV_E2E_RUNTIME_OWNER=run-token'],
+            },
+          }),
+          stopTree: async () => undefined,
+          stopContainer: (own) => {
+            stopped.push(own);
+            present = false;
+          },
+        }),
+    }),
+    (error) => error === failure,
+  );
+  assert.deepEqual(stopped, [id]);
+});
+
+test('AUD008 independent cleanup survives a synchronous failure', async () => {
+  let second = false;
+  await assert.rejects(
+    runIndependentCleanups([
+      () => {
+        throw new Error('sync cleanup');
+      },
+      () => {
+        second = true;
+      },
+    ]),
+    /sync cleanup/u,
+  );
+  assert.equal(second, true);
+});
+
+const ownedInfo = (id, token) => ({
+  Id: id,
+  Config: {
+    Labels: { 'com.supabase.cli.project': 'sistema-voluntariado' },
+    Env: [`SV_E2E_RUNTIME_OWNER=${token}`],
+  },
+});
+
+test('AUD008 ownership requires exact marker, full ID and project, never singleton/name alone', () => {
+  const id = 'b'.repeat(64);
+  for (const info of [
+    ownedInfo(id, 'foreign'),
+    { ...ownedInfo(id, 'ours'), Id: 'c'.repeat(64) },
+    {
+      ...ownedInfo(id, 'ours'),
+      Config: { Env: ['SV_E2E_RUNTIME_OWNER=ours'], Labels: {} },
+    },
+  ]) {
+    const handle = { ownerToken: 'ours', ownedContainerIds: [] };
+    assert.throws(
+      () =>
+        captureOwnedEdgeRuntimeContainers(handle, {
+          listContainers: () => [id],
+          inspectContainer: () => info,
+        }),
+      /unowned/u,
+    );
+    assert.deepEqual(handle.ownedContainerIds, []);
+  }
+});
+
+test('AUD008 consecutive runs cannot inherit each other ownership', () => {
+  const id = 'b'.repeat(64);
+  const first = { ownerToken: 'first', ownedContainerIds: [] };
+  const second = { ownerToken: 'second', ownedContainerIds: [] };
+  const operations = {
+    listContainers: () => [id],
+    inspectContainer: () => ownedInfo(id, 'first'),
+  };
+  captureOwnedEdgeRuntimeContainers(first, operations);
+  captureOwnedEdgeRuntimeContainers(first, operations);
+  assert.deepEqual(first.ownedContainerIds, [id]);
+  assert.throws(
+    () => captureOwnedEdgeRuntimeContainers(second, operations),
+    /unowned/u,
+  );
+  assert.deepEqual(second.ownedContainerIds, []);
+});
+
+test('AUD008 discovery tolerates removal but propagates failed Docker inspection', () => {
+  const id = 'b'.repeat(64);
+  const error = new Error('inspect unavailable');
+  const handle = { ownerToken: 'ours', ownedContainerIds: [] };
+  let listed = false;
+  captureOwnedEdgeRuntimeContainers(handle, {
+    listContainers: () => {
+      if (listed) return [];
+      listed = true;
+      return [id];
+    },
+    inspectContainer: () => {
+      throw error;
+    },
+  });
+  assert.throws(
+    () =>
+      captureOwnedEdgeRuntimeContainers(handle, {
+        listContainers: () => [id],
+        inspectContainer: () => {
+          throw error;
+        },
+      }),
+    (e) => e === error,
+  );
+});
+
+test('AUD008 environment preserves settings and refuses marker overrides or line injection', () => {
+  assert.equal(
+    createOwnedFunctionEnvironment('APP_ORIGIN=http://localhost:5173', 'ours'),
+    'APP_ORIGIN=http://localhost:5173\nSV_E2E_RUNTIME_OWNER=ours\n',
+  );
+  assert.throws(
+    () => createOwnedFunctionEnvironment('SV_E2E_RUNTIME_OWNER=old', 'ours'),
+    /reserved/u,
+  );
+  assert.throws(
+    () => createOwnedFunctionEnvironment('', 'ours\nBAD=1'),
+    /Invalid/u,
+  );
+});
+
+test('AUD008 polls ownership before readiness timeout and rejects a child exiting during probe', async () => {
+  let captures = 0;
+  const child = { exitCode: null, signalCode: null };
+  await assert.rejects(
+    waitForInvitationFunction({
+      child,
+      timeoutMs: 15,
+      pollIntervalMs: 1,
+      captureOwnership: () => {
+        captures++;
+      },
+      fetchImplementation: () => response('Function not found', 404),
+    }),
+    /Timed out/u,
+  );
+  assert.ok(captures > 0);
+  await assert.rejects(
+    waitForInvitationFunction({
+      child,
+      fetchImplementation: () => {
+        child.exitCode = 1;
+        return response(JSON.stringify({ code: 'unauthenticated' }), 401, {
+          'content-type': 'application/json',
+          'access-control-allow-methods': 'POST, OPTIONS',
+        });
+      },
+    }),
+    /exited during/u,
+  );
+});
+
+test('AUD008 cleans all proven containers despite process, inspection and first-stop failures', async () => {
+  const stopped = [];
+  const handle = {
+    child: {},
+    ownedContainerIds: ['first', 'second'],
+    stopPromise: null,
+  };
+  await assert.rejects(
+    stopManagedFunction(handle, {
+      stopTree: async () => {
+        throw new Error('tree failure');
+      },
+      listContainers: () => {
+        throw new Error('inspection failure');
+      },
+      stopContainer: (id) => {
+        stopped.push(id);
+        if (id === 'first') throw new Error('stop failure');
+      },
+    }),
+    (error) =>
+      error instanceof AggregateError &&
+      error.errors.some((e) => e.message === 'tree failure') &&
+      error.errors.some((e) => e.message === 'stop failure'),
+  );
+  assert.deepEqual(stopped, ['first', 'second']);
+});
+
+test('AUD008 removes a successfully stopped owned runtime by its exact ID', () => {
+  const calls = [];
+  const id = 'a'.repeat(64);
+  stopOwnedEdgeRuntimeContainer(id, (args) => {
+    calls.push(args);
+    return '';
+  });
+  assert.deepEqual(calls, [
+    ['stop', '--time', '5', id],
+    ['rm', id],
+  ]);
+});
+
+test('AUD008 foreign runtime appearing during teardown is reported and never stopped', async () => {
+  let lists = 0;
+  const stopped = [];
+  await assert.rejects(
+    stopManagedFunction(
+      { child: {}, ownedContainerIds: ['ours'], stopPromise: null },
+      {
+        stopTree: async () => undefined,
+        listContainers: () => (++lists === 1 ? ['ours'] : ['foreign']),
+        stopContainer: (id) => stopped.push(id),
+      },
+    ),
+    /unowned/u,
+  );
+  assert.deepEqual(stopped, ['ours']);
+});
+
+test('AUD008 original, teardown, log and artifact errors all survive', async () => {
+  const failures = ['primary', 'teardown', 'logs', 'artifacts'].map(
+    (message) => new Error(message),
+  );
+  await assert.rejects(
+    runManagedE2E({
+      assertCanStart: async () => undefined,
+      startFunction: async () => ({}),
+      waitUntilReady: async () => {
+        throw failures[0];
+      },
+      runPlaywright: async () => assert.fail(),
+      stopFunction: async () => {
+        throw failures[1];
+      },
+      showLogs: async () => {
+        throw failures[2];
+      },
+      removeArtifacts: async () => {
+        throw failures[3];
+      },
+    }),
+    (error) =>
+      error instanceof AggregateError &&
+      error.errors.every((e, index) => e === failures[index]) &&
+      error.errors.length === 4,
+  );
+});
+
+test('AUD008 signal interruption blocks new startup, independently cleans and exits once', async () => {
+  for (const exitCode of [130, 143]) {
+    const events = [];
+    const errors = [];
+    const termination = createE2ETerminator({
+      cleanup: () =>
+        runIndependentCleanups([
+          () => {
+            events.push('playwright');
+            throw new Error('stop process');
+          },
+          () => {
+            events.push('function');
+          },
+        ]),
+      finish: () => {
+        events.push('logs');
+        throw new Error('logs failed');
+      },
+      report: (error) => errors.push(error),
+      exit: (code) => events.push(code),
+    });
+    termination.assertRunning();
+    const stopped = termination.terminate(exitCode);
+    assert.throws(() => termination.assertRunning(), /interrupted/u);
+    assert.equal(termination.terminate(99), stopped);
+    await stopped;
+    assert.deepEqual(events, ['playwright', 'function', 'logs', exitCode]);
+    assert.equal(errors.length, 2);
+  }
+});
+
+test('AUD008 one failed candidate inspection cannot hide another marked owner', async () => {
+  const bad = 'b'.repeat(64),
+    own = 'c'.repeat(64);
+  const error = new Error('candidate inspect failed');
+  const stopped = [];
+  const handle = {
+    child: {},
+    ownerToken: 'ours',
+    ownedContainerIds: [],
+    stopPromise: null,
+  };
+  await assert.rejects(
+    stopManagedFunction(handle, {
+      listContainers: () => (stopped.length ? [bad] : [bad, own]),
+      inspectContainer: (id) => {
+        if (id === bad) throw error;
+        return ownedInfo(own, 'ours');
+      },
+      stopTree: async () => undefined,
+      stopContainer: (id) => stopped.push(id),
+    }),
+    (failure) =>
+      failure instanceof AggregateError && failure.errors.includes(error),
+  );
+  assert.deepEqual(stopped, [own]);
+});
+
+test('AUD008 marker identifies renamed owned containers while ordinary project containers remain untouched', () => {
+  const own = 'c'.repeat(64),
+    db = 'd'.repeat(64);
+  const handle = { ownerToken: 'ours', ownedContainerIds: [] };
+  captureOwnedEdgeRuntimeContainers(handle, {
+    listContainers: () => [db, own],
+    inspectContainer: (id) =>
+      id === own
+        ? { ...ownedInfo(own, 'ours'), Name: '/renamed-own' }
+        : {
+            Id: db,
+            Name: '/supabase_db_sistema-voluntariado',
+            Config: {
+              Env: [],
+              Labels: { 'com.supabase.cli.project': 'sistema-voluntariado' },
+            },
+          },
+  });
+  assert.deepEqual(handle.ownedContainerIds, [own]);
+});
+
+test('AUD008 repeated identical signals keep their listener until cleanup completes', async () => {
+  const target = new EventEmitter();
+  let release;
+  let cleans = 0;
+  let exits = 0;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const termination = createE2ETerminator({
+    cleanup: async () => {
+      cleans++;
+      await gate;
+    },
+    finish: async () => undefined,
+    report: () => assert.fail(),
+    exit: () => {
+      exits++;
+    },
+  });
+  const dispose = installE2ESignalHandlers(target, termination.terminate);
+  target.emit('SIGINT');
+  target.emit('SIGINT');
+  target.emit('SIGTERM');
+  assert.equal(target.listenerCount('SIGINT'), 1);
+  release();
+  await termination.terminate(99);
+  assert.equal(cleans, 1);
+  assert.equal(exits, 1);
+  dispose();
+  assert.equal(target.listenerCount('SIGINT'), 0);
+  assert.equal(target.listenerCount('SIGTERM'), 0);
+});
+
+test('AUD008 signal and normal finalization share logs and deletion exactly once', async () => {
+  for (const signalFirst of [false, true]) {
+    const handle = {};
+    const events = [];
+    const dependencies = {
+      showLogs: async () => events.push('logs'),
+      removeArtifacts: async () => events.push('remove'),
+    };
+    const first = finalizeManagedFunction(handle, {
+      ...dependencies,
+      logs: signalFirst,
+    });
+    const second = finalizeManagedFunction(handle, {
+      ...dependencies,
+      logs: !signalFirst,
+    });
+    assert.equal(first, second);
+    await first;
+    assert.deepEqual(events, signalFirst ? ['logs', 'remove'] : ['remove']);
+  }
+});
+
+test('AUD008 finalization preserves both log and artifact failures', async () => {
+  const log = new Error('logs'),
+    artifact = new Error('artifact');
+  await assert.rejects(
+    finalizeManagedFunction(
+      {},
+      {
+        logs: true,
+        showLogs: async () => {
+          throw log;
+        },
+        removeArtifacts: async () => {
+          throw artifact;
+        },
+      },
+    ),
+    (error) =>
+      error instanceof AggregateError &&
+      error.errors[0] === log &&
+      error.errors[1] === artifact,
   );
 });
