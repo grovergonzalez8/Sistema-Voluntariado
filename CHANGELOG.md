@@ -6,6 +6,9 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 
 ### Fixed
 
+- AUD-001: el editor de actividades aísla borradores, errores y envíos por
+  proyecto/actividad/modo; las respuestas de un editor anterior no alteran el
+  actual y los envíos duplicados de la misma instancia se rechazan.
 - Los caminos terminales de callback y aceptación solo vuelven a login después de
   confirmar un `signOut` exitoso; un fallo o rechazo conserva la pantalla
   fail-closed con un reintento seguro.
