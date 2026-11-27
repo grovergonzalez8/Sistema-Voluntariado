@@ -27,6 +27,7 @@ export function ProjectsPage({
   const [projects, setProjects] = useState<readonly Project[]>([]);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
+  const [searchRevision, setSearchRevision] = useState(0);
   const [offset, setOffset] = useState(0);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -47,9 +48,8 @@ export function ProjectsPage({
 
   useEffect(() => {
     const generation = ++requestGeneration.current;
-    void service
-      .listProjects({ limit: pageSize, offset, search })
-      .then((result) => {
+    void service.listProjects({ limit: pageSize, offset, search }).then(
+      (result) => {
         if (generation !== requestGeneration.current) return;
         if (result.ok) {
           setProjects(result.value.items);
@@ -57,17 +57,28 @@ export function ProjectsPage({
           setError(null);
         } else setError(result.error.message);
         setLoading(false);
-      });
+      },
+      () => {
+        if (generation !== requestGeneration.current) return;
+        setError(t('projects.loadError'));
+        setLoading(false);
+      },
+    );
     return () => {
       requestGeneration.current += 1;
     };
-  }, [offset, search, service]);
+  }, [offset, search, searchRevision, service, t]);
 
   const submitSearch = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const nextSearch = searchInput.trim();
+    if (loading && offset === 0 && search === nextSearch) return;
+    requestGeneration.current += 1;
     setLoading(true);
+    setError(null);
     setOffset(0);
-    setSearch(searchInput.trim());
+    setSearch(nextSearch);
+    setSearchRevision((revision) => revision + 1);
   };
   const page = Math.floor(offset / pageSize) + 1;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
@@ -154,7 +165,9 @@ export function ProjectsPage({
             <Button
               disabled={offset === 0}
               onClick={() => {
+                requestGeneration.current += 1;
                 setLoading(true);
+                setError(null);
                 setOffset(Math.max(0, offset - pageSize));
               }}
             >
@@ -164,7 +177,9 @@ export function ProjectsPage({
             <Button
               disabled={offset + pageSize >= total}
               onClick={() => {
+                requestGeneration.current += 1;
                 setLoading(true);
+                setError(null);
                 setOffset(offset + pageSize);
               }}
             >

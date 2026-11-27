@@ -6,6 +6,9 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 
 ### Fixed
 
+- AUD-003: las búsquedas repetidas de proyectos y voluntarios vuelven a consultar
+  sin cargas permanentes; las consultas idénticas pendientes se comparten y las
+  respuestas antiguas no alteran los resultados o la carga actuales.
 - AUD-001: el editor de actividades aísla borradores, errores y envíos por
   proyecto/actividad/modo; las respuestas de un editor anterior no alteran el
   actual y los envíos duplicados de la misma instancia se rechazan.

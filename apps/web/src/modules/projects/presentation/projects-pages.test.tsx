@@ -1,15 +1,29 @@
-import { render, screen, within } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { I18nextProvider } from 'react-i18next';
-import type { ReactNode } from 'react';
+import { StrictMode, type ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { success } from '@sistema-voluntariado/shared-kernel';
+import {
+  failure,
+  success,
+  type Result,
+} from '@sistema-voluntariado/shared-kernel';
 
 import { createI18n } from '../../../app/providers/i18n';
 import type { ProjectAuthorizationPort } from '../application/project-authorization-port';
-import type { ProjectManagementGateway } from '../application/project-management-gateway';
+import type {
+  ProjectManagementGateway,
+  ProjectPage,
+} from '../application/project-management-gateway';
 import { ProjectManagementService } from '../application/project-management-service';
 import type { ProjectActivityGateway } from '../application/project-activity-gateway';
 import type { ProjectActivityParticipationGateway } from '../application/project-activity-participation-gateway';
@@ -163,12 +177,337 @@ function createActivityAttendanceService(): ProjectActivityAttendanceService {
   return new ProjectActivityAttendanceService(authorization, gateway);
 }
 
+const initialListPage: ProjectPage = {
+  items: [project],
+  limit: 25,
+  offset: 0,
+  total: 60,
+};
+
+function pendingListPage() {
+  let resolvePage: ((value: Result<ProjectPage>) => void) | undefined;
+  let rejectPage: ((reason: Error) => void) | undefined;
+  const promise = new Promise<Result<ProjectPage>>((resolve, reject) => {
+    resolvePage = resolve;
+    rejectPage = reject;
+  });
+  return {
+    promise,
+    resolve(value: Result<ProjectPage>) {
+      if (!resolvePage) throw new Error('Missing list resolver');
+      resolvePage(value);
+    },
+    reject(reason: Error) {
+      if (!rejectPage) throw new Error('Missing list rejecter');
+      rejectPage(reason);
+    },
+  };
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 async function renderWithI18n(node: ReactNode) {
   const i18n = await createI18n();
   return render(<I18nextProvider i18n={i18n}>{node}</I18nextProvider>);
 }
 
+async function renderProjectList(
+  gateway: ProjectManagementGateway,
+  strictMode = false,
+) {
+  const service = new ProjectManagementService(authorization, gateway);
+  const content = (
+    <MemoryRouter>
+      <ProjectsPage service={service} />
+    </MemoryRouter>
+  );
+  return renderWithI18n(
+    strictMode ? <StrictMode>{content}</StrictMode> : content,
+  );
+}
+
 describe('project administration pages', () => {
+  it('coalesces identical pending searches and finishes the original request', async () => {
+    const user = userEvent.setup();
+    const pending = pendingListPage();
+    const list = vi
+      .fn<ProjectManagementGateway['listProjects']>()
+      .mockReturnValue(pending.promise);
+    await renderProjectList(createGateway({ listProjects: list }));
+    await waitFor(() => {
+      expect(list).toHaveBeenCalledOnce();
+    });
+    await user.click(screen.getByRole('button', { name: 'Buscar' }));
+    fireEvent.change(screen.getByLabelText('Buscar proyectos por nombre'), {
+      target: { value: '   ' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Buscar' }));
+    expect(list).toHaveBeenCalledOnce();
+    expect(screen.getByText('Cargando…')).not.toBeNull();
+    await act(async () => {
+      pending.resolve(success(initialListPage));
+      await pending.promise;
+    });
+    expect(await screen.findByText(project.name)).not.toBeNull();
+    expect(screen.queryByText('Cargando…')).toBeNull();
+  });
+
+  it('searches from page two with one offset-zero request and preserves filters when paging', async () => {
+    const user = userEvent.setup();
+    const list = vi
+      .fn<ProjectManagementGateway['listProjects']>()
+      .mockImplementation((query) =>
+        Promise.resolve(success({ ...initialListPage, offset: query.offset })),
+      );
+    await renderProjectList(createGateway({ listProjects: list }));
+    await screen.findByText(project.name);
+    await user.type(
+      screen.getByLabelText('Buscar proyectos por nombre'),
+      '  vigente  ',
+    );
+    await user.click(screen.getByRole('button', { name: 'Buscar' }));
+    await screen.findByText(project.name);
+    await user.click(screen.getByRole('button', { name: 'Siguiente' }));
+    await screen.findByText('Página 2 de 3');
+    expect(list).toHaveBeenLastCalledWith({
+      limit: 25,
+      offset: 25,
+      search: 'vigente',
+    });
+    const before = list.mock.calls.length;
+    await user.click(screen.getByRole('button', { name: 'Buscar' }));
+    await screen.findByText('Página 1 de 3');
+    expect(list).toHaveBeenCalledTimes(before + 1);
+    expect(list).toHaveBeenLastCalledWith({
+      limit: 25,
+      offset: 0,
+      search: 'vigente',
+    });
+    await user.click(screen.getByRole('button', { name: 'Siguiente' }));
+    await screen.findByText('Página 2 de 3');
+    await user.click(screen.getByRole('button', { name: 'Anterior' }));
+    await screen.findByText('Página 1 de 3');
+    expect(list).toHaveBeenLastCalledWith({
+      limit: 25,
+      offset: 0,
+      search: 'vigente',
+    });
+    expect(screen.queryByText('Cargando…')).toBeNull();
+  });
+
+  it.each([
+    ['success', 'old-first'],
+    ['failure', 'old-first'],
+    ['rejection', 'old-first'],
+    ['success', 'new-first'],
+    ['failure', 'new-first'],
+    ['rejection', 'new-first'],
+  ] as const)(
+    'ignores old %s results in %s order, including loading and totals',
+    async (outcome, order) => {
+      const user = userEvent.setup();
+      const previous = pendingListPage();
+      const current = pendingListPage();
+      const list = vi
+        .fn<ProjectManagementGateway['listProjects']>()
+        .mockReturnValueOnce(previous.promise)
+        .mockReturnValueOnce(current.promise);
+      await renderProjectList(createGateway({ listProjects: list }));
+      await waitFor(() => {
+        expect(list).toHaveBeenCalledOnce();
+      });
+      await user.type(
+        screen.getByLabelText('Buscar proyectos por nombre'),
+        'vigente',
+      );
+      await user.click(screen.getByRole('button', { name: 'Buscar' }));
+      await waitFor(() => {
+        expect(list).toHaveBeenCalledTimes(2);
+      });
+      expect(list).toHaveBeenLastCalledWith({
+        limit: 25,
+        offset: 0,
+        search: 'vigente',
+      });
+      const finishCurrent = async () => {
+        await act(async () => {
+          current.resolve(
+            success({
+              ...initialListPage,
+              items: [{ ...project, name: 'Resultado vigente' }],
+              total: 2,
+            }),
+          );
+          await current.promise;
+        });
+      };
+      const finishPrevious = async () => {
+        await act(async () => {
+          if (outcome === 'rejection') {
+            previous.reject(new Error('Detalle antiguo simulado'));
+            await previous.promise.catch(() => undefined);
+          } else {
+            previous.resolve(
+              outcome === 'success'
+                ? success({
+                    ...initialListPage,
+                    items: [{ ...project, name: 'Resultado anterior' }],
+                    total: 99,
+                  })
+                : failure({ code: 'network', message: 'Error anterior' }),
+            );
+            await previous.promise;
+          }
+        });
+      };
+      if (order === 'new-first') {
+        await finishCurrent();
+        await finishPrevious();
+      } else {
+        await finishPrevious();
+        expect(screen.getByText('Cargando…')).not.toBeNull();
+        expect(screen.queryByText('Resultado anterior')).toBeNull();
+        expect(screen.queryByRole('alert')).toBeNull();
+        await finishCurrent();
+      }
+      expect(await screen.findByText('Resultado vigente')).not.toBeNull();
+      expect(screen.getByText('2 resultado(s)')).not.toBeNull();
+      expect(screen.getByText('Página 1 de 1')).not.toBeNull();
+      expect(screen.queryByText('Resultado anterior')).toBeNull();
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.queryByText('Cargando…')).toBeNull();
+    },
+  );
+
+  it.each(['failure', 'rejection'] as const)(
+    'finishes a current %s and recovers with the same search',
+    async (outcome) => {
+      const user = userEvent.setup();
+      const pending = pendingListPage();
+      const list = vi
+        .fn<ProjectManagementGateway['listProjects']>()
+        .mockReturnValueOnce(pending.promise)
+        .mockResolvedValue(success(initialListPage));
+      await renderProjectList(createGateway({ listProjects: list }));
+      await waitFor(() => {
+        expect(list).toHaveBeenCalledOnce();
+      });
+      await act(async () => {
+        if (outcome === 'rejection') {
+          pending.reject(new Error('Detalle interno simulado'));
+          await pending.promise.catch(() => undefined);
+        } else {
+          pending.resolve(
+            failure({ code: 'network', message: 'Error recuperable' }),
+          );
+          await pending.promise;
+        }
+      });
+      expect(await screen.findByRole('alert')).not.toBeNull();
+      expect(screen.getByRole('alert').textContent).toBe(
+        outcome === 'rejection'
+          ? 'No fue posible cargar los proyectos. Reintenta la búsqueda.'
+          : 'Error recuperable',
+      );
+      expect(screen.queryByText('Detalle interno simulado')).toBeNull();
+      expect(screen.queryByText('Cargando…')).toBeNull();
+      await user.click(screen.getByRole('button', { name: 'Buscar' }));
+      expect(await screen.findByText(project.name)).not.toBeNull();
+      expect(list).toHaveBeenCalledTimes(2);
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.queryByText('Cargando…')).toBeNull();
+    },
+  );
+
+  it('ignores a rejected request after unmount', async () => {
+    const pending = pendingListPage();
+    const list = vi
+      .fn<ProjectManagementGateway['listProjects']>()
+      .mockReturnValue(pending.promise);
+    const view = await renderProjectList(createGateway({ listProjects: list }));
+    await waitFor(() => {
+      expect(list).toHaveBeenCalledOnce();
+    });
+    view.unmount();
+    await act(async () => {
+      pending.reject(new Error('Rechazo después de desmontaje'));
+      await pending.promise.catch(() => undefined);
+    });
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByText('Cargando…')).toBeNull();
+    expect(list).toHaveBeenCalledOnce();
+  });
+
+  it('refreshes identical searches under StrictMode without an effect loop', async () => {
+    const user = userEvent.setup();
+    const list = vi
+      .fn<ProjectManagementGateway['listProjects']>()
+      .mockResolvedValue(success(initialListPage));
+    await renderProjectList(createGateway({ listProjects: list }), true);
+    await screen.findByText(project.name);
+    const before = list.mock.calls.length;
+    await user.click(screen.getByRole('button', { name: 'Buscar' }));
+    await waitFor(() => {
+      expect(list).toHaveBeenCalledTimes(before + 1);
+    });
+    expect(await screen.findByText(project.name)).not.toBeNull();
+    expect(screen.queryByText('Cargando…')).toBeNull();
+  });
+
+  it.each([
+    { applied: '', submitted: '' },
+    { applied: '', submitted: '   ' },
+    { applied: 'Comunitario', submitted: 'Comunitario' },
+    { applied: 'Comunitario', submitted: '  Comunitario  ' },
+  ])(
+    'refreshes a settled project search $applied with $submitted and finishes loading',
+    async ({ applied, submitted }) => {
+      const user = userEvent.setup();
+      const listProjects = vi
+        .fn<ProjectManagementGateway['listProjects']>()
+        .mockImplementation((query) =>
+          Promise.resolve(
+            success({
+              items: [project],
+              limit: query.limit,
+              offset: query.offset,
+              total: 1,
+            }),
+          ),
+        );
+      await renderProjectList(createGateway({ listProjects }));
+      await screen.findByText(project.name);
+      const input = screen.getByLabelText('Buscar proyectos por nombre');
+      if (applied) {
+        await user.type(input, applied);
+        await user.click(screen.getByRole('button', { name: 'Buscar' }));
+        await waitFor(() => {
+          expect(listProjects).toHaveBeenCalledTimes(2);
+        });
+        await screen.findByText(project.name);
+      }
+      await user.clear(input);
+      if (submitted) await user.type(input, submitted);
+      const previousCalls = listProjects.mock.calls.length;
+      await user.click(screen.getByRole('button', { name: 'Buscar' }));
+      await waitFor(() => {
+        expect(listProjects).toHaveBeenCalledTimes(previousCalls + 1);
+      });
+      expect(listProjects).toHaveBeenLastCalledWith({
+        limit: 25,
+        offset: 0,
+        search: submitted.trim(),
+      });
+      expect(await screen.findByText(project.name)).not.toBeNull();
+      expect(screen.queryByText('Cargando…')).toBeNull();
+      expect(
+        screen.getByRole('link', { name: 'Ver detalle' }).getAttribute('href'),
+      ).toBe(`/app/admin/projects/${projectId}`);
+    },
+  );
+
   it('lists and searches projects through server pagination', async () => {
     const user = userEvent.setup();
     const listProjects = vi
