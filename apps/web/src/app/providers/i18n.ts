@@ -63,6 +63,8 @@ const sharedEnglish = {
     notAvailable: 'Not available',
     notProvided: 'Not provided',
     retry: 'Try again',
+    resourceLoadError: 'Could not load the requested resource. Try again.',
+    resourceSaveError: 'Could not complete the operation. Try again.',
     saving: 'Saving…',
     signOut: 'Sign out',
     status: 'Status',
@@ -435,6 +437,9 @@ const sharedSpanish = {
     notAvailable: 'No disponible',
     notProvided: 'No indicado',
     retry: 'Reintentar',
+    resourceLoadError:
+      'No fue posible cargar el recurso solicitado. Reintenta.',
+    resourceSaveError: 'No fue posible completar la operación. Reintenta.',
     saving: 'Guardando…',
     signOut: 'Cerrar sesión',
     status: 'Estado',

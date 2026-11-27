@@ -138,15 +138,15 @@ export function IdentityProvider({
   );
 
   const refreshAccountContext = useCallback(async () => {
-    const requestedActorId = actorId.current;
-    if (!requestedActorId) {
+    const requestedActorId = currentActorId;
+    if (!requestedActorId || actorId.current !== requestedActorId) {
       return failure({
         code: 'unauthenticated',
         message: 'Debes iniciar sesión.',
       });
     }
     return fetchAccountContextFor(requestedActorId);
-  }, [fetchAccountContextFor]);
+  }, [currentActorId, fetchAccountContextFor]);
 
   const signIn = useCallback<IdentityContextValue['signIn']>(
     async (credentials) => {

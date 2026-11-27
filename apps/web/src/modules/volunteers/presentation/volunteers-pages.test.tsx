@@ -8,7 +8,14 @@ import {
 import userEvent from '@testing-library/user-event';
 import { I18nextProvider } from 'react-i18next';
 import { StrictMode, type ReactNode } from 'react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import {
+  Link,
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -25,6 +32,7 @@ import type {
 } from '../application/volunteer-registry-gateway';
 import { VolunteerRegistryService } from '../application/volunteer-registry-service';
 import type { RegisteredVolunteer } from '../domain/registered-volunteer';
+import type { VolunteerDuplicateMatch } from '../domain/volunteer-duplicates';
 import { VolunteerCreatePage } from './volunteer-create-page';
 import { VolunteerDetailPage } from './volunteer-detail-page';
 import { VolunteerEditPage } from './volunteer-edit-page';
@@ -126,7 +134,533 @@ async function renderVolunteerList(
   return { ...view, service };
 }
 
+const otherResourceId = '00000000-0000-4000-8000-000000000199';
+const otherResource = {
+  ...volunteer,
+  id: otherResourceId,
+  fullName: 'Entidad B',
+  email: 'b@example.invalid',
+  phone: '+591 71111111',
+};
+
+function pendingResource<T>() {
+  let resolveResult: ((value: Result<T>) => void) | undefined;
+  let rejectResult: ((error: Error) => void) | undefined;
+  const promise = new Promise<Result<T>>((resolve, reject) => {
+    resolveResult = resolve;
+    rejectResult = reject;
+  });
+  return {
+    promise,
+    resolve(value: Result<T>) {
+      if (!resolveResult) throw new Error('Missing resolver');
+      resolveResult(value);
+    },
+    reject(error: Error) {
+      if (!rejectResult) throw new Error('Missing rejecter');
+      rejectResult(error);
+    },
+  };
+}
+
+function ResourceNavigation({ mode }: { readonly mode: string }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  return (
+    <nav aria-label="Navegación de prueba">
+      <Link to={`/resources/${volunteer.id}/${mode}`}>Recurso A</Link>
+      <Link to={`/resources/${otherResourceId}/${mode}`}>Recurso B</Link>
+      <button
+        onClick={() => {
+          void navigate(-1);
+        }}
+      >
+        Atrás de prueba
+      </button>
+      <button
+        onClick={() => {
+          void navigate(1);
+        }}
+      >
+        Adelante de prueba
+      </button>
+      <output aria-label="Ruta actual">{location.pathname}</output>
+    </nav>
+  );
+}
+
+async function renderResourcePage(
+  mode: 'edit' | 'detail',
+  overrides: Partial<VolunteerRegistryGateway> = {},
+  strictMode = false,
+) {
+  const gateway = createGateway({
+    getVolunteer: (id) =>
+      Promise.resolve(
+        success(id === otherResourceId ? otherResource : volunteer),
+      ),
+    updateVolunteer: (input) =>
+      Promise.resolve(success({ ...volunteer, ...input })),
+    ...overrides,
+  });
+  const service = new VolunteerRegistryService(authorization, gateway);
+  const content = (
+    <MemoryRouter initialEntries={[`/resources/${volunteer.id}/${mode}`]}>
+      <ResourceNavigation mode={mode} />
+      <Routes>
+        <Route
+          path={`/resources/:id/${mode}`}
+          element={
+            mode === 'edit' ? (
+              <VolunteerEditPage service={service} />
+            ) : (
+              <VolunteerDetailPage service={service} />
+            )
+          }
+        />
+        <Route path="*" element={<p>Destino de guardado</p>} />
+      </Routes>
+    </MemoryRouter>
+  );
+  return renderWithI18n(
+    strictMode ? <StrictMode>{content}</StrictMode> : content,
+  );
+}
+
 describe('volunteer administration pages', () => {
+  it('confirms only B duplicate evidence and blocks duplicate confirmation submits', async () => {
+    const user = userEvent.setup();
+    const pending = pendingResource<RegisteredVolunteer>();
+    const update = vi
+      .fn<VolunteerRegistryGateway['updateVolunteer']>()
+      .mockReturnValue(pending.promise);
+    await renderResourcePage('edit', {
+      updateVolunteer: update,
+      findPotentialDuplicates: () =>
+        Promise.resolve(
+          success([
+            {
+              id: '00000000-0000-4000-8000-000000000777',
+              fullName: 'Coincidencia B',
+              matchedFields: ['email'],
+            },
+          ]),
+        ),
+    });
+    await screen.findByText(volunteer.fullName);
+    fireEvent.change(screen.getByLabelText('Nombre completo'), {
+      target: { value: 'Borrador A' },
+    });
+    await user.click(screen.getByRole('link', { name: 'Recurso B' }));
+    await screen.findByText(otherResource.fullName);
+    await user.click(
+      screen.getByRole('button', { name: 'Guardar voluntario' }),
+    );
+    await screen.findByText(/Coincidencia B/);
+    const confirm = screen.getByRole('button', {
+      name: 'Guardar como registro histórico separado',
+    });
+    act(() => {
+      fireEvent.click(confirm);
+      fireEvent.click(confirm);
+    });
+    await waitFor(() => {
+      expect(update).toHaveBeenCalledOnce();
+    });
+    expect(update).toHaveBeenCalledWith({
+      id: otherResourceId,
+      fullName: otherResource.fullName,
+      email: otherResource.email,
+      phone: otherResource.phone,
+      acceptPotentialDuplicate: true,
+    });
+    await act(async () => {
+      pending.resolve(success(otherResource));
+      await pending.promise;
+    });
+    await screen.findByText('Destino de guardado');
+  });
+
+  it.each(['edit', 'detail'] as const)(
+    'refuses a mismatched %s resource response without exposing old data',
+    async (mode) => {
+      await renderResourcePage(mode, {
+        getVolunteer: () => Promise.resolve(success(otherResource)),
+      });
+      await screen.findByRole('alert');
+      expect(screen.queryByText(otherResource.fullName)).toBeNull();
+      expect(screen.queryByDisplayValue(otherResource.fullName)).toBeNull();
+      expect(
+        screen.queryByRole('button', { name: 'Guardar voluntario' }),
+      ).toBeNull();
+      expect(screen.queryByText('Cargando…')).toBeNull();
+    },
+  );
+
+  it('does not navigate on a mismatched edit response', async () => {
+    const user = userEvent.setup();
+    const update = vi
+      .fn<VolunteerRegistryGateway['updateVolunteer']>()
+      .mockResolvedValue(success(otherResource));
+    await renderResourcePage('edit', { updateVolunteer: update });
+    await screen.findByText(volunteer.fullName);
+    await user.click(
+      screen.getByRole('button', { name: 'Guardar voluntario' }),
+    );
+    await screen.findByRole('alert');
+    expect(screen.getByLabelText('Ruta actual').textContent).toBe(
+      `/resources/${volunteer.id}/edit`,
+    );
+    expect(screen.queryByText('Destino de guardado')).toBeNull();
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', {
+        name: 'Guardar voluntario',
+      }).disabled,
+    ).toBe(false);
+  });
+
+  it('ends a rejected save and retries the current resource without leaking details', async () => {
+    const user = userEvent.setup();
+    const update = vi
+      .fn<VolunteerRegistryGateway['updateVolunteer']>()
+      .mockRejectedValueOnce(new Error('Detalle privado de guardado'))
+      .mockResolvedValue(success(volunteer));
+    await renderResourcePage('edit', { updateVolunteer: update });
+    await screen.findByText(volunteer.fullName);
+    await user.click(
+      screen.getByRole('button', { name: 'Guardar voluntario' }),
+    );
+    await screen.findByRole('alert');
+    expect(screen.queryByText('Detalle privado de guardado')).toBeNull();
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', {
+        name: 'Guardar voluntario',
+      }).disabled,
+    ).toBe(false);
+    await user.click(
+      screen.getByRole('button', { name: 'Guardar voluntario' }),
+    );
+    await screen.findByText('Destino de guardado');
+    expect(update).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['edit', 'detail'] as const)(
+    'supports successful %s A-B-A navigation and browser history in StrictMode',
+    async (mode) => {
+      const user = userEvent.setup();
+      await renderResourcePage(mode, {}, true);
+      await screen.findByText(volunteer.fullName);
+      await user.click(screen.getByRole('link', { name: 'Recurso B' }));
+      await screen.findByText(otherResource.fullName);
+      await user.click(screen.getByRole('button', { name: 'Atrás de prueba' }));
+      await screen.findByText(volunteer.fullName);
+      await user.click(
+        screen.getByRole('button', { name: 'Adelante de prueba' }),
+      );
+      await screen.findByText(otherResource.fullName);
+      expect(screen.queryByText(volunteer.fullName)).toBeNull();
+      expect(screen.queryByRole('alert')).toBeNull();
+    },
+  );
+
+  it.each([
+    ['edit', 'failure'],
+    ['edit', 'rejection'],
+    ['detail', 'failure'],
+    ['detail', 'rejection'],
+  ] as const)(
+    'isolates %s load %s and recovers the requested resource',
+    async (mode, outcome) => {
+      const user = userEvent.setup();
+      const pending = pendingResource<RegisteredVolunteer>();
+
+      let failed = false;
+      const read = vi
+        .fn<VolunteerRegistryGateway['getVolunteer']>()
+        .mockImplementation((id) => {
+          if (id === otherResourceId && !failed) {
+            failed = true;
+            return pending.promise;
+          }
+          return Promise.resolve(
+            success(id === otherResourceId ? otherResource : volunteer),
+          );
+        });
+      await renderResourcePage(mode, {
+        getVolunteer: read,
+      });
+      await screen.findByText(volunteer.fullName);
+      await user.click(screen.getByRole('link', { name: 'Recurso B' }));
+      await act(async () => {
+        const request = pending;
+        if (outcome === 'rejection') {
+          request.reject(new Error('Detalle privado simulado'));
+          await request.promise.catch(() => undefined);
+        } else {
+          request.resolve(
+            failure({ code: 'forbidden', message: 'Carga denegada' }),
+          );
+          await request.promise;
+        }
+      });
+      await screen.findByRole('alert');
+      expect(screen.queryByText(volunteer.fullName)).toBeNull();
+      expect(screen.queryByDisplayValue(volunteer.fullName)).toBeNull();
+      expect(
+        screen.queryByRole('button', { name: 'Guardar voluntario' }),
+      ).toBeNull();
+      expect(screen.queryByText('Detalle privado simulado')).toBeNull();
+      expect(screen.queryByText('Cargando…')).toBeNull();
+      await user.click(screen.getByRole('button', { name: 'Reintentar' }));
+      await screen.findByText(otherResource.fullName);
+      expect(screen.queryByRole('alert')).toBeNull();
+    },
+  );
+
+  it.each([
+    ['edit', 'success'],
+    ['edit', 'failure'],
+    ['edit', 'rejection'],
+    ['detail', 'success'],
+    ['detail', 'failure'],
+    ['detail', 'rejection'],
+  ] as const)(
+    'ignores a late %s read with %s after B and a new A instance',
+    async (mode, outcome) => {
+      const user = userEvent.setup();
+      const pending = pendingResource<RegisteredVolunteer>();
+
+      let firstA = true;
+      const read = vi
+        .fn<VolunteerRegistryGateway['getVolunteer']>()
+        .mockImplementation((id) => {
+          if (id === volunteer.id && firstA) {
+            firstA = false;
+            return pending.promise;
+          }
+          return Promise.resolve(
+            success(id === otherResourceId ? otherResource : volunteer),
+          );
+        });
+
+      await renderResourcePage(mode, { getVolunteer: read });
+      await waitFor(() => {
+        expect(read).toHaveBeenCalledOnce();
+      });
+      await user.click(screen.getByRole('link', { name: 'Recurso B' }));
+      await screen.findByText(otherResource.fullName);
+      await user.click(screen.getByRole('button', { name: 'Atrás de prueba' }));
+      await screen.findByText(volunteer.fullName);
+      await act(async () => {
+        if (outcome === 'rejection') {
+          const request = pending;
+          request.reject(new Error('Rechazo antiguo'));
+          await request.promise.catch(() => undefined);
+        } else {
+          pending.resolve(
+            outcome === 'success'
+              ? success({ ...volunteer, fullName: 'Respuesta antigua' })
+              : failure({ code: 'network', message: 'Error antiguo' }),
+          );
+          await pending.promise;
+        }
+      });
+      expect(screen.getByText(volunteer.fullName)).not.toBeNull();
+      expect(screen.queryByText('Respuesta antigua')).toBeNull();
+      expect(screen.queryByRole('alert')).toBeNull();
+    },
+  );
+
+  it('saves B with only its own fields after leaving a dirty A form and blocks duplicate submit', async () => {
+    const user = userEvent.setup();
+    const pending = pendingResource<RegisteredVolunteer>();
+    const update = vi
+      .fn<VolunteerRegistryGateway['updateVolunteer']>()
+      .mockReturnValue(pending.promise);
+    await renderResourcePage('edit', { updateVolunteer: update });
+    await screen.findByText(volunteer.fullName);
+    fireEvent.change(screen.getByLabelText('Nombre completo'), {
+      target: { value: 'Borrador A' },
+    });
+    await user.click(screen.getByRole('link', { name: 'Recurso B' }));
+    await screen.findByText(otherResource.fullName);
+    expect(
+      screen.getByLabelText<HTMLInputElement>('Nombre completo').value,
+    ).toBe(otherResource.fullName);
+    expect(
+      screen.getByLabelText<HTMLInputElement>('Correo electrónico').value,
+    ).toBe(otherResource.email);
+    expect(
+      screen.getByLabelText<HTMLInputElement>('Número de celular').value,
+    ).toBe(otherResource.phone);
+    const form = screen.getByLabelText('Nombre completo').closest('form');
+    if (!form) throw new Error('Missing edit form');
+    act(() => {
+      fireEvent.submit(form);
+      fireEvent.submit(form);
+    });
+    await waitFor(() => {
+      expect(update).toHaveBeenCalledOnce();
+    });
+    expect(update).toHaveBeenCalledWith({
+      id: otherResourceId,
+      fullName: otherResource.fullName,
+      email: otherResource.email,
+      phone: otherResource.phone,
+      acceptPotentialDuplicate: false,
+    });
+    await act(async () => {
+      pending.resolve(success(otherResource));
+      await pending.promise;
+    });
+    expect(await screen.findByText('Destino de guardado')).not.toBeNull();
+  });
+
+  it.each([
+    ['success', false],
+    ['success', true],
+    ['failure', false],
+    ['failure', true],
+    ['rejection', false],
+    ['rejection', true],
+    ['duplicate', false],
+    ['duplicate', true],
+  ] as const)(
+    'isolates a pending edit %s across navigation (return to A: %s)',
+    async (outcome, returnToA) => {
+      const user = userEvent.setup();
+      const previous = pendingResource<RegisteredVolunteer>();
+      const current = pendingResource<RegisteredVolunteer>();
+      const duplicates = pendingResource<readonly VolunteerDuplicateMatch[]>();
+      const update = vi
+        .fn<VolunteerRegistryGateway['updateVolunteer']>()
+        .mockReturnValueOnce(
+          outcome === 'duplicate' ? current.promise : previous.promise,
+        )
+        .mockReturnValue(current.promise);
+      let duplicateReads = 0;
+      await renderResourcePage('edit', {
+        updateVolunteer: update,
+        findPotentialDuplicates: () => {
+          duplicateReads += 1;
+          return duplicateReads === 1 && outcome === 'duplicate'
+            ? duplicates.promise
+            : Promise.resolve(success([]));
+        },
+      });
+      await screen.findByText(volunteer.fullName);
+      await user.click(
+        screen.getByRole('button', { name: 'Guardar voluntario' }),
+      );
+      await waitFor(() => {
+        expect(
+          outcome === 'duplicate' ? duplicateReads : update.mock.calls.length,
+        ).toBe(1);
+      });
+      await user.click(screen.getByRole('link', { name: 'Recurso B' }));
+      await screen.findByText(otherResource.fullName);
+      if (returnToA) {
+        await user.click(
+          screen.getByRole('button', { name: 'Atrás de prueba' }),
+        );
+        await screen.findByText(volunteer.fullName);
+      }
+      fireEvent.change(screen.getByLabelText('Nombre completo'), {
+        target: { value: 'Edición vigente' },
+      });
+      await user.click(
+        screen.getByRole('button', { name: 'Guardar voluntario' }),
+      );
+      await waitFor(() => {
+        expect(update).toHaveBeenCalledTimes(outcome === 'duplicate' ? 1 : 2);
+      });
+      await act(async () => {
+        if (outcome === 'duplicate') {
+          duplicates.resolve(
+            success([
+              {
+                id: '00000000-0000-4000-8000-000000000777',
+                fullName: 'Duplicado antiguo',
+                matchedFields: ['email'],
+              },
+            ]),
+          );
+          await duplicates.promise;
+        } else if (outcome === 'rejection') {
+          previous.reject(new Error('Rechazo antiguo'));
+          await previous.promise.catch(() => undefined);
+        } else {
+          previous.resolve(
+            outcome === 'success'
+              ? success(volunteer)
+              : failure({ code: 'network', message: 'Error antiguo' }),
+          );
+          await previous.promise;
+        }
+      });
+      expect(
+        screen.getByLabelText<HTMLInputElement>('Nombre completo').value,
+      ).toBe('Edición vigente');
+      expect(
+        screen.getByRole<HTMLButtonElement>('button', { name: 'Guardando…' })
+          .disabled,
+      ).toBe(true);
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.queryByText('Duplicado antiguo')).toBeNull();
+      expect(screen.getByLabelText('Ruta actual').textContent).toBe(
+        `/resources/${returnToA ? volunteer.id : otherResourceId}/edit`,
+      );
+      const latest = update.mock.calls.at(-1)?.[0];
+      expect(latest).toMatchObject({
+        id: returnToA ? volunteer.id : otherResourceId,
+        fullName: 'Edición vigente',
+      });
+      await act(async () => {
+        current.resolve(
+          success({
+            ...(returnToA ? volunteer : otherResource),
+            fullName: 'Edición vigente',
+          }),
+        );
+        await current.promise;
+      });
+      expect(await screen.findByText('Destino de guardado')).not.toBeNull();
+    },
+  );
+
+  it.each(['edit', 'detail'] as const)(
+    'isolates %s while the next route resource is loading',
+    async (mode) => {
+      const user = userEvent.setup();
+      const pending = pendingResource<RegisteredVolunteer>();
+      await renderResourcePage(mode, {
+        getVolunteer: (id) =>
+          id === otherResourceId
+            ? pending.promise
+            : Promise.resolve(success(volunteer)),
+      });
+      await screen.findByText(volunteer.fullName);
+      if (mode === 'edit') {
+        fireEvent.change(screen.getByLabelText('Nombre completo'), {
+          target: { value: 'Borrador exclusivo A' },
+        });
+      }
+      await user.click(screen.getByRole('link', { name: 'Recurso B' }));
+      expect(screen.queryByText(volunteer.fullName)).toBeNull();
+      expect(screen.queryByDisplayValue('Borrador exclusivo A')).toBeNull();
+      expect(
+        screen.queryByRole('button', { name: 'Guardar voluntario' }),
+      ).toBeNull();
+      expect(screen.getByText('Cargando…')).not.toBeNull();
+      await act(async () => {
+        pending.resolve(success(otherResource));
+
+        await pending.promise;
+      });
+      expect(await screen.findByText(otherResource.fullName)).not.toBeNull();
+    },
+  );
+
   it('resets the page on sort, keeps the applied search and ignores an older page response', async () => {
     const user = userEvent.setup();
     const previousPage = pendingListPage();

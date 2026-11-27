@@ -6,6 +6,10 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 
 ### Fixed
 
+- AUD-004: las pantallas parametrizadas aíslan datos, formularios y operaciones
+  por recurso; descartan respuestas obsoletas, bloquean envíos duplicados y
+  conservan la idempotencia de recovery y el refresco de autoridad del actor
+  original sin afectar a otra identidad.
 - AUD-003: las búsquedas repetidas de proyectos y voluntarios vuelven a consultar
   sin cargas permanentes; las consultas idénticas pendientes se comparten y las
   respuestas antiguas no alteran los resultados o la carga actuales.

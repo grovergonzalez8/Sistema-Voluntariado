@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useState, type SyntheticEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type SyntheticEvent,
+} from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
@@ -29,18 +36,25 @@ import type { ProjectCapabilities } from '../application/project-authorization-p
 import { ProjectActivitiesSection } from './project-activities-section';
 import { getProjectStatusTone } from './project-status-badge-tone';
 
-export function ProjectDetailPage({
-  activityAttendanceService,
-  activityParticipationService,
-  activityService,
-  service,
-}: {
+interface ProjectDetailPageProps {
   readonly activityAttendanceService: ProjectActivityAttendanceService;
   readonly activityParticipationService: ProjectActivityParticipationService;
   readonly activityService: ProjectActivityService;
   readonly service: ProjectManagementService;
-}) {
+}
+
+export function ProjectDetailPage(props: ProjectDetailPageProps) {
   const { id = '' } = useParams();
+  return <ProjectDetailForResource id={id} key={id} {...props} />;
+}
+
+function ProjectDetailForResource({
+  id,
+  activityAttendanceService,
+  activityParticipationService,
+  activityService,
+  service,
+}: ProjectDetailPageProps & { readonly id: string }) {
   const [project, setProject] = useState<Project | null>(null);
   const [assignments, setAssignments] = useState<
     readonly ProjectVolunteerAssignment[]
@@ -63,10 +77,23 @@ export function ProjectDetailPage({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const mounted = useRef(false);
+  const inFlight = useRef(false);
   const { t } = useTranslation();
+  const isMounted = useCallback(() => mounted.current, []);
+
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const fetchDetail = useCallback(async () => {
     const capabilitiesResult = await service.getCapabilities();
+    if (!isMounted())
+      return { error: t('common.resourceLoadError'), ok: false } as const;
     if (!capabilitiesResult.ok) {
       return { error: capabilitiesResult.error.message, ok: false } as const;
     }
@@ -80,11 +107,25 @@ export function ProjectDetailPage({
     if (!assignmentsResult.ok) {
       return { error: assignmentsResult.error.message, ok: false } as const;
     }
+    if (
+      projectResult.value.id !== id ||
+      assignmentsResult.value.some((row) => row.projectId !== id)
+    ) {
+      return { error: t('common.resourceLoadError'), ok: false } as const;
+    }
+    if (!isMounted())
+      return { error: t('common.resourceLoadError'), ok: false } as const;
     const managersResult = capabilitiesResult.value.manage
       ? await service.listManagerAssignments(id)
       : null;
     if (managersResult && !managersResult.ok) {
       return { error: managersResult.error.message, ok: false } as const;
+    }
+    if (
+      managersResult?.ok &&
+      managersResult.value.some((row) => row.projectId !== id)
+    ) {
+      return { error: t('common.resourceLoadError'), ok: false } as const;
     }
     return {
       assignments: assignmentsResult.value,
@@ -93,27 +134,18 @@ export function ProjectDetailPage({
       ok: true,
       project: projectResult.value,
     } as const;
-  }, [id, service]);
+  }, [id, service, t, isMounted]);
 
   const load = useCallback(async () => {
-    const result = await fetchDetail();
-    if (!result.ok) setError(result.error);
-    else {
-      setProject(result.project);
-      setAssignments(result.assignments);
-      setCapabilities(result.capabilities);
-      setManagerAssignments(result.managerAssignments);
-      setError(null);
-    }
-    setLoading(false);
-  }, [fetchDetail]);
-
-  useEffect(() => {
-    let active = true;
-    void fetchDetail().then((result) => {
-      if (!active) return;
-      if (!result.ok) setError(result.error);
-      else {
+    if (!isMounted()) return;
+    try {
+      const result = await fetchDetail();
+      if (!isMounted()) return;
+      if (!result.ok) {
+        setProject(null);
+        setCapabilities(null);
+        setError(result.error);
+      } else {
         setProject(result.project);
         setAssignments(result.assignments);
         setCapabilities(result.capabilities);
@@ -121,99 +153,183 @@ export function ProjectDetailPage({
         setError(null);
       }
       setLoading(false);
-    });
+    } catch {
+      if (!isMounted()) return;
+      setProject(null);
+      setCapabilities(null);
+      setError(t('common.resourceLoadError'));
+      setLoading(false);
+    }
+  }, [fetchDetail, t, isMounted]);
+
+  useEffect(() => {
+    let active = true;
+    void fetchDetail().then(
+      (result) => {
+        if (!active) return;
+        if (!result.ok) {
+          setProject(null);
+          setCapabilities(null);
+          setError(result.error);
+        } else {
+          setProject(result.project);
+          setAssignments(result.assignments);
+          setCapabilities(result.capabilities);
+          setManagerAssignments(result.managerAssignments);
+          setError(null);
+        }
+        setLoading(false);
+      },
+      () => {
+        if (!active) return;
+        setProject(null);
+        setCapabilities(null);
+        setError(t('common.resourceLoadError'));
+        setLoading(false);
+      },
+    );
     return () => {
       active = false;
     };
-  }, [fetchDetail]);
+  }, [fetchDetail, loadAttempt, t]);
+
+  const runOperation = async (operation: () => Promise<void>) => {
+    if (!isMounted() || inFlight.current || project?.id !== id || !capabilities)
+      return;
+    inFlight.current = true;
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await operation();
+    } catch {
+      if (isMounted()) setError(t('common.resourceSaveError'));
+    } finally {
+      if (isMounted()) {
+        inFlight.current = false;
+        setBusy(false);
+      }
+    }
+  };
 
   const searchCandidates = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setBusy(true);
-    setError(null);
-    void service.searchVolunteerCandidates(id, search).then((result) => {
+    void runOperation(async () => {
+      const result = await service.searchVolunteerCandidates(id, search);
+      if (!isMounted()) return;
       if (result.ok) setCandidates(result.value);
       else setError(result.error.message);
-      setBusy(false);
     });
   };
 
-  const assign = async (volunteerId: string) => {
-    setBusy(true);
-    setError(null);
-    const result = await service.assignVolunteer(id, volunteerId);
-    if (result.ok) {
-      setCandidates([]);
-      setSearch('');
-      setSuccess(t('projects.assigned'));
-      await load();
-    } else setError(result.error.message);
-    setBusy(false);
-  };
+  const assign = (volunteerId: string) =>
+    runOperation(async () => {
+      const result = await service.assignVolunteer(id, volunteerId);
+      if (!isMounted()) return;
+      if (result.ok && result.value.projectId === id) {
+        setCandidates([]);
+        setSearch('');
+        setSuccess(t('projects.assigned'));
+        await load();
+      } else
+        setError(
+          result.ok ? t('common.resourceSaveError') : result.error.message,
+        );
+    });
 
   const searchManagers = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setBusy(true);
-    setError(null);
-    void service.searchManagerCandidates(id, managerSearch).then((result) => {
+    void runOperation(async () => {
+      const result = await service.searchManagerCandidates(id, managerSearch);
+      if (!isMounted()) return;
       if (result.ok) setManagerCandidates(result.value);
       else setError(result.error.message);
-      setBusy(false);
     });
   };
 
-  const assignManager = async (managerAccountId: string) => {
-    setBusy(true);
-    setError(null);
-    const result = await service.assignManager(id, managerAccountId);
-    if (result.ok) {
-      setManagerCandidates([]);
-      setManagerSearch('');
-      setSuccess(t('projects.managerAssigned'));
-      await load();
-    } else setError(result.error.message);
-    setBusy(false);
-  };
+  const assignManager = (managerAccountId: string) =>
+    runOperation(async () => {
+      const result = await service.assignManager(id, managerAccountId);
+      if (!isMounted()) return;
+      if (result.ok && result.value.projectId === id) {
+        setManagerCandidates([]);
+        setManagerSearch('');
+        setSuccess(t('projects.managerAssigned'));
+        await load();
+      } else
+        setError(
+          result.ok ? t('common.resourceSaveError') : result.error.message,
+        );
+    });
 
   const finishManager = async (assignmentId: string) => {
-    if (!globalThis.confirm(t('projects.confirmManagerFinish'))) return;
-    setBusy(true);
-    setError(null);
-    const result = await service.endManagerAssignment(assignmentId);
-    if (result.ok) {
-      setSuccess(t('projects.managerFinished'));
-      await load();
-    } else setError(result.error.message);
-    setBusy(false);
+    if (
+      inFlight.current ||
+      !globalThis.confirm(t('projects.confirmManagerFinish'))
+    )
+      return;
+    await runOperation(async () => {
+      const result = await service.endManagerAssignment(assignmentId);
+      if (!isMounted()) return;
+      if (result.ok && result.value.projectId === id) {
+        setSuccess(t('projects.managerFinished'));
+        await load();
+      } else
+        setError(
+          result.ok ? t('common.resourceSaveError') : result.error.message,
+        );
+    });
   };
 
   const finish = async (assignmentId: string) => {
-    if (!globalThis.confirm(t('projects.confirmFinish'))) return;
-    setBusy(true);
-    setError(null);
-    const result = await service.endAssignment(assignmentId);
-    if (result.ok) {
-      setSuccess(t('projects.finished'));
-      await load();
-    } else setError(result.error.message);
-    setBusy(false);
+    if (inFlight.current || !globalThis.confirm(t('projects.confirmFinish')))
+      return;
+    await runOperation(async () => {
+      const result = await service.endAssignment(assignmentId);
+      if (!isMounted()) return;
+      if (result.ok && result.value.projectId === id) {
+        setSuccess(t('projects.finished'));
+        await load();
+      } else
+        setError(
+          result.ok ? t('common.resourceSaveError') : result.error.message,
+        );
+    });
   };
 
   const close = async () => {
-    if (!globalThis.confirm(t('projects.confirmClose'))) return;
-    setBusy(true);
-    setError(null);
-    const result = await service.closeProject(id);
-    if (result.ok) {
-      setSuccess(t('projects.closed'));
-      await load();
-    } else setError(result.error.message);
-    setBusy(false);
+    if (inFlight.current || !globalThis.confirm(t('projects.confirmClose')))
+      return;
+    await runOperation(async () => {
+      const result = await service.closeProject(id);
+      if (!isMounted()) return;
+      if (result.ok && result.value.id === id) {
+        setSuccess(t('projects.closed'));
+        await load();
+      } else
+        setError(
+          result.ok ? t('common.resourceSaveError') : result.error.message,
+        );
+    });
   };
 
   if (loading && !project)
     return <LoadingState>{t('common.loading')}</LoadingState>;
-  if (error && !project) return <Notice tone="error">{error}</Notice>;
+  if (error && !project)
+    return (
+      <section>
+        <Notice tone="error">{error}</Notice>
+        <Button
+          onClick={() => {
+            setError(null);
+            setLoading(true);
+            setLoadAttempt((attempt) => attempt + 1);
+          }}
+        >
+          {t('common.retry')}
+        </Button>
+      </section>
+    );
   if (!project) return null;
   const canEditProject = capabilities?.manageAssigned === true;
   const canCloseProject =

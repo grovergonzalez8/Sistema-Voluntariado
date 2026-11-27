@@ -1,4 +1,4 @@
-import { useState, type SyntheticEvent } from 'react';
+import { useLayoutEffect, useRef, useState, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Button, Field, Notice } from '@sistema-voluntariado/ui';
@@ -34,34 +34,57 @@ export function VolunteerForm({
   >([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const mounted = useRef(false);
+  const inFlight = useRef(false);
   const { t } = useTranslation();
 
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
   const save = async (acceptPotentialDuplicate: boolean) => {
+    if (inFlight.current) return;
     const validation = validateVolunteerInput(input);
     if (!validation.ok) {
       setErrors(validation.errors);
       return;
     }
+    setErrors({});
+    inFlight.current = true;
     setSubmitting(true);
     setError(null);
-    const result = volunteerId
-      ? await service.updateVolunteer(
-          volunteerId,
-          input,
-          acceptPotentialDuplicate,
-        )
-      : await service.createVolunteer(input, acceptPotentialDuplicate);
-    if (result.ok) {
-      if (result.value.kind === 'duplicate-warning') {
-        setDuplicateMatches(result.value.duplicateMatches);
+    try {
+      const result = volunteerId
+        ? await service.updateVolunteer(
+            volunteerId,
+            input,
+            acceptPotentialDuplicate,
+          )
+        : await service.createVolunteer(input, acceptPotentialDuplicate);
+      if (!mounted.current) return;
+      if (result.ok) {
+        if (result.value.kind === 'duplicate-warning') {
+          setDuplicateMatches(result.value.duplicateMatches);
+        } else {
+          setDuplicateMatches([]);
+          if (volunteerId && result.value.volunteer.id !== volunteerId) {
+            setError(t('common.resourceSaveError'));
+          } else onSaved(result.value.volunteer.id);
+        }
       } else {
-        setDuplicateMatches([]);
-        onSaved(result.value.volunteer.id);
+        setError(result.error.message);
       }
-    } else {
-      setError(result.error.message);
+    } catch {
+      if (mounted.current) setError(t('common.resourceSaveError'));
+    } finally {
+      if (mounted.current) {
+        inFlight.current = false;
+        setSubmitting(false);
+      }
     }
-    setSubmitting(false);
   };
 
   const submit = (event: SyntheticEvent<HTMLFormElement>) => {

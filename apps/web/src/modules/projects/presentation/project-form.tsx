@@ -1,4 +1,4 @@
-import { useState, type SyntheticEvent } from 'react';
+import { useLayoutEffect, useRef, useState, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Button, Field, Notice } from '@sistema-voluntariado/ui';
@@ -27,26 +27,50 @@ export function ProjectForm({
   const [errors, setErrors] = useState<ProjectValidationErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const mounted = useRef(false);
+  const inFlight = useRef(false);
   const { t } = useTranslation();
+
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const submit = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (inFlight.current) return;
     const validation = validateProjectInput(input);
     if (!validation.ok) {
       setErrors(validation.errors);
       return;
     }
+    setErrors({});
+    inFlight.current = true;
     setSubmitting(true);
     setError(null);
     void (
       projectId
         ? service.updateProject(projectId, input)
         : service.createProject(input)
-    ).then((result) => {
-      if (result.ok) onSaved(result.value.id);
-      else setError(result.error.message);
-      setSubmitting(false);
-    });
+    ).then(
+      (result) => {
+        if (!mounted.current) return;
+        inFlight.current = false;
+        setSubmitting(false);
+        if (result.ok && (!projectId || result.value.id === projectId))
+          onSaved(result.value.id);
+        else if (result.ok) setError(t('common.resourceSaveError'));
+        else setError(result.error.message);
+      },
+      () => {
+        if (!mounted.current) return;
+        inFlight.current = false;
+        setSubmitting(false);
+        setError(t('common.resourceSaveError'));
+      },
+    );
   };
 
   return (
