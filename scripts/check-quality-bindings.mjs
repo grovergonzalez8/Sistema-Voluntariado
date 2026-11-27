@@ -1,6 +1,6 @@
 import console from 'node:console';
-import { readFileSync } from 'node:fs';
 import process from 'node:process';
+import { text } from 'node:stream/consumers';
 import { pathToFileURL } from 'node:url';
 
 const network = 'supabase_network_sistema-voluntariado';
@@ -82,6 +82,6 @@ if (
   process.argv[1] &&
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
-  checkQualityBindings(JSON.parse(readFileSync(0, 'utf8')), process.argv[2]);
+  checkQualityBindings(JSON.parse(await text(process.stdin)), process.argv[2]);
   console.log('Effective Docker publications verified on IPv4 loopback.');
 }

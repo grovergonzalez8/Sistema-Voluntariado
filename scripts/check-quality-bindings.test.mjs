@@ -1,4 +1,8 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import process from 'node:process';
+import { text } from 'node:stream/consumers';
 import test from 'node:test';
 
 import { checkQualityBindings } from './check-quality-bindings.mjs';
@@ -67,4 +71,20 @@ test('rejects missing services, stray networks and unexpected published services
     () => checkQualityBindings([auth], 'stack'),
     /Unexpected published/u,
   );
+});
+
+test('reads a large inspection document through a pipe', async () => {
+  const inspection = fixture('probe', '8080/tcp', '15432');
+  inspection.Config = { Env: ['SYNTHETIC='.padEnd(256 * 1024, 'x')] };
+  const verifier = spawn(
+    process.execPath,
+    ['scripts/check-quality-bindings.mjs', 'probe'],
+    { stdio: ['pipe', 'pipe', 'pipe'] },
+  );
+  const completion = once(verifier, 'close');
+  const stderr = text(verifier.stderr);
+  const stdout = text(verifier.stdout);
+  verifier.stdin.end(JSON.stringify([inspection]));
+  assert.deepEqual(await completion, [0, null], await stderr);
+  assert.match(await stdout, /Effective Docker publications verified/u);
 });
