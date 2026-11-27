@@ -28,6 +28,8 @@ El orquestador redirige stdout/stderr de Functions a un directorio temporal, con
 
 ## Equivalente Linux del job
 
+En el runner hospedado, Quality ejecuta primero `scripts/quality-supabase.sh prepare` para instalar una barrera de entrada en la VM efímera y probar que Docker asigna loopback por defecto en la red exclusiva del proyecto. El primer arranque deshabilita temporalmente migraciones y seed. Tras comprobar los bindings efectivos se restaura la configuración, se ejecuta el reset con seed sintético y se repite la comprobación. El entorno local de abajo requiere su propio aislamiento antes de iniciar Supabase.
+
 Desde un clon limpio, con Docker disponible:
 
 ```bash
