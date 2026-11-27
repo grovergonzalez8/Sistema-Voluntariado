@@ -6,6 +6,9 @@ Los cambios relevantes siguen Keep a Changelog y, cuando existan releases, Seman
 
 ### Fixed
 
+- AUD-002: el wrapper de cambio de estado adquiere el mutex administrativo antes
+  de bloquear la cuenta, siguiendo el orden de gestión de roles. Incluye harness
+  para PostgreSQL descartable; su ejecución real queda pendiente de autorización.
 - AUD-004: las pantallas parametrizadas aíslan datos, formularios y operaciones
   por recurso; descartan respuestas obsoletas, bloquean envíos duplicados y
   conservan la idempotencia de recovery y el refresco de autoridad del actor
