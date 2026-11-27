@@ -345,6 +345,10 @@ test('keeps process ownership aligned across scripts, Playwright, and Actions', 
     'utf8',
   );
   const workflow = readFileSync('.github/workflows/quality.yml', 'utf8');
+  const qualitySupabase = readFileSync('scripts/quality-supabase.sh', 'utf8');
+  const qualityPrepare = 'bash scripts/quality-supabase.sh prepare';
+  const qualityStart = 'bash scripts/quality-supabase.sh start-unseeded';
+  const qualityCleanup = 'bash scripts/quality-supabase.sh cleanup';
 
   assert.equal(
     rootPackage.scripts['db:start'],
@@ -372,13 +376,19 @@ test('keeps process ownership aligned across scripts, Playwright, and Actions', 
   assert.match(playwright, /name: 'Frontend'/u);
   assert.doesNotMatch(playwright, /functions:serve/u);
   assert.match(supabaseConfig, /\[edge_runtime\][\s\S]*?enabled = false/u);
-  assert.match(workflow, /pnpm db:start/u);
+  assert.ok(workflow.includes(qualityPrepare));
+  assert.ok(workflow.includes(qualityStart));
+  assert.ok(workflow.includes(qualityCleanup));
+  assert.match(qualitySupabase, /pnpm db:start[^\n]*\n\s+verify_stack/u);
+  assert.match(qualitySupabase, /pnpm db:stop --no-backup/u);
   assert.match(workflow, /pnpm projects:test:concurrency/u);
   assert.match(workflow, /pnpm test:e2e/u);
   assert.doesNotMatch(workflow, /functions:serve/u);
   assert.ok(
-    workflow.indexOf('pnpm db:start') <
-      workflow.indexOf('pnpm projects:test:concurrency'),
+    workflow.indexOf(qualityPrepare) < workflow.indexOf(qualityStart) &&
+      workflow.indexOf(qualityStart) < workflow.indexOf('pnpm db:reset') &&
+      workflow.indexOf('pnpm db:reset') <
+        workflow.indexOf('pnpm projects:test:concurrency'),
   );
   assert.ok(
     workflow.indexOf('pnpm db:test') <
@@ -392,7 +402,7 @@ test('keeps process ownership aligned across scripts, Playwright, and Actions', 
     workflow.indexOf('pnpm test:functions') < workflow.indexOf('pnpm test:e2e'),
   );
   assert.ok(
-    workflow.indexOf('pnpm test:e2e') < workflow.indexOf('pnpm db:stop'),
+    workflow.indexOf('pnpm test:e2e') < workflow.indexOf(qualityCleanup),
   );
 });
 
