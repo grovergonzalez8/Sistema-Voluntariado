@@ -20,3 +20,5 @@
 | R-016 | Participation rompe elegibilidad histórica                      | baja/crítico         | orden global de locks, revalidación Assignment/Activity, guard de finish, pgTAP y harness real                  |
 | R-017 | Identidad Auth confirmada diverge de Account/Invitation         | baja/crítico         | recovery administrativo con ownership bilateral, permiso exclusivo, idempotencia, auditoría y onboarding normal |
 | R-018 | Attendance se registra fuera de lifecycle o pierde correcciones | baja/crítico         | orden account–scope–Project–Activity–Participation–Attendance, `expected_status`, guards, pgTAP y harness real  |
+
+El teardown de AUD-008 requiere validar la integración real con Supabase CLI antes de confiar en ese recorrido para un piloto. Consulte el [cierre de estabilización](../exec-plans/0019-stabilization-closeout.md).

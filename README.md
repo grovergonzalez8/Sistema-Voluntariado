@@ -4,7 +4,7 @@ Monolito modular para gestionar progresivamente la operación de voluntariado. E
 
 ## Estado
 
-Proyecto privado y sin licencia definitiva. No se permite redistribución hasta que el propietario tome una decisión legal.
+La licencia sigue pendiente y los paquetes declaran `UNLICENSED`. No se permite redistribución hasta que el propietario tome una decisión legal. Consulte el [cierre de estabilización](docs/exec-plans/0019-stabilization-closeout.md) para conocer la evidencia verificada y las condiciones de un piloto.
 
 ## Requisitos
 
@@ -76,4 +76,4 @@ corepack pnpm account-lifecycle:test
 
 `verify` y `test:functions` no exigen Docker; PostgreSQL, concurrencia, Auth, Mailpit y E2E sí requieren Supabase local. `projects:test:concurrency` presupone `db:start` y `db:reset`, usa conexiones PostgreSQL reales y limpia sus fixtures. Cubre Project Volunteer Assignments, scopes de project managers, Project Activities, Activity Participation y Activity Attendance, incluidos cierre, transiciones terminales, elegibilidad, corrección optimista y revocación contextual. Consulte `docs/deployment/local-development.md` para el recorrido completo. Attendance ya se integra en Activity Participants y tiene un E2E canónico; alojamiento, RSVP, tareas, finanzas y los demás contextos operativos siguen fuera de alcance. El alcance de project manager es una relación explícita por proyecto, no un framework genérico de scopes.
 
-La propiedad de procesos y el comando Linux equivalente al job `Quality` se documentan en `docs/deployment/continuous-integration.md`.
+El árbol actual contiene 14 migraciones. El padrón pasó sus cinco casos Playwright y 93 aserciones pgTAP con un stack local aislado. La secuencia Linux completa de `Quality`, incluidos el contrato Auth, la concurrencia de invitaciones y el segundo reset, está en el [runbook de CI](docs/deployment/continuous-integration.md). Consulte la [evidencia del padrón](docs/exec-plans/0018-volunteer-excel-e2e-coverage.md#reintento-con-docker-compose-y-cierre-26-de-noviembre-de-2026).

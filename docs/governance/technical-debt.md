@@ -16,3 +16,5 @@
 La deuda no autoriza pantallas falsas ni controles de seguridad incompletos.
 Activity Attendance V1 cerró su recorrido PostgreSQL–UI y E2E canónico; sus
 extensiones excluidas no se registran como deuda sin requisitos de producto.
+
+La validación integral posterior a la estabilización con Node 22.18.0 y la integración de teardown con Supabase CLI están pendientes. Los [resultados y condiciones de piloto](../exec-plans/0019-stabilization-closeout.md#continuidad-piloto-y-producción) distinguen estos pendientes de la deuda operativa de producción.

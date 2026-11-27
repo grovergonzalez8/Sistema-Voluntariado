@@ -14,6 +14,8 @@ El job `Quality` usa los mismos scripts raíz que el desarrollo local. La difere
 
 `supabase/config.toml` mantiene Edge Runtime automático deshabilitado. `db:start` lo excluye y `db:reset` elimina cualquier contenedor que la versión local de Supabase CLI intente recrear durante su fase `Restarting containers`. Playwright no declara Functions como `webServer` y no usa `reuseExistingServer` para ella. Vite conserva `reuseExistingServer: !CI` para permitir un servidor local deliberado; en CI cualquier ocupante previo de 5173 falla.
 
+AUD-008 acota el teardown al ID completo, proyecto y marcador de propiedad del runtime, incluso antes de readiness. La corrección se verificó con Docker aislado. El arranque y teardown con Edge Functions de la CLI siguen pendientes. El E2E del padrón usó Compose aislado y no ejerció ese contrato. Consulte los [resultados de estabilización](../exec-plans/0019-stabilization-closeout.md).
+
 ## Readiness y diagnóstico
 
 El orquestador redirige stdout/stderr de Functions a un directorio temporal, conserva el PID, vigila salida prematura y consulta exclusivamente `manage-account-invitation`. La señal válida es HTTP 401, JSON `code = unauthenticated`, `Content-Type` JSON y cabeceras de métodos propias del handler. No necesita JWT y no revela datos.
@@ -30,19 +32,23 @@ Desde un clon limpio, con Docker disponible:
 
 ```bash
 set -euo pipefail
+# Ejecute con Node.js 22.18.0, como en Quality.
 corepack enable
 corepack prepare pnpm@11.9.0 --activate
 pnpm install --frozen-lockfile
 pnpm verify
-cp supabase/functions/.env.example supabase/functions/.env.local
 pnpm db:start
 trap 'pnpm db:stop || true' EXIT
 pnpm db:reset
 pnpm exec supabase db lint --local --level warning
 pnpm db:test
 pnpm projects:test:concurrency
+pnpm invitations:test:auth-contract
+pnpm invitations:test:concurrency
+pnpm db:reset
 pnpm test:functions
 pnpm --filter @sistema-voluntariado/web exec playwright install --with-deps chromium
+cp supabase/functions/.env.example supabase/functions/.env.local
 status="$(pnpm exec supabase status -o env)"
 export VITE_SUPABASE_URL="$(sed -n 's/^API_URL="\(.*\)"$/\1/p' <<< "$status")"
 export VITE_SUPABASE_ANON_KEY="$(sed -n 's/^ANON_KEY="\(.*\)"$/\1/p' <<< "$status")"

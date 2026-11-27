@@ -1,6 +1,7 @@
 # ExecPlan 0015 — Orden de bloqueos administrativos (AUD-002)
 
-- Fecha: 2026-11-22. Estado: implementado, gates no destructivos aprobados.
+- Estado actual: integrado en `c1cf289` y verificado posteriormente en PostgreSQL 17.11. Consulte el [cierre de estabilización](0019-stabilization-closeout.md#evidencia-y-alcance) para los dos deadlocks de la línea base, los 23 escenarios posteriores y los resultados TAP.
+- Cierre histórico del 2026-11-22: implementado, gates no destructivos aprobados.
   APTO PARA COMMIT CON VERIFICACIÓN PARCIAL; concurrencia real NO EJECUTADA.
 - Rama `main`, HEAD inicial `34d46e3`, Git limpio. AUD-001/003/004 registrados.
 - Plan creado antes de código. Número 0015 libre. Instrucciones raíz/Supabase,

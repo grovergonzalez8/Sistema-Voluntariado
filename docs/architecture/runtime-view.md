@@ -224,7 +224,7 @@ En mutaciones, manager antepone `account FOR SHARE → active scope FOR SHARE`; 
 
 ```mermaid
 sequenceDiagram
-  participant UI as Futuro consumidor FASE B
+  participant UI as Activity Participants UI
   participant RPC as Attendance mutation RPC
   participant P as Project row
   participant A as Activity row
