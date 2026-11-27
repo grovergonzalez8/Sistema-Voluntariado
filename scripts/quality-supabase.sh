@@ -14,7 +14,8 @@ owned_network() {
 }
 
 verify_network() {
-  owned_network &&
+  sudo -n nft list chain inet "$table" before_docker_dnat >/dev/null &&
+    owned_network &&
     test "$(docker network inspect "$network" --format "{{index .Options \"$binding_opt\"}}")" = 127.0.0.1
 }
 
@@ -32,10 +33,6 @@ verify_stack() {
 }
 
 prepare() (
-  if [[ "${GITHUB_ACTIONS:-}" != true || "${RUNNER_ENVIRONMENT:-}" != github-hosted || "$(uname -s)" != Linux ]]; then
-    echo 'The Quality isolation setup requires a GitHub-hosted Linux runner.' >&2
-    return 1
-  fi
   if docker network inspect "$network" >/dev/null 2>&1; then
     echo 'Refusing to reuse an existing Supabase network.' >&2
     return 1
@@ -101,6 +98,11 @@ cleanup() {
   docker network rm "$network"
   sudo -n nft delete table inet "$table"
 }
+
+if [[ "${GITHUB_ACTIONS:-}" != true || "${RUNNER_ENVIRONMENT:-}" != github-hosted || "$(uname -s)" != Linux ]]; then
+  echo 'The Quality isolation setup requires a GitHub-hosted Linux runner.' >&2
+  exit 1
+fi
 
 case "${1:-}" in
   prepare) prepare ;;
